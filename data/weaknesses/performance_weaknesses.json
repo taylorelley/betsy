@@ -1,0 +1,365 @@
+[
+  {
+    "id": "PERF-001",
+    "name": "N+1 Query Pattern",
+    "description": "A query is issued inside a loop over the results of a previous query, multiplying round trips to the data store.",
+    "extended_description": "Code fetches a collection and then issues one additional query per element to load related data. The round-trip count grows linearly with result size, so latency that is acceptable for a handful of rows becomes pathological in production. ORMs make this especially easy to introduce through lazy-loaded relations accessed during iteration.",
+    "detection_methods": [
+      "Look for query or fetch calls inside for/while loops and comprehensions",
+      "Check ORM relation attributes accessed while iterating a result set",
+      "Identify repository or DAO methods called once per element of a collection"
+    ],
+    "potential_mitigations": [
+      "Batch the related lookups into a single query using an IN clause or join",
+      "Use eager loading (select_related / joinedload / include) for relations read during iteration",
+      "Cache repeated lookups by key for the duration of the request"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "High",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Excessive Database Load",
+      "High Request Latency",
+      "Connection Pool Exhaustion"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-002",
+    "name": "Unbounded Data Loading",
+    "description": "A query or API read loads an entire table or collection into memory without pagination or a result limit.",
+    "extended_description": "Reads that lack LIMIT, pagination, or streaming grow with the size of the underlying data set. These operations typically pass testing against small fixtures and only degrade once production volume accumulates, at which point they cause memory spikes and long garbage-collection pauses.",
+    "detection_methods": [
+      "Look for queries without LIMIT, OFFSET, or pagination parameters",
+      "Check for read_all / fetchall / find({}) style calls on growing tables",
+      "Identify endpoints that serialize an entire collection into a response"
+    ],
+    "potential_mitigations": [
+      "Apply pagination or cursor-based iteration to all collection reads",
+      "Stream large result sets rather than materializing them in memory",
+      "Enforce a maximum page size at the API boundary"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "High",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Memory Exhaustion",
+      "High Request Latency",
+      "Garbage Collection Pauses"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-003",
+    "name": "Missing Database Index on Filtered Column",
+    "description": "A column used in a WHERE, JOIN, or ORDER BY clause has no supporting index, forcing full scans.",
+    "extended_description": "Without an index, the database must scan every row to satisfy the predicate. Cost grows linearly with table size, so queries degrade silently as data accumulates. Composite predicates additionally require the index column order to match the query shape to be usable.",
+    "detection_methods": [
+      "Compare columns used in WHERE/JOIN/ORDER BY against declared indexes in migrations",
+      "Look for foreign key columns without an accompanying index",
+      "Check for queries filtering on columns absent from any index definition"
+    ],
+    "potential_mitigations": [
+      "Add indexes covering the columns used in frequent predicates and joins",
+      "Order composite index columns to match the query's filter and sort shape",
+      "Review query plans for sequential scans on large tables"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "Medium",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Full Table Scans",
+      "High Query Latency",
+      "Excessive Database Load"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-004",
+    "name": "Inefficient String Concatenation in Loop",
+    "description": "Strings are built by repeated concatenation inside a loop, producing quadratic time and allocation behaviour.",
+    "extended_description": "In languages with immutable strings, each concatenation allocates a new object and copies the accumulated content. Building a string across n iterations therefore costs O(n^2) time and allocation churn, rather than the O(n) achieved by a builder or a single join.",
+    "detection_methods": [
+      "Look for += on string variables inside loops",
+      "Check for string building without a StringBuilder, list-join, or io buffer",
+      "Identify report or serialization routines that append in a loop"
+    ],
+    "potential_mitigations": [
+      "Accumulate parts in a list and join once after the loop",
+      "Use a dedicated string builder or byte buffer type",
+      "Stream output directly to the destination instead of buffering a large string"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "Low",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Excessive CPU Usage",
+      "Memory Churn",
+      "Slow Response Times"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-005",
+    "name": "Blocking I/O in Hot Path",
+    "description": "A synchronous network, disk, or subprocess call is made on a latency-sensitive or high-frequency code path.",
+    "extended_description": "Blocking I/O on a request-handling path holds the calling thread for the full duration of the operation. Under concurrency this consumes the thread or worker pool, causing queueing delays that far exceed the cost of the original call and degrading throughput for unrelated requests.",
+    "detection_methods": [
+      "Look for synchronous HTTP, database, or file calls inside request handlers",
+      "Check for blocking calls in async functions or event-loop callbacks",
+      "Identify per-request disk reads of data that could be cached"
+    ],
+    "potential_mitigations": [
+      "Move blocking work to a background worker or task queue",
+      "Use async I/O clients on paths that already run in an event loop",
+      "Cache results that do not need to be re-fetched per request"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "High",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Thread Pool Exhaustion",
+      "Reduced Throughput",
+      "High Request Latency"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-006",
+    "name": "Redundant Repeated Computation",
+    "description": "An expensive pure computation is recalculated on every call instead of being cached or hoisted.",
+    "extended_description": "Deterministic work such as parsing configuration, compiling regular expressions, deriving keys, or building lookup tables is often placed inside frequently called functions. Because the result is identical each time, the repeated computation is pure overhead that scales with call frequency.",
+    "detection_methods": [
+      "Look for regular expression compilation inside functions rather than at module scope",
+      "Check for configuration or schema parsing performed per request",
+      "Identify loop-invariant expressions computed inside the loop body"
+    ],
+    "potential_mitigations": [
+      "Hoist loop-invariant and call-invariant work out of the hot path",
+      "Memoize pure functions with a bounded cache",
+      "Precompile regular expressions and parse configuration once at startup"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "Medium",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Excessive CPU Usage",
+      "Slow Response Times"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-007",
+    "name": "Inefficient Membership Test on Sequence",
+    "description": "Membership or lookup operations are performed against a list or array where a hash-based structure is required.",
+    "extended_description": "Testing membership with `in` against a list is a linear scan. Inside a loop this yields quadratic behaviour that is invisible at small sizes but dominates runtime once both collections grow. The same applies to repeated linear searches for a key in a list of records.",
+    "detection_methods": [
+      "Look for `in` tests against list or array values inside loops",
+      "Check for nested loops that pair elements to find matches",
+      "Identify repeated linear searches that could be indexed by key"
+    ],
+    "potential_mitigations": [
+      "Convert the searched collection to a set or dict before the loop",
+      "Build a key-to-record index once rather than scanning repeatedly",
+      "Use database-side joins instead of matching collections in application code"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "Medium",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Excessive CPU Usage",
+      "Quadratic Runtime Growth",
+      "Slow Response Times"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-008",
+    "name": "Missing Cache on Expensive Repeated Request",
+    "description": "An expensive external call or computation is repeated for identical inputs with no caching layer.",
+    "extended_description": "When the same upstream request, query, or derivation is issued repeatedly with identical inputs, every duplicate adds latency and load without producing new information. This is common for reference data, permission lookups, and feature configuration read on every request.",
+    "detection_methods": [
+      "Look for identical external calls issued repeatedly with the same arguments",
+      "Check for reference or configuration data fetched per request",
+      "Identify permission or lookup calls repeated within a single request"
+    ],
+    "potential_mitigations": [
+      "Add a request-scoped or shared cache keyed on the call arguments",
+      "Apply TTL-based caching for slow-changing reference data",
+      "Batch duplicate lookups within a request into a single call"
+    ],
+    "abstraction": "Base",
+    "structure": "Functional",
+    "status": "Stable",
+    "likelihood_of_exploit": "Medium",
+    "related_weaknesses": [],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Excessive Upstream Load",
+      "High Request Latency",
+      "Increased Operating Cost"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "",
+    "mapping_rationale": "",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-009",
+    "name": "Subnormal Floating-Point Values Slowing Hot Numeric Loops",
+    "description": "The code repeatedly computes with values that decay into the subnormal (denormal) range inside a tight loop, so on many processors each affected operation takes a slow assisted path and throughput collapses.",
+    "extended_description": "Gradual underflow keeps very small results as subnormal numbers instead of flushing them to zero, which preserves accuracy, but many x86 and some Arm cores process subnormal operands or results through microcode or software assists that can cost on the order of a hundred cycles each, so a loop can slow by an order of magnitude once its state drifts below roughly 2.2e-308 for double or 1.2e-38 for float. Typical sources are IIR filters, reverbs and envelope followers in audio and DSP code fed silence, exponential decay and damping in physics and control loops, iterative solvers and probability updates whose residuals shrink geometrically, neural-network weight decay and float32 SIMD or GPU kernels; inputs an attacker controls, such as silence or crafted signals, can trigger the slowdown on purpose. The usual fix is to enable flush-to-zero (FTZ) and denormals-are-zero (DAZ) with `_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON)`, `_MM_SET_DENORMALS_ZERO_MODE`, `_mm_setcsr`, JUCE `ScopedNoDenormals`, or `-ffast-math`, `-Ofast` or `/fp:fast` in CMakeLists.txt, a Makefile, setup.py or a .vcxproj, but this trades accuracy for speed and removes the guarantee that `x != y` implies `x - y != 0`, so a division guarded only by `if (x != y)` elsewhere in the same thread (REL-197) can then divide by zero; the setting is per thread and must be scoped and restored (REL-211). Loops that are not hot, values that cannot approach the underflow threshold, and code that already injects a tiny offset or snaps small state to zero are not findings, and in Java, C#, JavaScript and Go there is no portable FTZ control, so the remedy there is algorithmic. Derived from Goldberg (1991), Section 2.2.4.",
+    "detection_methods": [
+      "Search audio, DSP, filter, physics, control and solver code for recursive state updates such as `y = a * y + b * x`, `state *= decay`, `v *= damping` or `residual *= factor` inside per-sample or per-iteration loops, and check whether the state can decay toward zero without being reset",
+      "Search for existing FTZ and DAZ handling (_MM_SET_FLUSH_ZERO_MODE, _MM_SET_DENORMALS_ZERO_MODE, _mm_setcsr, ScopedNoDenormals, denormal-disabling fesetenv calls, fast-math flags in CMakeLists.txt, Makefile, setup.py or .vcxproj, Numba fastmath decorators) and check whether it covers the thread that runs the hot loop",
+      "Benchmark or profile hot loops with silent, zero or slowly decaying inputs and look for a throughput drop after the state becomes tiny",
+      "Where FTZ or DAZ is enabled, check the same thread for divisions guarded only by `x != y` or `x - y != 0` that flush-to-zero can break"
+    ],
+    "potential_mitigations": [
+      "Enable FTZ and DAZ only on the real-time or compute thread that needs it, save and restore MXCSR around that region, and document the accuracy trade-off.",
+      "Remove the need for subnormals algorithmically, for example by adding and subtracting a tiny offset in filter feedback, snapping state to zero below a threshold, or resetting state when input is silent.",
+      "Rescale iterative computations, or use double instead of float, so intermediate values stay in the normal range.",
+      "When flush-to-zero is enabled, guard divisions on the computed difference itself (`d = x - y; if (d != 0) ...` or a magnitude threshold) rather than on `x != y`."
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "Medium",
+    "related_weaknesses": [
+      {"nature": "PeerOf", "cwe_id": "CWE-1050", "view_id": "", "ordinal": ""},
+      {"nature": "PeerOf", "cwe_id": "CWE-400", "view_id": "", "ordinal": ""}
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": ["Implementation", "Design"],
+    "common_consequences": [
+      "Availability; DoS: Resource Consumption (CPU)",
+      "Integrity; Varies by Context"
+    ],
+    "taxonomy_mappings": [
+      {"taxonomy_name": "Goldberg 1991", "entry_id": "Section 2.2.4", "entry_name": "Denormalized Numbers", "mapping_fit": "Imprecise"}
+    ],
+    "mapping_usage": "Guideline-derived performance weakness",
+    "mapping_rationale": "Adapted from Goldberg (1991), Section 2.2.4 (Denormalized Numbers). Written for Scorpius localisation in original wording.",
+    "view_ids": ["GOLDBERG-1991"],
+    "view_names": ["Goldberg 1991 Floating-Point Arithmetic - Compilers and Environment"],
+    "source_guideline": "Subnormal (denormal) values in hot numeric loops causing severe slowdowns",
+    "source_chapter": "Compilers and Environment",
+    "source_catalog": "Goldberg 1991: What Every Computer Scientist Should Know About Floating-Point Arithmetic"
+  },
+  {
+    "id": "PERF-010",
+    "name": "Exact or Arbitrary-Precision Arithmetic in Hot Numeric Paths",
+    "description": "The code uses exact rational or unbounded-precision arithmetic inside loops where bounded floating point with a known error bound would be adequate, so operand sizes, memory use and running time grow with every operation.",
+    "extended_description": "Each exact multiplication roughly doubles the number of digits held and each addition of fractions with different denominators grows both numerator and denominator, so a loop of thousands of operations on rationals or unbounded decimals can run orders of magnitude slower than hardware floating point and consume ever more memory, while transcendental functions such as sin, exp and log cannot be exact anyway. Signs include Python `fractions.Fraction` or `decimal.Decimal` with a precision far above the default 28 digits inside numeric loops, NumPy arrays of `dtype=object` holding Fractions, `mpmath` or `gmpy2.mpq` and `mpfr` at high precision in inner loops, SymPy `Rational` or symbolic evaluation used for plain numeric work, Java `BigDecimal` with `MathContext.UNLIMITED` or BigInteger-based fractions in simulation code, C# BigInteger rationals, JavaScript `BigInt`, big.js or decimal.js in render or physics loops, C and C++ GMP `mpq_t` or Boost.Multiprecision `cpp_rational`, and Rust `num::BigRational`. Typical domains are geometry, statistics, ML preprocessing and simulations whose inputs are measurements or already rounded floats, where exactness adds cost without adding accuracy. Money and accounting with fixed-scale decimals or integer minor units, robust geometric predicates that use a fast floating-point filter with an exact fallback, cryptography, and one-off, configuration-time or test-only computations are not findings. Derived from Goldberg (1991), Section 3.2.3.",
+    "detection_methods": [
+      "Search for Fraction(, fractions.Fraction, Decimal combined with getcontext().prec or localcontext(prec=...) well above 28, mpmath.mp.dps, gmpy2.mpq, sympy.Rational, dtype=object arrays, BigDecimal with MathContext.UNLIMITED, BigInteger-based ratio classes, BigRational, mpq_t, cpp_rational, BigInt and decimal.js inside loops",
+      "Check whether the loop is hot (per element, per sample, per frame or per request) and whether denominators or digit counts can grow with the number of iterations",
+      "Check whether the inputs are measurements or already rounded floating-point values, in which case exact arithmetic adds cost without accuracy",
+      "Profile or benchmark the loop at realistic sizes and look for time or memory that grows faster than the iteration count"
+    ],
+    "potential_mitigations": [
+      "Use double precision with a documented error bound, together with numerically stable building blocks such as math.fsum or Kahan summation, hypot, log1p and fma where accuracy matters.",
+      "Use fixed-scale decimals or integer minor units for money rather than unbounded rationals.",
+      "Where exactness is needed only for rare borderline cases, such as geometric orientation tests, evaluate in floating point first and fall back to exact arithmetic only when the error bound cannot decide the result.",
+      "If arbitrary precision is genuinely required, cap the precision explicitly and round or reduce intermediate values periodically."
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "Low",
+    "related_weaknesses": [
+      {"nature": "PeerOf", "cwe_id": "CWE-407", "view_id": "", "ordinal": ""},
+      {"nature": "PeerOf", "cwe_id": "CWE-1050", "view_id": "", "ordinal": ""}
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": ["Implementation", "Design"],
+    "common_consequences": [
+      "Availability; DoS: Resource Consumption (CPU)",
+      "Availability; DoS: Resource Consumption (Memory)"
+    ],
+    "taxonomy_mappings": [
+      {"taxonomy_name": "Goldberg 1991", "entry_id": "Section 3.2.3", "entry_name": "Optimizers", "mapping_fit": "Imprecise"}
+    ],
+    "mapping_usage": "Guideline-derived performance weakness",
+    "mapping_rationale": "Adapted from Goldberg (1991), Section 3.2.3 (Optimizers). Written for Scorpius localisation in original wording.",
+    "view_ids": ["GOLDBERG-1991"],
+    "view_names": ["Goldberg 1991 Floating-Point Arithmetic - Compilers and Environment"],
+    "source_guideline": "Exact rational or arbitrary-precision arithmetic in hot paths",
+    "source_chapter": "Compilers and Environment",
+    "source_catalog": "Goldberg 1991: What Every Computer Scientist Should Know About Floating-Point Arithmetic"
+  }
+]

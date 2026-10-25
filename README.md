@@ -5,8 +5,10 @@
 BETSY inventories source functions deterministically and dispatches them individually
 for later analysis. This milestone implements the attached [build specification](docs/BUILD_SPEC.md).
 The executable is `funh`, preserving the build pack's command interface.
-There is no bug verdict engine yet: Jev, AI inference, semantic analysis, UI and network
-services are subsequent milestones.
+v0.2 adds weakness decisions: `funh analyze` asks a decision model (Jev or OpenAI
+Decisions) whether each catalog weakness is present in each function, one weakness per
+question. Scanning and every test stay offline. Model probabilities are stored apart from
+parser facts and are leads to verify, never proof.
 
 ## Build and try it
 
@@ -148,6 +150,72 @@ attempt count. An append-only event history preserves fault, retry, recovery and
 evidence; the latest error remains on the item even after success. This guarantees durable
 queue transitions, not exactly-once external side effects. External analyzers should use
 occurrence IDs as their own idempotency keys. Run status is derived from persisted item states.
+
+## Weakness decisions
+
+`data/weaknesses/` embeds the scorpius-cli catalogs: 969 MITRE CWEs, 213 reliability (`REL-`)
+and 10 performance (`PERF-`) weaknesses. Provenance and hashes are in its `PROVENANCE.md`.
+
+```sh
+funh weaknesses list --language rust            # deterministic plan: nodes, roots, skips with reasons
+funh weaknesses plan --snapshot <snapshot-id>   # dry-run question/request budget, no network
+JEV_API_KEY=... funh analyze --snapshot <snapshot-id> --provider jev
+OPENAI_API_KEY=... funh analyze --snapshot <snapshot-id> --provider openai
+funh analyze --run <run-id> --provider jev --retry-failed   # resume; same provider flags required
+funh run findings --run <run-id> --format jsonl
+```
+
+Each question asks about exactly one weakness and gets an independent probability: a Jev
+`noul` (`POST /v1/systemone`) or an OpenAI `predicate` (`POST /v1/decisions`). The function
+record (language, path, kind, name, exact stored source) is the shared state. `--provider
+mock --mock-file script.json` is a deterministic offline provider for tests.
+
+To keep this fast and cheap, BETSY layers five measures:
+
+1. **Deterministic prefilter** (profile `function-v1`). Entries are skipped, each with a
+   recorded reason, when:
+   - their explicit language platforms don't match the function's language;
+   - they are hardware-only;
+   - every mode of introduction lies outside source code.
+
+   MITRE `Prohibited`/`Discouraged` entries and Pillars are asked only as hierarchy gates and
+   are never reported. Fixtures go from 1,192 questions per function to 706–934, depending on
+   the language.
+2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
+   CWE-1000. Round 1 asks the roots, plus every REL and PERF entry. Children are asked only
+   when the parent's probability reaches `--gate-threshold` (default 0.15, set low for
+   recall); a refusal also descends. Unasked subtrees are recorded as `gated` with the
+   parent's probability. `--exhaustive` turns gating off; comparing it against a gated run on
+   labeled code is how to tune the threshold.
+3. **Batching.** All of a round's questions go into one request, or `ceil(n/limit)` requests
+   (`--max-questions`; default 100 for Jev, 400 for OpenAI, its documented maximum). A 413 or
+   422 halves the chunk and retries.
+4. **Prefix reuse and concurrency.**
+   - The function is the shared prefix of every request, and OpenAI requests carry
+     `prompt_cache_key=<source_hash>`. The first chunk of a round is sent alone to warm the
+     cache, then the rest run concurrently.
+   - `--concurrency` functions are evaluated in parallel, and `--max-inflight` caps the
+     requests in flight.
+   - Only the coordinator thread writes SQLite and claims work through the existing
+     dispatcher.
+   - Requests retry with backoff on 408, 429 and 5xx, honouring `Retry-After`. A provider
+     failure marks the function `failed_retryable`, which is retried only with
+     `--retry-failed`.
+5. **Decision cache.** Answers are keyed by provider and model, language, `source_hash` and
+   question hash. Duplicate function bodies and re-runs after edits reuse earlier answers
+   without a request.
+
+Run configuration (provider, model, catalog hash, profile, selection, thresholds, gating)
+determines the run identity and is checked on resume. `--weakness CWE-89,REL-001` asks only the
+listed weaknesses, flat and ungated; `--exclude-weakness` removes entries. SQLite tables:
+`analysis_runs`, `weakness_plan` (per-language dispositions), `weakness_decisions` (per
+function, weakness: role, round, origin `provider|cache|refused|gated`, probability) and
+`decision_cache`. Each dispatch item's result is a summary: questions asked, cached, gated,
+rounds, usage, and positives at or above `--threshold`. The schema is now `user_version=2`;
+v1 databases are upgraded in place by adding these tables.
+
+The Decisions response container was not fully documented when this was written. The parser
+accepts an `answers`, `output`, `decisions` or `results` array of `{name, probability}`.
 
 ## Development and validation
 

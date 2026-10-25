@@ -21,4 +21,9 @@ CREATE TRIGGER IF NOT EXISTS functions_delete BEFORE DELETE ON functions BEGIN S
 CREATE TRIGGER IF NOT EXISTS gaps_insert BEFORE INSERT ON gaps WHEN (SELECT locked FROM snapshots WHERE id=NEW.snapshot_id)=1 BEGIN SELECT RAISE(ABORT,'immutable snapshot'); END;
 CREATE TRIGGER IF NOT EXISTS gaps_update BEFORE UPDATE ON gaps BEGIN SELECT RAISE(ABORT,'immutable snapshot'); END;
 CREATE TRIGGER IF NOT EXISTS gaps_delete BEFORE DELETE ON gaps BEGIN SELECT RAISE(ABORT,'immutable snapshot'); END;
-PRAGMA user_version=1;
+CREATE TABLE IF NOT EXISTS analysis_runs(run_id TEXT PRIMARY KEY REFERENCES dispatch_runs(id),config_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS weakness_plan(run_id TEXT REFERENCES analysis_runs(run_id),language TEXT NOT NULL,weakness_id TEXT NOT NULL,disposition TEXT NOT NULL CHECK(disposition IN ('finding','gate','skipped')),reason TEXT,PRIMARY KEY(run_id,language,weakness_id));
+CREATE TABLE IF NOT EXISTS weakness_decisions(run_id TEXT NOT NULL,function_id TEXT NOT NULL,weakness_id TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('finding','gate')),round INTEGER NOT NULL,origin TEXT NOT NULL CHECK(origin IN ('provider','cache','refused','gated')),probability REAL,question_hash TEXT,reason TEXT,PRIMARY KEY(run_id,function_id,weakness_id),FOREIGN KEY(run_id,function_id) REFERENCES dispatch_items(run_id,function_id));
+CREATE INDEX IF NOT EXISTS weakness_findings ON weakness_decisions(run_id,role,probability);
+CREATE TABLE IF NOT EXISTS decision_cache(provider_key TEXT NOT NULL,language TEXT NOT NULL,source_hash TEXT NOT NULL,question_hash TEXT NOT NULL,probability REAL NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(provider_key,language,source_hash,question_hash));
+PRAGMA user_version=2;

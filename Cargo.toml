@@ -25,6 +25,7 @@ tree-sitter-python = "=0.25.0"
 tree-sitter-rust = "=0.24.0"
 tree-sitter-c = "=0.24.1"
 tree-sitter-cpp = "=0.23.4"
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
 
 [dev-dependencies]
 tempfile = "3"

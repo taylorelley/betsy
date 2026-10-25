@@ -2,6 +2,10 @@
 
 Dependency metadata inspected from the locked Cargo graph. Grammar crates are MIT; Tree-sitter is MIT. SQLite is bundled through libsqlite3-sys (MIT metadata; upstream SQLite is public domain). Dependencies retain their own notices. No upstream source is vendored in this repository.
 
+`data/weaknesses/` contains weakness catalogs copied from scorpius-cli (see its `PROVENANCE.md`). The MITRE CWE-derived `cwe_database.json` is used under the MITRE CWE Terms of Use; the required copyright designation and license are reproduced in `data/weaknesses/CWE_NOTICE.txt`.
+
+The HTTP client used by `funh analyze` is ureq 2.12.1 (MIT OR Apache-2.0) with rustls 0.23.46 (Apache-2.0 OR ISC OR MIT), ring 0.17.14 (Apache-2.0 AND ISC), rustls-webpki 0.103.16 (ISC), untrusted 0.9.0 (ISC), subtle 2.6.1 (BSD-3-Clause) and webpki-roots (CDLA-Permissive-2.0). It is only used when a network provider is selected.
+
 ## (MIT OR Apache-2.0) AND Unicode-3.0
 
 unicode-ident 1.0.27
