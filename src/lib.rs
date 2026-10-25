@@ -1,3 +1,5 @@
+pub mod analyze;
+pub mod decide;
 pub mod dispatch;
 pub mod languages;
 pub mod manifest;
@@ -6,3 +8,4 @@ pub mod parse;
 pub mod report;
 pub mod scan;
 pub mod store;
+pub mod weakness;

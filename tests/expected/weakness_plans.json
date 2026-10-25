@@ -1,0 +1,37 @@
+{
+  "c": {
+    "questions": 923,
+    "findings": 886,
+    "roots": 214
+  },
+  "cpp": {
+    "questions": 934,
+    "findings": 897,
+    "roots": 214
+  },
+  "javascript": {
+    "questions": 709,
+    "findings": 676,
+    "roots": 61
+  },
+  "typescript": {
+    "questions": 706,
+    "findings": 673,
+    "roots": 64
+  },
+  "tsx": {
+    "questions": 706,
+    "findings": 673,
+    "roots": 64
+  },
+  "python": {
+    "questions": 709,
+    "findings": 676,
+    "roots": 61
+  },
+  "rust": {
+    "questions": 746,
+    "findings": 709,
+    "roots": 87
+  }
+}

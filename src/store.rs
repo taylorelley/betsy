@@ -12,7 +12,7 @@ pub fn open(path: &Path) -> Result<Connection> {
     db.busy_timeout(std::time::Duration::from_secs(5))?;
     let version: u32 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
     anyhow::ensure!(
-        version <= 1,
+        version <= 2,
         "unsupported database schema version: {version}"
     );
     db.execute_batch(include_str!("schema.sql"))?;
