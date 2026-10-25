@@ -1,0 +1,331 @@
+[
+  {
+    "file": "edge.jsx",
+    "start_byte": 0,
+    "end_byte": 36,
+    "source": "async function* stream(){ yield 1; }",
+    "kind": "generator"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 47,
+    "end_byte": 55,
+    "source": "x => x+1",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 67,
+    "end_byte": 83,
+    "source": "x => ({value:x})",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 96,
+    "end_byte": 114,
+    "source": "short(){return 1;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 116,
+    "end_byte": 132,
+    "source": "*gen(){yield 2;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 157,
+    "end_byte": 178,
+    "source": "#private(){return 3;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 187,
+    "end_byte": 194,
+    "source": "() => 4",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 253,
+    "end_byte": 258,
+    "source": "()=>1",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 287,
+    "end_byte": 293,
+    "source": "x=>x+1",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.jsx",
+    "start_byte": 302,
+    "end_byte": 308,
+    "source": "x=>x>0",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.tsx",
+    "start_byte": 16,
+    "end_byte": 32,
+    "source": "<T,>(x:T):T => x",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.tsx",
+    "start_byte": 66,
+    "end_byte": 99,
+    "source": "function load(x:any){ return x; }",
+    "kind": "function"
+  },
+  {
+    "file": "edge.tsx",
+    "start_byte": 248,
+    "end_byte": 314,
+    "source": "function f(){ function inner<T>(x:T){return x;} return inner(1); }",
+    "kind": "function"
+  },
+  {
+    "file": "edge.tsx",
+    "start_byte": 262,
+    "end_byte": 295,
+    "source": "function inner<T>(x:T){return x;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.tsx",
+    "start_byte": 327,
+    "end_byte": 349,
+    "source": "@logged m(){return 1;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.tsx",
+    "start_byte": 379,
+    "end_byte": 384,
+    "source": "()=>2",
+    "kind": "arrow"
+  },
+  {
+    "file": "edge.py",
+    "start_byte": 0,
+    "end_byte": 143,
+    "source": "@first\n@second(1)\ndef café(\n    x = lambda z: z + 2,\n):\n    def gen():\n        yield x\n    async def nested():\n        return 2\n    return gen",
+    "kind": "function"
+  },
+  {
+    "file": "edge.py",
+    "start_byte": 37,
+    "end_byte": 52,
+    "source": "lambda z: z + 2",
+    "kind": "lambda"
+  },
+  {
+    "file": "edge.py",
+    "start_byte": 61,
+    "end_byte": 87,
+    "source": "def gen():\n        yield x",
+    "kind": "function"
+  },
+  {
+    "file": "edge.py",
+    "start_byte": 92,
+    "end_byte": 128,
+    "source": "async def nested():\n        return 2",
+    "kind": "function"
+  },
+  {
+    "file": "edge.py",
+    "start_byte": 182,
+    "end_byte": 220,
+    "source": "def method(self):\n            return 3",
+    "kind": "method"
+  },
+  {
+    "file": "edge.py",
+    "start_byte": 228,
+    "end_byte": 263,
+    "source": "lambda x: (x +\n                  1)",
+    "kind": "lambda"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 0,
+    "end_byte": 65,
+    "source": "#[cfg(feature=\"x\")]\npub async fn public() { let c = || |x| x+1; }",
+    "kind": "function"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 52,
+    "end_byte": 62,
+    "source": "|| |x| x+1",
+    "kind": "closure"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 55,
+    "end_byte": 62,
+    "source": "|x| x+1",
+    "kind": "closure"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 66,
+    "end_byte": 90,
+    "source": "unsafe fn dangerous() {}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 91,
+    "end_byte": 121,
+    "source": "const fn constant() -> i32 {1}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 141,
+    "end_byte": 168,
+    "source": "fn associated() -> Self {S}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.rs",
+    "start_byte": 196,
+    "end_byte": 213,
+    "source": "fn defaulted() {}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.h",
+    "start_byte": 29,
+    "end_byte": 70,
+    "source": "static inline int first(int a){return a;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.h",
+    "start_byte": 77,
+    "end_byte": 104,
+    "source": "int second(void){return 2;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.h",
+    "start_byte": 112,
+    "end_byte": 141,
+    "source": "int old(a) int a; {return a;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.h",
+    "start_byte": 142,
+    "end_byte": 178,
+    "source": "int (*factory(void))(int){return 0;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 14,
+    "end_byte": 32,
+    "source": "int f(){return 1;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 46,
+    "end_byte": 51,
+    "source": "C(){}",
+    "kind": "constructor"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 52,
+    "end_byte": 58,
+    "source": "~C(){}",
+    "kind": "destructor"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 59,
+    "end_byte": 78,
+    "source": "int in(){return 1;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 90,
+    "end_byte": 125,
+    "source": "C& operator+=(int x){return *this;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 126,
+    "end_byte": 162,
+    "source": "operator bool() const {return true;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 166,
+    "end_byte": 189,
+    "source": "int C::out(){return 2;}",
+    "kind": "method"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 190,
+    "end_byte": 217,
+    "source": "C::C() try {} catch(...) {}",
+    "kind": "constructor"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 218,
+    "end_byte": 262,
+    "source": "template<class T> T identity(T x){return x;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 272,
+    "end_byte": 301,
+    "source": "[](){return [](){return 1;};}",
+    "kind": "lambda"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 284,
+    "end_byte": 299,
+    "source": "[](){return 1;}",
+    "kind": "lambda"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 303,
+    "end_byte": 338,
+    "source": "[[nodiscard]] int attr(){return 0;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 345,
+    "end_byte": 365,
+    "source": "int alt(){return 1;}",
+    "kind": "function"
+  },
+  {
+    "file": "edge.cpp",
+    "start_byte": 372,
+    "end_byte": 392,
+    "source": "int alt(){return 2;}",
+    "kind": "function"
+  }
+]

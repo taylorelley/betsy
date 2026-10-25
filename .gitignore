@@ -1,0 +1,4 @@
+/target/
+/.funh/
+*.sqlite
+*.sqlite-journal

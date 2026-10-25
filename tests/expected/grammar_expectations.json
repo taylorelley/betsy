@@ -1,0 +1,150 @@
+{
+  "c.add": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:8c740d77b362b19e9f8a21736c73a8ea311891794b8c324daef69074b40f0258"
+  },
+  "c.factory": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:833b81685d2ca729bfa84ccd75e564507ef4aa146501fb539aed515ea4c2d677"
+  },
+  "cpp.add": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:16a2bcdc3a27a42f4d8902154e2d01cc939bdddeafefbedfd83be37cc72ca81d"
+  },
+  "cpp.lambda": {
+    "node_kind": "lambda_expression",
+    "source_hash": "sha256:aac4bc3fc66c21d18e4612c6e5f26f1f3f76d6ba96f89841291d8338d471ea76"
+  },
+  "cpp.ctor": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:797116452e15f5f7fb1b7a2474ff17c37fbcff92a3a43f2c425ccd99e47622c5"
+  },
+  "cpp.dtor": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:07da300b97df671ede3a8fefc12ecd7cc82513f292c7ba60ef1fcb1544a6480c"
+  },
+  "cpp.method": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:1eb60096e918d0a4108cc71c90f90bcf33edc39504b8a4d7d16a8bb5a46df449"
+  },
+  "cpp.template": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:ededabb72a1d9a550aead303dfa7db32511f7ab0132e010da5e65ab8ef7c75e3"
+  },
+  "js.outer": {
+    "node_kind": "function_declaration",
+    "source_hash": "sha256:743ba50006246d962dbed39841ea85dae34d7f934f41a7cb834080c7f068ad53"
+  },
+  "js.arrow": {
+    "node_kind": "arrow_function",
+    "source_hash": "sha256:6cc15312aa153d67392499928112f056e24880fbea0222aee9accaa80def3976"
+  },
+  "js.nested": {
+    "node_kind": "function_declaration",
+    "source_hash": "sha256:2fccd1f8dd25ba71dbdbc47e48c03f10c797d47aa3d0f29695c427a6a33ea5e3"
+  },
+  "js.callback": {
+    "node_kind": "arrow_function",
+    "source_hash": "sha256:96c1e433aa9311ea8edd5059bdc348f3e8450875bd889f383bbcbc37777335f0"
+  },
+  "js.expression": {
+    "node_kind": "function_expression",
+    "source_hash": "sha256:eb831a86a80e157e7091e4972cc6c4baae7534027475f41475be9813fc4a4c0d"
+  },
+  "js.generator": {
+    "node_kind": "generator_function",
+    "source_hash": "sha256:4d9d2b10d2a7bff02a28dcc60545aaf949a309b3b6359b12b4d1da821a5de540"
+  },
+  "js.obj_method": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:9429f779bd5c4f5a19a8d11610207e060e5a946b70d8e95900eb593ab4547d17"
+  },
+  "js.getter": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:969d1e8a18bade213d2fb9f7c4e48592cc97bc0a80d0a8fb5b3fbca34e493f72"
+  },
+  "js.setter": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:58290fd68720463a47bd3b3d698b63659cf8c7d6cc3e1bdfd74af124b1f405d8"
+  },
+  "js.constructor": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:c834d67acf166195376517b29664d02ddb3679c69e3739cdb04a5f17f391ad0c"
+  },
+  "js.run": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:76f7614966d283f1b4e1bc7d900f938d7d1c8a9248f76facd6498ee41c31b597"
+  },
+  "js.async_arrow": {
+    "node_kind": "arrow_function",
+    "source_hash": "sha256:09a36820e25f291eb7fbb797307f714c9b322f39f54345b2510d4a3e60e28477"
+  },
+  "py.outer": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:355d1f2885dbee8cbd78cb983744ab7a0a89b41bb4f3f87fdcc0e321b7c86d6f"
+  },
+  "py.inner": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:516e991eee451cbb7e983dacedda43688c3c5545fa093aaf3d871e7fbc9b7911"
+  },
+  "py.lambda_a": {
+    "node_kind": "lambda",
+    "source_hash": "sha256:71687292e04d548aa4d280009345c76c64a7a22722e23e9a440b3257d9d0d803"
+  },
+  "py.build": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:a1f26b46beee37a363316343503f861f7c6bb4b08f0abda37c549cdab07010a3"
+  },
+  "py.run": {
+    "node_kind": "function_definition",
+    "source_hash": "sha256:82eb3e987171b6f8603b9b7cfabfa2272a9ebc20a0a5e8a88f606f621e7d2fe7"
+  },
+  "py.lambda_run": {
+    "node_kind": "lambda",
+    "source_hash": "sha256:8c2d5170f21a43e760139142d9b9296dd07083a628e95bc975a79ad6befaf094"
+  },
+  "rs.top": {
+    "node_kind": "function_item",
+    "source_hash": "sha256:cdadee9bf7976bd40108759a2de066af1273db3257877d76d670323c6baec6a0"
+  },
+  "rs.inc": {
+    "node_kind": "closure_expression",
+    "source_hash": "sha256:aa1c743ec844027ed3cea00cc2493547fe06ece015e36fe47e4128bb59af8acf"
+  },
+  "rs.default": {
+    "node_kind": "function_item",
+    "source_hash": "sha256:155c501704fa87d7313d3205b55b218ea85c0183011a6cc8ba628f530ff8399e"
+  },
+  "rs.new": {
+    "node_kind": "function_item",
+    "source_hash": "sha256:197925b451d89af0aa2ae1e9cbe0478a7d7ea5980af6a81fd6b58646ccff3414"
+  },
+  "rs.method": {
+    "node_kind": "function_item",
+    "source_hash": "sha256:1044da3c7469ec6bc04c99423e3b12f23ed1ddc09737ca6e5b6b9b89466ba150"
+  },
+  "rs.nested": {
+    "node_kind": "closure_expression",
+    "source_hash": "sha256:304daeed4d1a51d04098812c1b3e6fd7861f9596e58a2639f7466d849245f0f7"
+  },
+  "ts.parse": {
+    "node_kind": "function_declaration",
+    "source_hash": "sha256:b656761dbb43e3437e056f1a5f66b5a45ca475816cf0cded208ee2916f4852ff"
+  },
+  "ts.getter": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:4aef228fb152ec6d11d3b78d6adbd6659c0e86a14b20251860200016694b89e2"
+  },
+  "ts.setter": {
+    "node_kind": "method_definition",
+    "source_hash": "sha256:dba41a5091349b78112d331e5e4be21e247867fa4aae675a986d613b680a948a"
+  },
+  "ts.arrow": {
+    "node_kind": "arrow_function",
+    "source_hash": "sha256:e0c6a0567d3acd38ebddbeef4e459c75701c16baf8ac3656d99def5d67a86fce"
+  },
+  "ts.callback": {
+    "node_kind": "arrow_function",
+    "source_hash": "sha256:a14ce64a26f34d94a5e9b5114eba7fc96a48abb62d0d0a6a75023e45047f8420"
+  }
+}

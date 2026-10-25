@@ -1,0 +1,339 @@
+{
+  "schema_version": 1,
+  "description": "Hand-selected independent callable occurrence golden oracle. Byte positions are calculated by literal substring matches in the checked-in fixtures; no parser output used. Definition ranges include Python decorator and C++ template declaration wrappers as required by the spec.",
+  "records": [
+    {
+      "file": "example.c",
+      "label": "c.add",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 0,
+      "end_byte": 53,
+      "source": "static inline int add(int a, int b) { return a + b; }"
+    },
+    {
+      "file": "example.c",
+      "label": "c.factory",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 54,
+      "end_byte": 93,
+      "source": "int (*factory(void))(int) { return 0; }"
+    },
+    {
+      "file": "example.cpp",
+      "label": "cpp.add",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 0,
+      "end_byte": 39,
+      "source": "int add(int a, int b) { return a + b; }"
+    },
+    {
+      "file": "example.cpp",
+      "label": "cpp.lambda",
+      "kind": "lambda",
+      "parent_label": null,
+      "start_byte": 49,
+      "end_byte": 76,
+      "source": "[](int a) { return a * 2; }"
+    },
+    {
+      "file": "example.cpp",
+      "label": "cpp.ctor",
+      "kind": "constructor",
+      "parent_label": null,
+      "start_byte": 93,
+      "end_byte": 99,
+      "source": "S() {}"
+    },
+    {
+      "file": "example.cpp",
+      "label": "cpp.dtor",
+      "kind": "destructor",
+      "parent_label": null,
+      "start_byte": 104,
+      "end_byte": 111,
+      "source": "~S() {}"
+    },
+    {
+      "file": "example.cpp",
+      "label": "cpp.method",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 116,
+      "end_byte": 143,
+      "source": "int m() const { return 1; }"
+    },
+    {
+      "file": "example.cpp",
+      "label": "cpp.template",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 147,
+      "end_byte": 188,
+      "source": "template<class T> T id(T x) { return x; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.outer",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 7,
+      "end_byte": 151,
+      "source": "function outer(x) {\n  const arrow = (y) => y + x;\n  function nested(z) { return z * 2; }\n  return [1, 2].map(item => arrow(item) + nested(x));\n}"
+    },
+    {
+      "file": "example.js",
+      "label": "js.arrow",
+      "kind": "arrow",
+      "parent_label": "js.outer",
+      "start_byte": 43,
+      "end_byte": 55,
+      "source": "(y) => y + x"
+    },
+    {
+      "file": "example.js",
+      "label": "js.nested",
+      "kind": "function",
+      "parent_label": "js.outer",
+      "start_byte": 59,
+      "end_byte": 95,
+      "source": "function nested(z) { return z * 2; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.callback",
+      "kind": "arrow",
+      "parent_label": "js.outer",
+      "start_byte": 116,
+      "end_byte": 147,
+      "source": "item => arrow(item) + nested(x)"
+    },
+    {
+      "file": "example.js",
+      "label": "js.expression",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 172,
+      "end_byte": 213,
+      "source": "function namedExpression(a) { return a; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.generator",
+      "kind": "generator",
+      "parent_label": null,
+      "start_byte": 233,
+      "end_byte": 261,
+      "source": "function* gen() { yield 1; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.obj_method",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 282,
+      "end_byte": 304,
+      "source": "method() { return 1; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.getter",
+      "kind": "getter",
+      "parent_label": null,
+      "start_byte": 308,
+      "end_byte": 333,
+      "source": "get value() { return 2; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.setter",
+      "kind": "setter",
+      "parent_label": null,
+      "start_byte": 337,
+      "end_byte": 370,
+      "source": "set value(v) { this._value = v; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.constructor",
+      "kind": "constructor",
+      "parent_label": null,
+      "start_byte": 387,
+      "end_byte": 403,
+      "source": "constructor() {}"
+    },
+    {
+      "file": "example.js",
+      "label": "js.run",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 406,
+      "end_byte": 444,
+      "source": "async run() { return async () => 42; }"
+    },
+    {
+      "file": "example.js",
+      "label": "js.async_arrow",
+      "kind": "arrow",
+      "parent_label": "js.run",
+      "start_byte": 427,
+      "end_byte": 441,
+      "source": "async () => 42"
+    },
+    {
+      "file": "example.py",
+      "label": "py.outer",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 0,
+      "end_byte": 99,
+      "source": "def outer(x):\n    def inner(y):\n        return y + x\n    a = lambda z: z + 1\n    return inner(a(x))"
+    },
+    {
+      "file": "example.py",
+      "label": "py.inner",
+      "kind": "function",
+      "parent_label": "py.outer",
+      "start_byte": 18,
+      "end_byte": 52,
+      "source": "def inner(y):\n        return y + x"
+    },
+    {
+      "file": "example.py",
+      "label": "py.lambda_a",
+      "kind": "lambda",
+      "parent_label": "py.outer",
+      "start_byte": 61,
+      "end_byte": 76,
+      "source": "lambda z: z + 1"
+    },
+    {
+      "file": "example.py",
+      "label": "py.build",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 114,
+      "end_byte": 163,
+      "source": "@staticmethod\n    def build():\n        return C()"
+    },
+    {
+      "file": "example.py",
+      "label": "py.run",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 169,
+      "end_byte": 225,
+      "source": "async def run(self):\n        return (lambda t: t * 2)(1)"
+    },
+    {
+      "file": "example.py",
+      "label": "py.lambda_run",
+      "kind": "lambda",
+      "parent_label": "py.run",
+      "start_byte": 206,
+      "end_byte": 221,
+      "source": "lambda t: t * 2"
+    },
+    {
+      "file": "example.rs",
+      "label": "rs.top",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 0,
+      "end_byte": 66,
+      "source": "fn top(x: i32) -> i32 {\n    let inc = |n: i32| n + 1;\n    inc(x)\n}"
+    },
+    {
+      "file": "example.rs",
+      "label": "rs.inc",
+      "kind": "closure",
+      "parent_label": "rs.top",
+      "start_byte": 38,
+      "end_byte": 52,
+      "source": "|n: i32| n + 1"
+    },
+    {
+      "file": "example.rs",
+      "label": "rs.default",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 106,
+      "end_byte": 136,
+      "source": "fn default(&self) -> i32 { 1 }"
+    },
+    {
+      "file": "example.rs",
+      "label": "rs.new",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 163,
+      "end_byte": 185,
+      "source": "fn new() -> Self { S }"
+    },
+    {
+      "file": "example.rs",
+      "label": "rs.method",
+      "kind": "method",
+      "parent_label": null,
+      "start_byte": 190,
+      "end_byte": 265,
+      "source": "fn method(&self) -> i32 {\n        let nested = || 3;\n        nested()\n    }"
+    },
+    {
+      "file": "example.rs",
+      "label": "rs.nested",
+      "kind": "closure",
+      "parent_label": "rs.method",
+      "start_byte": 237,
+      "end_byte": 241,
+      "source": "|| 3"
+    },
+    {
+      "file": "example.ts",
+      "label": "ts.parse",
+      "kind": "function",
+      "parent_label": null,
+      "start_byte": 91,
+      "end_byte": 155,
+      "source": "function parse(x: string | number): number { return Number(x); }"
+    },
+    {
+      "file": "example.ts",
+      "label": "ts.getter",
+      "kind": "getter",
+      "parent_label": null,
+      "start_byte": 249,
+      "end_byte": 279,
+      "source": "get value() { return this.x; }"
+    },
+    {
+      "file": "example.ts",
+      "label": "ts.setter",
+      "kind": "setter",
+      "parent_label": null,
+      "start_byte": 282,
+      "end_byte": 318,
+      "source": "set value(v: number) { this.x = v; }"
+    },
+    {
+      "file": "example.ts",
+      "label": "ts.arrow",
+      "kind": "arrow",
+      "parent_label": null,
+      "start_byte": 332,
+      "end_byte": 352,
+      "source": "(x: number) => x * 2"
+    },
+    {
+      "file": "example.ts",
+      "label": "ts.callback",
+      "kind": "arrow",
+      "parent_label": null,
+      "start_byte": 365,
+      "end_byte": 377,
+      "source": "(x) => x + 1"
+    }
+  ]
+}

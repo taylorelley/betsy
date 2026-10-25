@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "description": "Golden callable counts for the six supplied starter fixtures. Each is a source-level definition, not an invocation or declaration. Validate exact node spans during implementation.",
+  "counts": {
+    "example.js": 12,
+    "example.ts": 5,
+    "example.py": 6,
+    "example.rs": 6,
+    "example.c": 2,
+    "example.cpp": 6
+  },
+  "total": 37,
+  "notes": [
+    "TypeScript's two function overload signatures are excluded; its single implementation is included.",
+    "Rust's required trait signature is excluded; its default method implementation is included.",
+    "Python's decorated function is counted once, with the decorator included in the definition range.",
+    "All nested and anonymous functions or closures are counted independently."
+  ]
+}
