@@ -24,8 +24,10 @@ const CATALOG_FILES: [(&str, &str, &[u8]); 3] = [
         include_bytes!("../data/weaknesses/performance_weaknesses.json"),
     ),
 ];
-pub const PROFILE: &str = "function-v1";
+/// Bumped whenever plan shape or question wording changes, so cached run identities differ.
+pub const PROFILE: &str = "function-v2";
 const HIERARCHY_VIEW: &str = "CWE-1000";
+const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Platform {
@@ -71,9 +73,16 @@ impl Weakness {
     pub fn is_mitre_cwe(&self) -> bool {
         self.id.starts_with("CWE-")
     }
-    fn primary_parent(&self) -> Option<&str> {
+    /// Primary CWE-1000 parent; non-MITRE entries hang under their `PeerOf` CWEs instead,
+    /// tried in catalog order, so reliability and performance entries are gated too.
+    fn parent_candidates(&self) -> Vec<&str> {
         if !self.is_mitre_cwe() {
-            return None;
+            return self
+                .related_weaknesses
+                .iter()
+                .filter(|r| r.nature == "PeerOf")
+                .map(|r| r.cwe_id.as_str())
+                .collect();
         }
         let parents: Vec<&Related> = self
             .related_weaknesses
@@ -85,6 +94,8 @@ impl Weakness {
             .find(|r| r.ordinal == "Primary")
             .or(parents.first())
             .map(|r| r.cwe_id.as_str())
+            .into_iter()
+            .collect()
     }
 }
 
@@ -128,6 +139,128 @@ impl Catalog {
 pub fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
     CATALOG.get_or_init(|| Catalog::load().expect("embedded weakness catalogs are valid"))
+}
+
+/// An observable property of a function, asked once before any weakness so that weaknesses
+/// which cannot apply without it are never asked.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Trait {
+    pub key: String,
+    pub question: String,
+    #[serde(rename = "true")]
+    pub criteria_true: String,
+    #[serde(rename = "false")]
+    pub criteria_false: String,
+    /// Per language, syntax node kinds whose presence proves the trait without asking.
+    /// Absence proves nothing: macros, callees and aliases can hide any construct.
+    #[serde(default)]
+    pub present_if: BTreeMap<String, Vec<String>>,
+}
+#[derive(Deserialize)]
+struct TraitFile {
+    traits: Vec<Trait>,
+    requires: BTreeMap<String, Vec<String>>,
+}
+pub struct Traits {
+    pub traits: Vec<Trait>,
+    /// Weakness ID to the traits, as a bitmask, of which at least one must be present.
+    pub requires: HashMap<String, u64>,
+    pub hash: String,
+}
+impl Traits {
+    fn load() -> Result<Self> {
+        let file: TraitFile = serde_json::from_slice(TRAITS_FILE).context("parsing traits.json")?;
+        anyhow::ensure!(file.traits.len() <= 64, "at most 64 traits fit a mask");
+        let bit: HashMap<&str, u64> = file
+            .traits
+            .iter()
+            .enumerate()
+            .map(|(i, t)| (t.key.as_str(), 1u64 << i))
+            .collect();
+        anyhow::ensure!(bit.len() == file.traits.len(), "duplicate trait key");
+        let mut requires = HashMap::new();
+        for (id, keys) in &file.requires {
+            let w = catalog()
+                .get(id)
+                .with_context(|| format!("traits.json tags unknown weakness {id}"))?;
+            anyhow::ensure!(!keys.is_empty(), "{id} requires no traits");
+            let mut mask = 0;
+            for k in keys {
+                mask |= bit
+                    .get(k.as_str())
+                    .with_context(|| format!("{id} requires unknown trait {k}"))?;
+            }
+            requires.insert(w.id.clone(), mask);
+        }
+        Ok(Self {
+            traits: file.traits,
+            requires,
+            hash: hash(TRAITS_FILE),
+        })
+    }
+    /// Trait keys named by a mask, in declaration order.
+    pub fn names(&self, mask: u64) -> Vec<&str> {
+        self.traits
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| mask & (1 << i) != 0)
+            .map(|(_, t)| t.key.as_str())
+            .collect()
+    }
+}
+/// Traits whose `present_if` node kinds occur in the function's own syntax tree. A snippet that
+/// does not parse cleanly can still prove presence, since only presence is ever concluded.
+pub fn proven_traits(language: &str, source: &str) -> u64 {
+    let t = traits();
+    let wanted: Vec<(u64, &[String])> = t
+        .traits
+        .iter()
+        .enumerate()
+        .filter_map(|(i, tr)| {
+            tr.present_if
+                .get(language)
+                .map(|k| (1u64 << i, k.as_slice()))
+        })
+        .collect();
+    if wanted.is_empty() {
+        return 0;
+    }
+    let mut parser = tree_sitter::Parser::new();
+    let Ok(grammar) = crate::languages::grammar(language) else {
+        return 0;
+    };
+    if parser.set_language(&grammar).is_err() {
+        return 0;
+    }
+    let Some(tree) = parser.parse(source, None) else {
+        return 0;
+    };
+    let mut found = 0;
+    let mut cursor = tree.walk();
+    'walk: loop {
+        let kind = cursor.node().kind();
+        for (bit, kinds) in &wanted {
+            if kinds.iter().any(|k| k == kind) {
+                found |= bit;
+            }
+        }
+        if cursor.goto_first_child() || cursor.goto_next_sibling() {
+            continue;
+        }
+        loop {
+            if !cursor.goto_parent() {
+                break 'walk;
+            }
+            if cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+    found
+}
+pub fn traits() -> &'static Traits {
+    static TRAITS: OnceLock<Traits> = OnceLock::new();
+    TRAITS.get_or_init(|| Traits::load().expect("embedded traits are valid"))
 }
 
 /// Normalizes `CWE-89`, `cwe_89`, `89`, `REL-001` and `rel 1` to `PREFIX-N` without zero padding.
@@ -222,6 +355,17 @@ pub struct Node {
     pub children: Vec<usize>,
     /// Number of nodes in this subtree, including itself.
     pub subtree: usize,
+    /// The only child of its parent: asked in the parent's round, since gating it separately
+    /// would save one question at the cost of a whole round.
+    pub spliced: bool,
+    /// Round in which this node is asked when every ancestor passes.
+    pub wave: u32,
+    /// Traits of which one must be present to ask this node, inherited from the nearest
+    /// tagged ancestor; `None` means always asked.
+    pub requires: Option<u64>,
+    /// Union of `requires` over the subtree; `None` when any node in it is always asked.
+    /// When no trait in `reach` is present, the whole subtree is skipped.
+    pub reach: Option<u64>,
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct Skip {
@@ -249,6 +393,14 @@ impl Plan {
             .iter()
             .filter(|n| n.role == Role::Finding)
             .count()
+    }
+    /// Sequential rounds needed when every gate passes.
+    pub fn depth(&self) -> u32 {
+        self.nodes.iter().map(|n| n.wave).max().unwrap_or(0)
+    }
+    /// Questions asked in round 1 whatever the answers.
+    pub fn first_wave(&self) -> usize {
+        self.nodes.iter().filter(|n| n.wave == 1).count()
     }
 }
 
@@ -304,9 +456,13 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
         if !only.is_empty() {
             return None;
         }
-        cat.get(id)
-            .and_then(Weakness::primary_parent)
-            .filter(|p| kept.contains_key(p))
+        cat.get(id).and_then(|w| {
+            w.parent_candidates()
+                .into_iter()
+                .filter_map(|p| cat.get(p))
+                .map(|p| p.id.as_str())
+                .find(|p| kept.contains_key(p))
+        })
     };
     // Gates with no finding below them are never worth asking.
     let mut useful: BTreeSet<&str> = BTreeSet::new();
@@ -345,6 +501,10 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
             parent: parent_of(id).map(|p| pos[p]),
             children: vec![],
             subtree: 1,
+            spliced: false,
+            wave: 1,
+            requires: None,
+            reach: None,
         })
         .collect();
     // Break any cycle defensively so the forest is always finite.
@@ -367,11 +527,39 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
     let roots: Vec<usize> = (0..nodes.len())
         .filter(|&i| nodes[i].parent.is_none())
         .collect();
-    fn size(nodes: &mut [Node], i: usize) -> usize {
+    // An explicit selection is asked flat and unconditionally.
+    let tags = &traits().requires;
+    if only.is_empty() {
+        for n in &mut nodes {
+            n.requires = tags.get(&n.id).copied();
+        }
+    }
+    // Parents precede children only within a tree, so assign waves and inherit tags top-down.
+    let mut stack = roots.clone();
+    while let Some(i) = stack.pop() {
+        let (wave, requires, children) =
+            (nodes[i].wave, nodes[i].requires, nodes[i].children.clone());
+        let only_child = children.len() == 1;
+        for c in children {
+            nodes[c].spliced = only_child;
+            nodes[c].wave = if only_child { wave } else { wave + 1 };
+            if nodes[c].requires.is_none() && !tags.contains_key(&nodes[c].id) {
+                nodes[c].requires = requires;
+            }
+            stack.push(c);
+        }
+    }
+    fn size(nodes: &mut [Node], i: usize) -> (usize, Option<u64>) {
         let children = nodes[i].children.clone();
-        let s = 1 + children.into_iter().map(|c| size(nodes, c)).sum::<usize>();
+        let (mut s, mut reach) = (1, nodes[i].requires);
+        for c in children {
+            let (cs, cr) = size(nodes, c);
+            s += cs;
+            reach = reach.zip(cr).map(|(a, b)| a | b);
+        }
         nodes[i].subtree = s;
-        s
+        nodes[i].reach = reach;
+        (s, reach)
     }
     for &r in &roots {
         size(&mut nodes, r);
@@ -405,6 +593,18 @@ pub struct Question {
     pub criteria_true: String,
     pub criteria_false: String,
     pub hash: String,
+}
+/// The question for one trait; its `weakness_id` is `trait:<key>`, outside any catalog.
+pub fn trait_question(t: &Trait) -> Question {
+    let hash = identity(&(&t.question, &t.criteria_true, &t.criteria_false));
+    Question {
+        weakness_id: format!("trait:{}", t.key),
+        key: format!("TRAIT_{}", t.key),
+        instructions: t.question.clone(),
+        criteria_true: t.criteria_true.clone(),
+        criteria_false: t.criteria_false.clone(),
+        hash,
+    }
 }
 pub fn question(id: &str, role: &Role) -> Question {
     let w = catalog().get(id).expect("planned weakness exists");

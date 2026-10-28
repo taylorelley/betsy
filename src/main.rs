@@ -234,6 +234,12 @@ enum Command {
         /// Ask every planned weakness, disabling hierarchical early exit.
         #[arg(long)]
         exhaustive: bool,
+        /// Ask every remaining descendant in this round, trading questions for fewer rounds.
+        #[arg(long)]
+        max_rounds: Option<u32>,
+        /// Ask function traits first and skip weaknesses that need traits the function lacks.
+        #[arg(long, conflicts_with = "exhaustive")]
+        traits: bool,
         /// Functions evaluated concurrently.
         #[arg(long, default_value_t = 8)]
         concurrency: usize,
@@ -297,6 +303,14 @@ enum RunCommand {
     Findings {
         #[command(flatten)]
         run: Run,
+    },
+    /// Which findings of a baseline run (ideally `--exhaustive`) a pruned run also reported,
+    /// and what pruned each one it missed.
+    Recall {
+        #[command(flatten)]
+        run: Run,
+        #[arg(long)]
+        baseline: String,
     },
 }
 fn output(v: &impl serde::Serialize) -> Result<()> {
@@ -411,6 +425,10 @@ fn execute(cli: Cli) -> Result<()> {
                 let db = store::open(&run.db.db)?;
                 output(&dispatch::status(&db, &run.run)?)?;
             }
+            RunCommand::Recall { run, baseline } => {
+                let db = store::open(&run.db.db)?;
+                output(&analyze::recall(&db, &baseline, &run.run)?)?;
+            }
             RunCommand::Findings { run } => {
                 let db = store::open(&run.db.db)?;
                 let v = analyze::findings(&db, &run.run)?;
@@ -464,6 +482,8 @@ fn execute(cli: Cli) -> Result<()> {
             threshold,
             gate_threshold,
             exhaustive,
+            max_rounds,
+            traits,
             concurrency,
             max_inflight,
             retry_failed,
@@ -478,7 +498,9 @@ fn execute(cli: Cli) -> Result<()> {
                         threshold,
                         gate_threshold,
                         exhaustive,
-                    )?;
+                    )?
+                    .with_max_rounds(max_rounds)?
+                    .with_traits(traits);
                     let created = analyze::create(&mut db, &snapshot, &config)?;
                     eprintln!("{created}");
                     created["run_id"].as_str().unwrap_or_default().to_string()

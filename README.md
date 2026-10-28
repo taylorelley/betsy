@@ -163,6 +163,7 @@ JEV_API_KEY=... funh analyze --snapshot <snapshot-id> --provider jev
 OPENAI_API_KEY=... funh analyze --snapshot <snapshot-id> --provider openai
 funh analyze --run <run-id> --provider jev --retry-failed   # resume; same provider flags required
 funh run findings --run <run-id> --format jsonl
+funh run recall --run <pruned-run> --baseline <exhaustive-run>   # what pruning missed, and why
 ```
 
 Each question asks about exactly one weakness and gets an independent probability: a Jev
@@ -170,9 +171,9 @@ Each question asks about exactly one weakness and gets an independent probabilit
 record (language, path, kind, name, exact stored source) is the shared state. `--provider
 mock --mock-file script.json` is a deterministic offline provider for tests.
 
-To keep this fast and cheap, BETSY layers five measures:
+To keep this fast and cheap, BETSY layers six measures:
 
-1. **Deterministic prefilter** (profile `function-v1`). Entries are skipped, each with a
+1. **Deterministic prefilter** (profile `function-v2`). Entries are skipped, each with a
    recorded reason, when:
    - their explicit language platforms don't match the function's language;
    - they are hardware-only;
@@ -182,15 +183,37 @@ To keep this fast and cheap, BETSY layers five measures:
    are never reported. Fixtures go from 1,192 questions per function to 706–934, depending on
    the language.
 2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
-   CWE-1000. Round 1 asks the roots, plus every REL and PERF entry. Children are asked only
-   when the parent's probability reaches `--gate-threshold` (default 0.15, set low for
-   recall); a refusal also descends. Unasked subtrees are recorded as `gated` with the
-   parent's probability. `--exhaustive` turns gating off; comparing it against a gated run on
-   labeled code is how to tune the threshold.
-3. **Batching.** All of a round's questions go into one request, or `ceil(n/limit)` requests
+   CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;
+   the rest are roots. Round 1 asks the roots. Children are asked only when the parent's
+   probability reaches `--gate-threshold` (default 0.15, set low for recall); a refusal also
+   descends. Unasked subtrees are recorded as `gated` with the parent's probability.
+   - An only child is *spliced*: it is asked in its parent's round, since gating it alone
+     would save one question at the cost of a round. It still gates its own children, and
+     they open only if both it and its parent pass.
+   - `--max-rounds N` asks every remaining descendant in round N and stops, trading
+     questions for latency. The C plan is six rounds deep.
+   - `--exhaustive` turns gating off. Comparing it with a gated run using `funh run recall`
+     is how to tune the threshold.
+3. **Trait filter** (`--traits`, off by default until tuned). `data/weaknesses/traits.json`
+   defines observable function traits (buffer access, pointers, concurrency, file system,
+   network, crypto, iteration and so on) and tags weaknesses with the traits of which at least
+   one must be present.
+   - Tags are inherited down the hierarchy, and untagged entries are always asked, so a
+     missing tag can only cost questions, never a finding.
+   - Each node carries its own requirement and the union over its subtree, as bitmasks.
+   - An extra first round asks every trait. Syntax nodes listed under `present_if` prove a
+     trait present without asking; absence is never concluded from syntax, since macros,
+     callees and aliases can hide anything.
+   - A trait counts as present at or above `--gate-threshold`, or when refused. A subtree
+     with none of its traits present is recorded once with origin `trait`. A node whose own
+     traits are absent but whose descendants' are present is skipped, and its children are
+     considered in the same round.
+   - The trait round counts towards `--max-rounds`. Trait answers are cached like any other,
+     and the run identity includes the trait catalog hash.
+4. **Batching.** All of a round's questions go into one request, or `ceil(n/limit)` requests
    (`--max-questions`; default 100 for Jev, 400 for OpenAI, its documented maximum). A 413 or
    422 halves the chunk and retries.
-4. **Prefix reuse and concurrency.**
+5. **Prefix reuse and concurrency.**
    - The function is the shared prefix of every request, and OpenAI requests carry
      `prompt_cache_key=<source_hash>`. The first chunk of a round is sent alone to warm the
      cache, then the rest run concurrently.
@@ -201,7 +224,7 @@ To keep this fast and cheap, BETSY layers five measures:
    - Requests retry with backoff on 408, 429 and 5xx, honouring `Retry-After`. A provider
      failure marks the function `failed_retryable`, which is retried only with
      `--retry-failed`.
-5. **Decision cache.** Answers are keyed by provider and model, language, `source_hash` and
+6. **Decision cache.** Answers are keyed by provider and model, language, `source_hash` and
    question hash. Duplicate function bodies and re-runs after edits reuse earlier answers
    without a request.
 
@@ -209,10 +232,18 @@ Run configuration (provider, model, catalog hash, profile, selection, thresholds
 determines the run identity and is checked on resume. `--weakness CWE-89,REL-001` asks only the
 listed weaknesses, flat and ungated; `--exclude-weakness` removes entries. SQLite tables:
 `analysis_runs`, `weakness_plan` (per-language dispositions), `weakness_decisions` (per
-function, weakness: role, round, origin `provider|cache|refused|gated`, probability) and
+function, weakness: role, round, origin `provider|cache|refused|gated|trait`, probability) and
 `decision_cache`. Each dispatch item's result is a summary: questions asked, cached, gated,
-rounds, usage, and positives at or above `--threshold`. The schema is now `user_version=2`;
-v1 databases are upgraded in place by adding these tables.
+trait-filtered, rounds, plan depth, trait answers, usage, and positives at or above
+`--threshold`. The schema is now `user_version=3`: v1 databases are upgraded in place by
+adding these tables, and v2 databases by rebuilding `weakness_decisions` to admit the `trait`
+origin.
+
+`funh run recall` compares a run with a baseline over the same snapshot. It reports the
+share of the baseline's findings the run also reported, plus question and round totals for
+both. Each missed finding is attributed to its cause: a `trait` filter, a `gated` ancestor
+(named with its probability), or a probability `below_threshold`. Run it on labelled or
+representative code before turning on `--traits` or raising `--gate-threshold`.
 
 The Decisions response container was not fully documented when this was written. The parser
 accepts an `answers`, `output`, `decisions` or `results` array of `{name, probability}`.

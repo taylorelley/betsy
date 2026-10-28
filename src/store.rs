@@ -12,9 +12,16 @@ pub fn open(path: &Path) -> Result<Connection> {
     db.busy_timeout(std::time::Duration::from_secs(5))?;
     let version: u32 = db.pragma_query_value(None, "user_version", |r| r.get(0))?;
     anyhow::ensure!(
-        version <= 2,
+        version <= 3,
         "unsupported database schema version: {version}"
     );
+    if version == 2 {
+        // v3 widens the `origin` CHECK on weakness_decisions; SQLite cannot alter a CHECK.
+        db.execute_batch(&format!(
+            "PRAGMA foreign_keys=OFF;BEGIN;DROP INDEX IF EXISTS weakness_findings;ALTER TABLE weakness_decisions RENAME TO weakness_decisions_v2;{}INSERT INTO weakness_decisions SELECT * FROM weakness_decisions_v2;DROP TABLE weakness_decisions_v2;COMMIT;",
+            include_str!("schema.sql")
+        ))?;
+    }
     db.execute_batch(include_str!("schema.sql"))?;
     Ok(db)
 }

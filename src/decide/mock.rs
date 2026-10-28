@@ -66,8 +66,8 @@ impl Provider for Mock {
             .map(|q| {
                 log.push((state.function.source_hash.clone(), q.weakness_id.clone()));
                 let rule = self.script.rules.iter().find(|r| {
-                    crate::weakness::normalize_id(&r.weakness)
-                        == crate::weakness::normalize_id(&q.weakness_id)
+                    let id = |s: &str| crate::weakness::normalize_id(s).unwrap_or(s.to_string());
+                    id(&r.weakness) == id(&q.weakness_id)
                         && r.contains
                             .as_ref()
                             .is_none_or(|c| source.contains(c.as_str()))
