@@ -428,9 +428,16 @@ fn evaluate(
                 continue;
             }
             let why = if passed {
+                let mut ancestor = node.parent;
+                while let Some(p) = ancestor {
+                    if answers.get(&p).is_some_and(|&(a, _)| !passes(a)) {
+                        break;
+                    }
+                    ancestor = plan.nodes[p].parent;
+                }
                 format!(
                     "ancestor {} closed in round {round}",
-                    plan.nodes[node.parent.expect("closed by an ancestor")].id
+                    plan.nodes[ancestor.expect("closed by an ancestor")].id
                 )
             } else {
                 format!(

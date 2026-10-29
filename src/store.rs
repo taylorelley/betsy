@@ -15,7 +15,13 @@ pub fn open(path: &Path) -> Result<Connection> {
         version <= 3,
         "unsupported database schema version: {version}"
     );
-    if version == 2 {
+    let partial_v2 = version < 2
+        && db.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='weakness_decisions')",
+            [],
+            |r| r.get::<_, bool>(0),
+        )?;
+    if version == 2 || partial_v2 {
         // v3 widens the `origin` CHECK on weakness_decisions; SQLite cannot alter a CHECK.
         db.execute_batch(&format!(
             "PRAGMA foreign_keys=OFF;BEGIN;DROP INDEX IF EXISTS weakness_findings;ALTER TABLE weakness_decisions RENAME TO weakness_decisions_v2;{}INSERT INTO weakness_decisions SELECT * FROM weakness_decisions_v2;DROP TABLE weakness_decisions_v2;COMMIT;",

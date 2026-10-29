@@ -804,28 +804,138 @@ fn recall_attributes_missed_findings_to_traits() {
 }
 
 #[test]
-fn schema_v2_databases_migrate_to_v3() {
-    let t = tempfile::tempdir().unwrap();
-    let path = t.path().join("old.sqlite");
-    {
-        let db = rusqlite::Connection::open(&path).unwrap();
-        let v2 = include_str!("../src/schema.sql")
-            .replace(",'trait'))", "))")
-            .replace("user_version=3", "user_version=2");
-        db.execute_batch(&v2).unwrap();
-        db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-1','finding',1,'gated')").unwrap();
-        assert!(db.execute("INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')", []).is_err());
+fn recall_attributes_spliced_subtrees_to_the_failing_ancestor() {
+    let (_t, mut db, m) = persisted();
+    let plan = weakness::plan("c", &Selection::default()).unwrap();
+    // Splice CWE-664 -> CWE-118 -> CWE-119 into one round by excluding 118's siblings.
+    let root = plan.nodes.iter().find(|n| n.id == "CWE-664").unwrap();
+    let selection = Selection {
+        only: vec![],
+        exclude: root
+            .children
+            .iter()
+            .map(|&i| plan.nodes[i].id.clone())
+            .filter(|id| id != "CWE-118")
+            .collect(),
+    };
+    let plan = weakness::plan("c", &selection).unwrap();
+    for id in ["CWE-664", "CWE-118", "CWE-119"] {
+        assert_eq!(plan.nodes.iter().find(|n| n.id == id).unwrap().wave, 1);
     }
-    let db = store::open(&path).unwrap();
-    let version: u32 = db
-        .pragma_query_value(None, "user_version", |r| r.get(0))
+    let provider = Arc::new(Mock::new(
+        decide::mock::Script {
+            rules: vec![decide::mock::Rule {
+                weakness: "CWE-664".into(),
+                contains: None,
+                probability: 0.01,
+            }],
+            default: Some(0.9),
+        },
+        100,
+    ));
+    let mut config = Config::new(provider.as_ref(), selection, 0.5, 0.15, true).unwrap();
+    let mut runs = vec![];
+    for exhaustive in [true, false] {
+        config.exhaustive = exhaustive;
+        let run = analyze::create(&mut db, &m.snapshot_id, &config).unwrap()["run_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        analyze::drain(&mut db, &run, provider.clone(), exec(4)).unwrap();
+        runs.push(run);
+    }
+    let report = analyze::recall(&db, &runs[0], &runs[1]).unwrap();
+    let function = m.functions.iter().find(|f| f.path == "example.c").unwrap();
+    let miss = report["missed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["function_id"] == function.id && x["weakness_id"] == "CWE-787")
         .unwrap();
-    assert_eq!(version, 3);
-    db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')").unwrap();
-    let n: u32 = db
-        .query_row("SELECT COUNT(*) FROM weakness_decisions", [], |r| r.get(0))
-        .unwrap();
-    assert_eq!(n, 2);
-    drop(db);
-    store::open(&path).unwrap();
+    assert_eq!(miss["cause"], "gated");
+    assert_eq!(miss["decided_at"], "CWE-787");
+    assert_eq!(
+        miss["reason"],
+        format!(
+            "ancestor CWE-664 closed in round 1; subtree of {} not asked",
+            plan.nodes
+                .iter()
+                .find(|n| n.id == "CWE-787")
+                .unwrap()
+                .subtree
+        )
+    );
+}
+
+#[test]
+fn schema_v2_tables_migrate_to_v3_even_with_stale_version_metadata() {
+    for old_version in [0, 1, 2] {
+        let t = tempfile::tempdir().unwrap();
+        let path = t.path().join("old.sqlite");
+        {
+            let db = rusqlite::Connection::open(&path).unwrap();
+            let v2 = include_str!("../src/schema.sql")
+                .replace(",'trait'))", "))")
+                .replace("user_version=3", &format!("user_version={old_version}"));
+            db.execute_batch(&v2).unwrap();
+            db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions VALUES('r','f','CWE-1','finding',2,'gated',0.1,'hash','original reason')").unwrap();
+            assert!(db.execute("INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')", []).is_err());
+        }
+        let db = store::open(&path).unwrap();
+        let version: u32 = db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+        let foreign_keys: bool = db
+            .pragma_query_value(None, "foreign_keys", |r| r.get(0))
+            .unwrap();
+        assert!(foreign_keys);
+        let preserved: (u32, String, f64, String, String) = db
+            .query_row("SELECT round,origin,probability,question_hash,reason FROM weakness_decisions WHERE run_id='r' AND function_id='f' AND weakness_id='CWE-1'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
+            .unwrap();
+        assert_eq!(
+            preserved,
+            (
+                2,
+                "gated".into(),
+                0.1,
+                "hash".into(),
+                "original reason".into()
+            )
+        );
+        db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')").unwrap();
+        let n: u32 = db
+            .query_row("SELECT COUNT(*) FROM weakness_decisions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 2);
+        let indexed_table: String = db
+            .query_row("SELECT tbl_name FROM sqlite_master WHERE type='index' AND name='weakness_findings'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(indexed_table, "weakness_decisions");
+        drop(db);
+        store::open(&path).unwrap();
+    }
+}
+
+#[test]
+fn legacy_databases_without_weakness_decisions_upgrade_to_v3() {
+    for old_version in [0, 1] {
+        let t = tempfile::tempdir().unwrap();
+        let path = t.path().join("legacy.sqlite");
+        {
+            let db = rusqlite::Connection::open(&path).unwrap();
+            let inventory_schema = include_str!("../src/schema.sql")
+                .split("CREATE TABLE IF NOT EXISTS analysis_runs")
+                .next()
+                .unwrap();
+            db.execute_batch(inventory_schema).unwrap();
+            db.pragma_update(None, "user_version", old_version).unwrap();
+        }
+        let db = store::open(&path).unwrap();
+        let version: u32 = db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+        db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-1','finding',1,'trait')").unwrap();
+    }
 }

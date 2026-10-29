@@ -180,7 +180,7 @@ To keep this fast and cheap, BETSY layers six measures:
    - every mode of introduction lies outside source code.
 
    MITRE `Prohibited`/`Discouraged` entries and Pillars are asked only as hierarchy gates and
-   are never reported. Fixtures go from 1,192 questions per function to 706–934, depending on
+   are never reported. Fixtures go from 1,192 questions per function to 706–939, depending on
    the language.
 2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
    CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;
