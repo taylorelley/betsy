@@ -104,6 +104,11 @@ in `taxonomy_mappings`; the wording is BETSY's own.
   numbers, rigid name and address formats, unbounded retries without backoff, and locale-sensitive
   case conversion for comparison. Architecture-level fallacies, such as changing topology or
   clocks ordered across machines, cannot be decided from one function and were left out.
+- **Drepper, "What Every Programmer Should Know About Memory" (PERF-025 to PERF-028).** Arrays
+  walked against their storage order (including naive matrix products), false sharing between
+  per-thread slots, one shared atomic counter updated per item by every thread, and linked lists
+  used only for sequential scans. Struct layout, prefetch hints, non-temporal stores, TLB and NUMA
+  placement depend on type declarations, hardware or deployment and were left out.
 
 ## Language-specific patterns
 

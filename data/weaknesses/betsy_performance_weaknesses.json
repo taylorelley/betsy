@@ -677,5 +677,253 @@
     "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
     "view_ids": [],
     "view_names": []
+  },
+  {
+    "id": "PERF-025",
+    "name": "Large Multi-Dimensional Array Traversed Against Its Storage Order",
+    "description": "Nested loops over a large two-dimensional array or matrix step the inner loop across rows instead of along them, or multiply matrices with the naive loop order, so almost every access misses the cache.",
+    "extended_description": "Row-major arrays keep each row contiguous. An inner loop that varies the row index jumps a whole row per step and uses one value from each cache line it loads. The textbook triple loop for matrix multiplication reads one operand column-wise in the same way; transposing it or tiling the loops can be several times faster.",
+    "detection_methods": [
+      "Find nested loops indexing a[j][i], a[k * n + i] or similar where the innermost loop variable selects the row",
+      "Find matrix multiplication written as three loops with the shared index innermost and no transposition or blocking"
+    ],
+    "potential_mitigations": [
+      "Swap the loops so the inner loop walks contiguous memory",
+      "Transpose one operand, tile the loops, or call a tuned linear algebra library"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High Memory Stall Time",
+      "Slow Numeric Code"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "What Every Programmer Should Know About Memory (Drepper)",
+        "entry_id": "6.2",
+        "entry_name": "Optimising level 1 data cache access",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in What Every Programmer Should Know About Memory (Drepper); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-026",
+    "name": "Per-Thread Data Packed Into One Cache Line and Written Concurrently",
+    "description": "Threads repeatedly write to their own separate variables or array slots that sit next to each other in memory, so the shared cache line moves between cores on every write.",
+    "extended_description": "Cores keep caches coherent per line, usually 64 bytes. When thread-private counters or fields share a line, each write invalidates the others' copies, and code that looks free of sharing runs slower as threads are added. This is false sharing.",
+    "detection_methods": [
+      "Find arrays indexed by thread or worker id and written inside each thread's loop",
+      "Find structs whose fields are each updated by a different thread"
+    ],
+    "potential_mitigations": [
+      "Accumulate in a local variable and write once at the end",
+      "Pad or align per-thread slots to the cache line size"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Poor Multithreaded Scaling",
+      "Cache-Line Ping-Pong"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "What Every Programmer Should Know About Memory (Drepper)",
+        "entry_id": "6.4.1",
+        "entry_name": "Concurrency optimisations and false sharing",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in What Every Programmer Should Know About Memory (Drepper); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-027",
+    "name": "Shared Atomic or Locked Counter Updated on Every Iteration by All Threads",
+    "description": "Worker threads update one shared atomic variable or lock-protected counter on every iteration of their main loop, so all cores contend for the same cache line and lock.",
+    "extended_description": "An atomic read-modify-write needs exclusive ownership of the cache line. With several threads incrementing the same counter per item, throughput is limited by that one line, often below a single thread's speed.",
+    "detection_methods": [
+      "Find fetch_add, atomic increments or locked increments of a shared variable inside per-item loops run by many threads",
+      "Check whether a per-thread local total would give the same result"
+    ],
+    "potential_mitigations": [
+      "Keep a local count per thread and add it to the shared value once",
+      "Use sharded or per-thread counters combined on read"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1050",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Poor Multithreaded Scaling",
+      "Contention"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "What Every Programmer Should Know About Memory (Drepper)",
+        "entry_id": "6.4.2",
+        "entry_name": "Atomicity optimisations",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "What Every Programmer Should Know About Memory (Drepper)",
+        "entry_id": "6.4.3",
+        "entry_name": "Bandwidth considerations",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in What Every Programmer Should Know About Memory (Drepper); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-028",
+    "name": "Linked List Used for Bulk Sequential Traversal Where a Contiguous Array Would Do",
+    "description": "A linked list is built and then mostly scanned or indexed from start to end, with no need for insertion or removal in the middle, so each step chases a pointer to a different part of memory.",
+    "extended_description": "Linked nodes are spread over the heap and each step waits on a dependent memory load that the hardware cannot prefetch well. A contiguous array or vector holding the same data is usually several times faster to scan and uses less memory.",
+    "detection_methods": [
+      "Find std::list, std::forward_list, LinkedList or hand-built node chains",
+      "Check whether the code only appends and then iterates, or indexes by position"
+    ],
+    "potential_mitigations": [
+      "Use a vector, Vec or array",
+      "Use a deque or an index-based structure when insertion at the ends is needed"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Slow Iteration",
+      "Higher Memory Use"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "What Every Programmer Should Know About Memory (Drepper)",
+        "entry_id": "6.2",
+        "entry_name": "Data structure layout and pointer chasing",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in What Every Programmer Should Know About Memory (Drepper); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
   }
 ]

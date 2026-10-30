@@ -25246,6 +25246,131 @@
           "the code does not run in a browser, for example a Node script"
         ]
       }
+    },
+    "PERF-025": {
+      "function_checkable": true,
+      "question": "Does this function walk a large row-major array or matrix with its innermost loop moving across rows, or multiply large matrices with the naive loop order and no transposition, tiling or library call?",
+      "present_when": {
+        "c": [
+          "for (i...) for (j...) sum += a[j][i] or a[j * n + i] over runtime-sized n",
+          "for (i) for (j) for (k) c[i][j] += a[i][k] * b[k][j] over large runtime sizes with no transposed copy of b and no blocking"
+        ],
+        "cpp": [
+          "nested loops over std::vector<std::vector<T>> or a flat buffer indexed [col][row] in the inner loop"
+        ],
+        "rust": [
+          "nested loops indexing grid[j][i] or data[j * width + i] with j in the inner loop over runtime-sized dimensions"
+        ],
+        "python": [
+          "pure Python or Numba loops over a NumPy C-ordered array indexing arr[j, i] with j innermost, or a hand-written triple-loop matrix product"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the innermost loop walks contiguous memory",
+          "the array is small or of fixed tiny size, such as 3 by 3 or 4 by 4",
+          "the matrix product transposes one operand, uses blocking or calls BLAS or another library"
+        ],
+        "rust": [
+          "the inner loop walks a row, iterators over rows or chunks are used, or ndarray or nalgebra performs the product"
+        ],
+        "python": [
+          "vectorised NumPy operations or @ are used",
+          "the array is Fortran-ordered and the loop follows that order"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1176": "the work itself is avoidable, rather than its memory access order being cache-hostile"
+      }
+    },
+    "PERF-026": {
+      "function_checkable": true,
+      "question": "Does this function have several threads write repeatedly to neighbouring slots or fields of one shared array or struct inside their loops?",
+      "present_when": {
+        "c": [
+          "counts[tid]++ or results[tid] += x inside each thread's main loop, on a plain array of small elements"
+        ],
+        "cpp": [
+          "std::vector<long> or std::array of per-thread counters updated in each thread's loop, or std::atomic<int> slots packed next to each other"
+        ],
+        "rust": [
+          "a Vec<AtomicUsize> or array of per-worker counters updated in each worker's loop, or adjacent fields each written by a different thread"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each thread accumulates in a local variable and writes its slot once at the end",
+          "slots are padded or aligned to the cache line, for example alignas(64) or a padding member",
+          "the writes are rare compared with the loop's other work"
+        ],
+        "rust": [
+          "slots use crossbeam CachePadded or #[repr(align(64))]",
+          "each worker returns a local total that is combined afterwards"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-027": "all threads write one shared variable, rather than separate variables on one line"
+      }
+    },
+    "PERF-027": {
+      "function_checkable": true,
+      "question": "Does each worker thread in this function update one shared atomic or lock-protected counter on every iteration of its main loop?",
+      "present_when": {
+        "c": [
+          "atomic_fetch_add(&total, 1) or __sync_fetch_and_add on a shared variable for every item processed by each thread",
+          "pthread_mutex_lock around a shared counter increment per item"
+        ],
+        "cpp": [
+          "std::atomic<long> total; total++ or fetch_add per element inside a parallel loop or each std::thread's loop"
+        ],
+        "rust": [
+          "counter.fetch_add(1, ...) on an Arc<AtomicUsize> per item in each thread, or a Mutex<u64> locked per item in a rayon closure"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each thread sums locally and updates the shared value once",
+          "the shared update happens once per batch or rarely"
+        ],
+        "rust": [
+          "rayon sum, fold and reduce, or per-thread totals combined at the end",
+          "the counter is updated once per batch"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-020": "a lock is held across slow I/O rather than taken briefly for each item"
+      }
+    },
+    "PERF-028": {
+      "function_checkable": true,
+      "question": "Does this function build a linked list only to append to it and then scan or index it sequentially, with no insertion or removal in the middle?",
+      "present_when": {
+        "c": [
+          "a malloc'd node chain built by appending and then walked in full, where an array of the same items would do"
+        ],
+        "cpp": [
+          "std::list or std::forward_list filled with push_back and then only iterated, or advanced with std::next to reach an index"
+        ],
+        "rust": [
+          "std::collections::LinkedList filled with push_back and then only iterated"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "items are inserted or removed in the middle while iterating, or splicing is used",
+          "the code needs stable addresses for elements while the collection changes",
+          "the list is short or built once and rarely traversed"
+        ],
+        "cpp": [
+          "std::vector or std::deque is used"
+        ],
+        "rust": [
+          "Vec or VecDeque is used"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-011": "an array is used as a queue and shifted on each removal, the opposite trade-off"
+      }
     }
   }
 }

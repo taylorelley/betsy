@@ -91,7 +91,7 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213 + 93, 10 + 14)
+        (969, 213 + 93, 10 + 18)
     );
     // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
     // entries live in the betsy_ files.
@@ -174,6 +174,9 @@ fn plans_account_for_every_weakness_and_match_golden() {
         .iter()
         .all(|l| has(l, "REL-301") && has(l, "REL-305")));
     assert!(has("tsx", "REL-300") && has("python", "REL-300") && !has("rust", "REL-300"));
+    // Memory and cache performance entries.
+    assert!(has("python", "PERF-025") && has("cpp", "PERF-025") && !has("javascript", "PERF-025"));
+    assert!(has("rust", "PERF-026") && has("cpp", "PERF-026") && !has("python", "PERF-026"));
 }
 
 #[test]
