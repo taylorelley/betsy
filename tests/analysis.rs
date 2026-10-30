@@ -170,7 +170,9 @@ fn plans_account_for_every_weakness_and_match_golden() {
     assert!(has("rust", "REL-280") && has("cpp", "REL-280") && !has("c", "REL-280"));
     assert!(has("c", "REL-299") && has("python", "REL-299") && !has("javascript", "REL-299"));
     // Time, text and distributed-systems entries apply to every language but REL-300.
-    assert!(LANGUAGES.iter().all(|l| has(l, "REL-301") && has(l, "REL-305")));
+    assert!(LANGUAGES
+        .iter()
+        .all(|l| has(l, "REL-301") && has(l, "REL-305")));
     assert!(has("tsx", "REL-300") && has("python", "REL-300") && !has("rust", "REL-300"));
 }
 
