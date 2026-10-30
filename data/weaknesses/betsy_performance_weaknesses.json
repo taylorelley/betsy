@@ -698,6 +698,12 @@
     "related_weaknesses": [
       {
         "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
         "cwe_id": "CWE-1176",
         "view_id": "",
         "ordinal": ""
@@ -763,6 +769,12 @@
     "related_weaknesses": [
       {
         "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
         "cwe_id": "CWE-1176",
         "view_id": "",
         "ordinal": ""
@@ -820,6 +832,12 @@
     "status": "Draft",
     "likelihood_of_exploit": "",
     "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      },
       {
         "nature": "PeerOf",
         "cwe_id": "CWE-1050",
@@ -885,6 +903,12 @@
     "status": "Draft",
     "likelihood_of_exploit": "",
     "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      },
       {
         "nature": "PeerOf",
         "cwe_id": "CWE-1176",

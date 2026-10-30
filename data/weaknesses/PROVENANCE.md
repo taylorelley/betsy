@@ -25,7 +25,7 @@ written for BETSY, in the same schema and continuing the same ID sequences; see
 | File | Catalog | Entries | SHA-256 |
 |---|---|---:|---|
 | `betsy_reliability_weaknesses.json` | reliability (`REL-214` to `REL-306`) | 93 | `eec356898f1fd5d5b4db1cff8a39c178521d0cb0edf20dffa2e3cd986a486dae` |
-| `betsy_performance_weaknesses.json` | performance (`PERF-011` to `PERF-028`) | 18 | `70c6c39aa7655b8d73efe401961f7f5401a161e7062d165580188672f41cab5f` |
+| `betsy_performance_weaknesses.json` | performance (`PERF-011` to `PERF-028`) | 18 | `fa713d90e5aa81031681b7aefcc1c052cd2bbde1031ed13303dfd5a074defee5` |
 
 ## Detection cards
 

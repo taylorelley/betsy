@@ -107,8 +107,11 @@ in `taxonomy_mappings`; the wording is BETSY's own.
 - **Drepper, "What Every Programmer Should Know About Memory" (PERF-025 to PERF-028).** Arrays
   walked against their storage order (including naive matrix products), false sharing between
   per-thread slots, one shared atomic counter updated per item by every thread, and linked lists
-  used only for sequential scans. Struct layout, prefetch hints, non-temporal stores, TLB and NUMA
-  placement depend on type declarations, hardware or deployment and were left out.
+  used only for sequential scans. They hang directly under the CWE-400 gate rather than under
+  CWE-1176 or CWE-1050, whose questions (avoidable work, resources acquired per iteration) a
+  cache-hostile loop does not answer yes to; a test checks this. Struct layout, prefetch hints,
+  non-temporal stores, TLB and NUMA placement depend on type declarations, hardware or
+  deployment and were left out.
 
 Where a CERT C or C++ rule was a form of an entry that already had a card, the card gained a
 pattern instead of a new entry being added: REL-034, REL-039, REL-096, REL-113, REL-132, REL-135,

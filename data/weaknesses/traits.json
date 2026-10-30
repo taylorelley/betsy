@@ -297,7 +297,7 @@
     "REL-253": ["concurrency"],
     "REL-254": ["concurrency"],
     "REL-255": ["concurrency"],
-    "REL-295": ["concurrency"],
+    "REL-295": ["concurrency", "resources"],
     "REL-296": ["concurrency"],
     "REL-297": ["concurrency"],
     "REL-298": ["concurrency"],

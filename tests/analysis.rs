@@ -211,6 +211,41 @@ fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
 }
 
 #[test]
+fn memory_performance_entries_sit_under_the_resource_gate() {
+    // CWE-1176 and CWE-1050 ask about avoidable work and per-iteration resources, which a
+    // cache-hostile loop does not show, so these hang directly under the CWE-400 gate.
+    for language in ["c", "cpp", "rust", "python"] {
+        let p = weakness::plan(language, &Selection::default()).unwrap();
+        for id in ["PERF-025", "PERF-026", "PERF-027", "PERF-028"] {
+            let Some(n) = p.nodes.iter().find(|n| n.id == id) else {
+                assert!(language == "python" && id != "PERF-025", "{language}: {id}");
+                continue;
+            };
+            let parent = &p.nodes[n.parent.unwrap()];
+            assert_eq!(parent.id, "CWE-400", "{language}: {id}");
+            assert_eq!(parent.role, weakness::Role::Gate, "{language}: {id}");
+        }
+    }
+    // A process started with Process(target=f()) is a resource even when no concurrency
+    // trait is present, so REL-295 stays reachable through either trait.
+    let t = weakness::traits();
+    let bit = |k: &str| 1u64 << t.traits.iter().position(|x| x.key == k).unwrap();
+    let p = weakness::plan("python", &Selection::default()).unwrap();
+    let n = p.nodes.iter().find(|n| n.id == "REL-295").unwrap();
+    assert_eq!(n.requires, Some(bit("concurrency") | bit("resources")));
+    let mut i = p.nodes.iter().position(|n| n.id == "REL-295").unwrap();
+    while let Some(parent) = p.nodes[i].parent {
+        let reach = p.nodes[parent].reach;
+        assert!(
+            reach.is_none_or(|r| r & bit("resources") != 0),
+            "{}",
+            p.nodes[parent].id
+        );
+        i = parent;
+    }
+}
+
+#[test]
 fn explicit_selection_is_flat_and_exclusive() {
     let sel = Selection {
         only: vec!["CWE-89,REL-1".into()],
