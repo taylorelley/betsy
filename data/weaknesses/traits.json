@@ -267,6 +267,27 @@
     "PERF-005": ["filesystem", "network", "data_store", "resources", "concurrency"],
     "PERF-008": ["network", "data_store"],
     "PERF-009": ["floating_point"],
-    "PERF-010": ["arithmetic", "floating_point"]
+    "PERF-010": ["arithmetic", "floating_point"],
+    "PERF-011": ["iteration"],
+    "PERF-012": ["iteration"],
+    "PERF-013": ["iteration"],
+    "PERF-016": ["iteration"],
+    "PERF-017": ["iteration"],
+    "PERF-019": ["data_store"],
+    "PERF-020": ["concurrency", "resources"],
+    "PERF-021": ["iteration"],
+    "PERF-023": ["iteration"],
+    "PERF-024": ["iteration"],
+    "REL-214": ["concurrency"],
+    "REL-215": ["concurrency"],
+    "REL-216": ["type_conversion"],
+    "REL-217": ["iteration"],
+    "REL-225": ["external_input", "parsing"],
+    "REL-227": ["iteration"],
+    "REL-228": ["iteration"],
+    "REL-231": ["iteration"],
+    "REL-237": ["concurrency"],
+    "REL-241": ["concurrency"],
+    "REL-242": ["concurrency"]
   }
 }

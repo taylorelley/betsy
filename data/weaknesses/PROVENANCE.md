@@ -15,6 +15,18 @@ The files are embedded into `betsy` at build time. Their combined hash is part o
 analysis run's configuration, so editing a catalog never silently reuses old decisions.
 CWE content is subject to the MITRE terms reproduced in `CWE_NOTICE.txt`.
 
+## BETSY-owned extensions
+
+These files are not copied from scorpius-cli. They add reliability and performance entries
+written for BETSY, in the same schema and continuing the same ID sequences; see
+[docs/DETECTION_CARDS.md](../../docs/DETECTION_CARDS.md#extension-catalogs). Each entry's
+`mapping_usage` starts with "BETSY-authored". They are not derived from MITRE content.
+
+| File | Catalog | Entries | SHA-256 |
+|---|---|---:|---|
+| `betsy_reliability_weaknesses.json` | reliability (`REL-214` to `REL-242`) | 29 | `5477344e712537286d0553617c9daebed0406050722be3f01f5c8f35b89e52cb` |
+| `betsy_performance_weaknesses.json` | performance (`PERF-011` to `PERF-024`) | 14 | `4de254b9e27eab2f8c4421aa7d831afab95ae74646e3fd24d975ba5b2603ba40` |
+
 ## Detection cards
 
 `cards.json` is not copied from scorpius-cli. It is an overlay written for BETSY that rewrites
@@ -22,7 +34,7 @@ the question for selected entries; see [docs/DETECTION_CARDS.md](../../docs/DETE
 
 | File | Content | Cards | SHA-256 |
 |---|---|---:|---|
-| `cards.json` | detection cards | 971 | `f1fe230a698ae42a6168509d8492534ffa2085c2fa439a64f56907c281b51330` |
+| `cards.json` | detection cards | 1,014 | `646f9cf53022449b63e3f464356b7088b63a0d2ca525b3dff90ed8b6f1da61e3` |
 
 Sources, per card, are the catalog entry it is keyed by and the entries named in its
 `distinguish_from`, as they appear in the files above (MITRE CWE 4.20 for `CWE-` IDs). The
