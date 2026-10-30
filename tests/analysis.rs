@@ -91,8 +91,19 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213, 10)
+        (969, 213 + 29, 10 + 14)
     );
+    // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
+    // entries live in the betsy_ files.
+    let provenance = include_str!("../data/weaknesses/PROVENANCE.md");
+    for bytes in [
+        &include_bytes!("../data/weaknesses/cwe_database.json")[..],
+        include_bytes!("../data/weaknesses/reliability_weaknesses.json"),
+        include_bytes!("../data/weaknesses/performance_weaknesses.json"),
+    ] {
+        let digest = hash(bytes);
+        assert!(provenance.contains(&digest["sha256:".len()..]), "{digest}");
+    }
     assert_eq!(c.get("cwe_89").unwrap().id, "CWE-89");
     assert_eq!(c.get("89").unwrap().id, "CWE-89");
     assert_eq!(c.get("REL-1").unwrap().id, "REL-001");
@@ -139,6 +150,15 @@ fn plans_account_for_every_weakness_and_match_golden() {
     assert!(has("c", "CWE-787") && !has("python", "CWE-787"));
     assert!(has("python", "CWE-89") && has("rust", "REL-001") && !has("c", "REL-001"));
     assert!(has("python", "PERF-001"));
+    // BETSY-owned extensions: language-specific entries reach only their languages.
+    assert!(has("python", "REL-226") && !has("javascript", "REL-226"));
+    assert!(has("javascript", "REL-214") && has("tsx", "REL-214") && !has("python", "REL-214"));
+    assert!(has("typescript", "REL-222") && has("tsx", "REL-222") && !has("javascript", "REL-222"));
+    assert!(has("cpp", "REL-234") && !has("c", "REL-234"));
+    assert!(has("rust", "REL-242") && !has("cpp", "REL-242"));
+    assert!(has("cpp", "PERF-013") && has("rust", "PERF-013") && !has("python", "PERF-013"));
+    assert!(has("javascript", "PERF-024") && !has("python", "PERF-024"));
+    assert!(LANGUAGES.iter().all(|l| has(l, "PERF-022")));
 }
 
 #[test]

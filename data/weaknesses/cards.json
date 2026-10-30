@@ -21190,6 +21190,610 @@
         "REL-198": "infinity is produced and then absorbed into a plausible finite answer"
       }
     },
+    "REL-214": {
+      "function_checkable": true,
+      "question": "Does this function start an async operation and discard the resulting promise, without awaiting, returning or attaching a rejection handler to it?",
+      "present_when": {
+        "javascript": [
+          "a call to an async function or a promise-returning API such as fetch, a database save or fs.promises used as a bare statement",
+          "a promise stored in a variable that is never awaited, returned or given .catch"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every promise is awaited, returned, passed to Promise.all or similar, or has .catch or a two-argument .then",
+          "the discard is explicit with void and the promise has its own error handling",
+          "the call returns a value that is not a promise"
+        ]
+      },
+      "distinguish_from": {
+        "REL-215": "the promise is lost because an async callback is passed to forEach or another non-awaiting iterator",
+        "CWE-252": "the ignored return value is a synchronous status code rather than a promise"
+      }
+    },
+    "REL-215": {
+      "function_checkable": true,
+      "question": "Does this function pass an async callback to forEach, filter, reduce or map in a way that never awaits the promises the callback returns?",
+      "present_when": {
+        "javascript": [
+          "items.forEach(async (x) => { ... await ... }) where later code assumes the work has finished",
+          "items.map(async ...) whose resulting array of promises is not awaited with Promise.all or similar",
+          "an async predicate passed to filter, some or every, which treats the returned promise as truthy"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the loop is for...of with await, or the mapped promises are awaited with Promise.all or Promise.allSettled",
+          "the callback is not async and returns no promise"
+        ]
+      },
+      "distinguish_from": {
+        "REL-214": "a single promise from a direct call is discarded, not one created inside an iterator callback"
+      }
+    },
+    "REL-216": {
+      "function_checkable": true,
+      "question": "Does this function turn text into a number and then use the result without checking that the conversion produced a valid, finite number?",
+      "present_when": {
+        "javascript": [
+          "parseInt, parseFloat, Number(x) or +x on a request field, query parameter, form value or file text, used in arithmetic, indexing, comparison or storage with no NaN test",
+          "parseInt(x) with no radix on input that may have leading zeros or a 0x prefix",
+          "a range check such as if (n > max) relied on to reject bad input, which NaN passes"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the result is tested with Number.isNaN, Number.isFinite or Number.isInteger before use, with a failure path",
+          "the input is validated as digits by a pattern or schema before conversion",
+          "the text is a constant or comes from a trusted internal source of numbers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1287": "the problem is accepting the wrong type of input in general, not an unchecked NaN from conversion"
+      }
+    },
+    "REL-217": {
+      "function_checkable": true,
+      "question": "Does this function use a for...in loop over an array, or over an object without filtering out inherited properties?",
+      "present_when": {
+        "javascript": [
+          "for (const i in someArray) used to visit array elements, so i is a string and extra properties are included",
+          "for (const k in obj) over request data or a shared object with no Object.hasOwn or hasOwnProperty check inside the loop"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the loop is for...of, forEach, an index loop, or iterates Object.keys or Object.entries",
+          "a for...in body skips keys failing Object.hasOwn or hasOwnProperty",
+          "the object was created with Object.create(null) and holds only known keys"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1321": "the code writes to an object's prototype through attacker-chosen keys rather than reading inherited keys"
+      }
+    },
+    "REL-218": {
+      "function_checkable": true,
+      "question": "Does this function treat a value as a usable object after testing only typeof value === 'object', which is also true for null?",
+      "present_when": {
+        "javascript": [
+          "if (typeof v === 'object') followed by property access on v, with no v !== null or v != null test in the same condition or earlier"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the guard also excludes null, such as v !== null && typeof v === 'object' or v && typeof v === 'object'",
+          "the value cannot be null at that point, such as a literal object or one just constructed"
+        ]
+      },
+      "distinguish_from": {
+        "REL-230": "a truthiness test rejects valid falsy values like 0 or empty string, rather than admitting null"
+      }
+    },
+    "REL-219": {
+      "function_checkable": true,
+      "question": "Does this function assign to a variable name that it never declares with let, const or var and that is not a known parameter or outer variable?",
+      "present_when": {
+        "javascript": [
+          "an assignment such as total = 0 or for (i = 0; ...) where the name has no declaration in the function or an enclosing scope visible in the code"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every assigned name is declared, is a parameter, or is a property such as this.x or obj.x",
+          "the name is clearly an outer variable declared in the enclosing code shown"
+        ],
+        "typescript": [
+          "TypeScript code, where the compiler rejects assignment to an undeclared name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1108": "the function deliberately reads or writes declared global variables"
+      }
+    },
+    "REL-220": {
+      "function_checkable": true,
+      "question": "Does this function sort an array of numbers, dates or other non-string values with sort() or toSorted() and no comparison function?",
+      "present_when": {
+        "javascript": [
+          "arr.sort() or arr.toSorted() with no argument where the elements are numbers, Date objects, bigints or objects"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "a comparator function is passed",
+          "the elements are strings and code-unit order is intended",
+          "the array is a typed array such as Float64Array, whose sort is numeric"
+        ]
+      },
+      "distinguish_from": {
+        "REL-194": "the values being sorted are floats that may include NaN, not compared as strings"
+      }
+    },
+    "REL-221": {
+      "function_checkable": true,
+      "question": "Does this function have a return keyword followed directly by a line break, with the intended return value starting on the next line?",
+      "present_when": {
+        "javascript": [
+          "return on its own line followed by an object literal, array, string or expression on the next line, which is never returned"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the returned expression begins on the same line as return, including an opening parenthesis or brace",
+          "a bare return; is intended and nothing follows it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-561": "code is unreachable for a reason other than an inserted semicolon"
+      }
+    },
+    "REL-222": {
+      "function_checkable": true,
+      "question": "Does this function force a value to an unrelated type with as any, as unknown as T or an any cast, so the compiler no longer checks that the types match?",
+      "present_when": {
+        "typescript": [
+          "x as any, <any>x or a parameter typed any is then used as a specific type",
+          "x as unknown as T between types the compiler would otherwise reject as unrelated",
+          "an object literal or partial object asserted to a full interface it does not satisfy"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "the assertion narrows to a subtype after a runtime check such as a type guard, in or instanceof",
+          "the cast is as const or a widening assertion to a supertype",
+          "the value is validated by a schema whose result type is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-225": "the asserted value comes from outside the program, such as parsed JSON or a response body",
+        "REL-223": "the assertion only removes null or undefined with the ! operator"
+      }
+    },
+    "REL-223": {
+      "function_checkable": true,
+      "question": "Does this function use the non-null assertion operator ! on a value that can actually be null or undefined at that point?",
+      "present_when": {
+        "typescript": [
+          "map.get(k)!, arr.find(...)!, document.querySelector(...)! or an optional property obj.field! used without an earlier presence check",
+          "a ! on a value that comes from a parameter, request or lookup whose type includes undefined"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "an earlier check in the same function proves the value present, such as has(k) before get(k)!",
+          "the value is set unconditionally just before, or the type does not include null or undefined"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-754": "the missing check is on an error return or status, not a value asserted non-null"
+      }
+    },
+    "REL-224": {
+      "function_checkable": true,
+      "question": "Does this function contain a @ts-ignore, @ts-expect-error or @ts-nocheck comment that hides a real type error on the line it covers?",
+      "present_when": {
+        "typescript": [
+          "a // @ts-ignore or // @ts-expect-error comment directly above a call, assignment or property access whose types do not match"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "the function has no suppression comments",
+          "a @ts-expect-error marks a deliberately wrong call in a test that checks the error",
+          "the comment explains a known compiler limitation and the suppressed code is correct"
+        ]
+      },
+      "distinguish_from": {
+        "REL-222": "the checker is bypassed with a type assertion rather than a comment"
+      }
+    },
+    "REL-225": {
+      "function_checkable": true,
+      "question": "Does this function treat parsed or received data as a declared TypeScript type without checking at run time that the data has that shape?",
+      "present_when": {
+        "typescript": [
+          "JSON.parse(...) as T, await response.json() as T, or such a result assigned to a variable of an interface type, then used",
+          "req.body, event.data, localStorage values or message payloads typed as a specific interface with no validation"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "the data passes through a schema parse such as zod parse or safeParse, io-ts decode or ajv validate whose result is used",
+          "a type guard checks the required fields before the typed value is used",
+          "the data comes from a trusted internal source in the same program"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-502": "deserialisation can instantiate arbitrary types or run code, not merely produce the wrong shape",
+        "REL-222": "the asserted value is internal data, not received from outside"
+      }
+    },
+    "REL-226": {
+      "function_checkable": true,
+      "question": "Does this function have a parameter whose default value is a mutable object, such as a list or dict, which the function changes or returns?",
+      "present_when": {
+        "python": [
+          "def f(items=[]), def f(opts={}), def f(seen=set()) or a default built by a call returning a mutable object, where the function appends, updates, adds to or returns that parameter"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the default is None, a number, a string, a tuple or a frozenset",
+          "the mutable default is only read and never changed, returned or stored",
+          "the shared default is a deliberate cache and the code says so"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1108": "the shared state is an explicit global variable rather than a default argument"
+      }
+    },
+    "REL-227": {
+      "function_checkable": true,
+      "question": "Does this function create closures inside a loop that use the loop variable and run after that iteration ends, so they all see the variable's final value?",
+      "present_when": {
+        "python": [
+          "lambda: use(i), or a nested def using i, created in a for loop and stored, returned or registered as a callback"
+        ],
+        "javascript": [
+          "for (var i = ...) with a callback, setTimeout or event handler inside that uses i after the loop moves on"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the value is bound at creation with lambda i=i:, functools.partial or a factory function",
+          "the closure is called immediately within the same iteration"
+        ],
+        "javascript": [
+          "the loop variable is declared with let or const, which creates a fresh binding per iteration",
+          "the callback runs synchronously inside the iteration"
+        ]
+      }
+    },
+    "REL-228": {
+      "function_checkable": true,
+      "question": "Does this function add or remove elements of a collection while it is looping over that same collection?",
+      "present_when": {
+        "python": [
+          "for x in lst: ... lst.remove(x), lst.pop(), lst.append(...) or del lst[i]",
+          "for k in d: ... del d[k], d.pop(k) or adding keys, or the same with a set"
+        ],
+        "javascript": [
+          "arr.forEach or for...of over arr with arr.splice, arr.push or arr.shift inside",
+          "a forward index loop that calls splice(i, 1) without adjusting i"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the loop iterates over a copy such as list(lst), lst[:], list(d) or list(d.items())",
+          "a new collection is built with a comprehension instead"
+        ],
+        "javascript": [
+          "filter or a new array is used, or the index loop runs backwards when splicing",
+          "values are reassigned in place without changing the length"
+        ]
+      },
+      "distinguish_from": {
+        "REL-234": "a C++ container is mutated and an earlier iterator, pointer or reference is used afterwards"
+      }
+    },
+    "REL-229": {
+      "function_checkable": true,
+      "question": "Does this function rely on an assert statement to reject bad input, unauthorised callers or failed operations, which would be skipped when assertions are disabled?",
+      "present_when": {
+        "python": [
+          "assert user.is_admin, assert len(data) <= MAX, assert isinstance(arg, int) or similar on parameters or request data, with no other check"
+        ],
+        "c": [
+          "assert(ptr != NULL), assert(len < sizeof buf) or assert on a return value as the only check before using external data"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "an explicit if check with an error path also covers the condition",
+          "the assert checks an internal invariant that holds whatever the input, such as after the code itself established it",
+          "the function is test code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-617": "an attacker can trigger the assertion to crash the program, rather than bypass it when it is disabled"
+      }
+    },
+    "REL-230": {
+      "function_checkable": true,
+      "question": "Does this function test whether a value is present by its truthiness, so that valid values like 0, an empty string, empty collection or false are treated as missing?",
+      "present_when": {
+        "python": [
+          "if not count:, value or default, or if x: on a parameter or field that may legitimately be 0, 0.0, \"\", [] or False, where only None means missing"
+        ],
+        "javascript": [
+          "if (!port), opts.timeout || 3000 or x ? a : b on numbers, strings or booleans where 0, '' or false are valid"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the test is is None or is not None, or the value cannot be falsy while valid, such as an object instance"
+        ],
+        "javascript": [
+          "the test uses ??, == null, === undefined or typeof checks",
+          "the value cannot be falsy while valid, such as an object or a required non-empty string"
+        ]
+      },
+      "distinguish_from": {
+        "REL-218": "a typeof test lets null through, the opposite error"
+      }
+    },
+    "REL-231": {
+      "function_checkable": true,
+      "question": "Does this function iterate a single-pass iterator or generator more than once, so later passes see no items?",
+      "present_when": {
+        "python": [
+          "a generator expression, map, filter, zip, csv.reader or open file is stored and then looped over, summed, converted or tested with in more than once",
+          "an iterator passed in as a parameter is consumed twice"
+        ],
+        "javascript": [
+          "a generator object, iterator from .values(), .entries() or matchAll is spread or looped over more than once"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the values are materialised once with list or tuple, or the iterable is a list, tuple, dict, set or range"
+        ],
+        "javascript": [
+          "the iterable is an array, or Array.from or spread is done once and the array reused"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-672": "a closed or released resource such as a handle or connection is used again, rather than an exhausted iterator"
+      }
+    },
+    "REL-232": {
+      "function_checkable": true,
+      "question": "Does this function compare, subtract or store date-times that differ in whether they carry a time zone, or mix local time with UTC?",
+      "present_when": {
+        "python": [
+          "datetime.now() or datetime.utcnow() without tz compared with or subtracted from an aware datetime, or with one parsed from an ISO string with offset",
+          "a naive datetime treated as UTC when sent, stored or converted with timestamp()"
+        ],
+        "javascript": [
+          "new Date('YYYY-MM-DD') or Date.parse of a zone-less string compared with local-time dates",
+          "getHours, getDate or setHours used on a date that represents a UTC instant, or the reverse"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "every datetime is created with tzinfo or timezone.utc, or all values are consistently naive within one documented zone"
+        ],
+        "javascript": [
+          "the code uses UTC methods consistently, epoch milliseconds, or a library with explicit zones"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1024": "the compared values are of unrelated types, not two kinds of date-time"
+      }
+    },
+    "REL-233": {
+      "function_checkable": true,
+      "question": "Is this function a C++ destructor or noexcept function that can let an exception escape, which would terminate the program?",
+      "present_when": {
+        "cpp": [
+          "a destructor that calls code that can throw, such as stream flush with exceptions enabled, std::string or container allocation, or a user method that throws, with no try/catch around it",
+          "a throw statement inside a destructor, or inside a function or move constructor marked noexcept",
+          "a destructor or noexcept(false) mismatch where the class is used in containers that need noexcept moves"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "every call that can throw is inside try { } catch (...) in the destructor or noexcept function",
+          "the function calls only non-throwing operations such as free, close or noexcept members",
+          "the function is not a destructor and is not marked noexcept"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-248": "an exception can escape an ordinary function to the top of the program, not a destructor or noexcept function"
+      }
+    },
+    "REL-234": {
+      "function_checkable": true,
+      "question": "Does this function keep an iterator, pointer or reference into a C++ container and use it after an operation that may invalidate it?",
+      "present_when": {
+        "cpp": [
+          "auto& x = v[0] or auto it = v.begin(), then v.push_back, insert, emplace_back or resize, then x or it used",
+          "c.erase(it) inside a range-based for loop over c, or erase in an iterator loop that then increments it",
+          "a pointer from &v[i] or v.data() stored and used after the vector grows"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the loop uses it = c.erase(it), or the erase-remove idiom",
+          "capacity is reserved before taking references and the size never exceeds it",
+          "the container is std::list, std::map or std::set and only other elements are erased"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "memory freed explicitly with free or delete is used later, not through container invalidation",
+        "REL-228": "a Python or JavaScript collection is changed while iterated"
+      }
+    },
+    "REL-235": {
+      "function_checkable": true,
+      "question": "Does this function keep a string_view, span, pointer or reference that refers into a temporary object and use it after the temporary is gone?",
+      "present_when": {
+        "cpp": [
+          "std::string_view sv = make_string(); or = a + b; and sv used later",
+          "const char* p = get_name().c_str(); or data() of a temporary, then p used",
+          "for (auto& x : get_obj().items()) where get_obj returns by value",
+          "a std::function or lambda storing a reference into a temporary"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the temporary is bound directly to a const T& or T&& local, which extends its lifetime",
+          "the owning value is stored in a named variable that outlives the view",
+          "the view refers to a string literal or a long-lived object"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-562": "the function returns the address of its own local variable",
+        "REL-240": "a lambda captures locals by reference and outlives the scope"
+      }
+    },
+    "REL-236": {
+      "function_checkable": true,
+      "question": "Does this function use a C++ object after moving from it, other than to assign it a new value or destroy it?",
+      "present_when": {
+        "cpp": [
+          "f(std::move(x)) or y = std::move(x) followed by a read of x, such as x.size(), *x or passing x again",
+          "std::move of the same variable inside a loop without reassigning it each iteration",
+          "a unique_ptr dereferenced after being moved into another owner"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the moved-from variable is not used again, or is reassigned, cleared or reset before reuse",
+          "the type documents a usable moved-from state that the code relies on deliberately"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "the memory was freed rather than moved from"
+      }
+    },
+    "REL-237": {
+      "function_checkable": true,
+      "question": "Does this function lock a C++ mutex with lock() and unlock it by hand, with a return, break or possible exception in between?",
+      "present_when": {
+        "cpp": [
+          "m.lock() ... m.unlock() where code between them can return, break, continue or call something that can throw"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the lock is held through std::lock_guard, std::unique_lock or std::scoped_lock",
+          "the code between lock and unlock has a single path and cannot throw"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-764": "the same lock is acquired more than once",
+        "CWE-833": "two locks are taken in inconsistent orders"
+      }
+    },
+    "REL-238": {
+      "function_checkable": true,
+      "question": "Does this function copy a derived C++ object into a value of its base class type, so the derived part is lost?",
+      "present_when": {
+        "cpp": [
+          "a parameter of type Base taken by value receiving a Derived argument, or Base b = derived;",
+          "std::vector<Base> or another container of base values receiving derived objects",
+          "catch (Base e) by value for a hierarchy of exception types"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the base is taken by reference, pointer or smart pointer",
+          "the base class has no virtual functions and no derived data is needed"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-843": "memory is accessed as an incompatible type through a cast, not copied into a base"
+      }
+    },
+    "REL-239": {
+      "function_checkable": true,
+      "question": "Is this function a C++ constructor or destructor that calls a virtual member function, expecting a derived class's override to run?",
+      "present_when": {
+        "cpp": [
+          "a constructor or destructor body that calls a member declared virtual, such as init(), validate() or onDestroy()",
+          "a call to a pure virtual function from a constructor or destructor"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the function is not a constructor or destructor",
+          "the called member is not virtual, or is qualified with the class name to call the current class version deliberately",
+          "the class is final"
+        ]
+      }
+    },
+    "REL-240": {
+      "function_checkable": true,
+      "question": "Does this function create a lambda that captures local variables by reference and that can run after the function has returned?",
+      "present_when": {
+        "cpp": [
+          "a [&] or [&x] lambda returned, stored in a member or global, or passed to std::thread, detach, std::async, a timer or a callback registration",
+          "[this] or [&] captured in a callback that may outlive the object"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the lambda is called or joined before the function returns, such as in std::sort or a joined thread",
+          "locals are captured by value, by move or through shared ownership"
+        ]
+      },
+      "distinguish_from": {
+        "REL-235": "a view or reference to a temporary dangles, without a lambda"
+      }
+    },
+    "REL-241": {
+      "function_checkable": true,
+      "question": "Does this function create a std::thread that can be destroyed without being joined, or detach one that still uses the function's local data?",
+      "present_when": {
+        "cpp": [
+          "std::thread t(...) followed by a return, throw or break path that skips t.join()",
+          "t.detach() on a thread whose function or lambda references locals or this"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "std::jthread or an RAII wrapper joins on every path",
+          "join is called on every path, including in a catch block",
+          "a detached thread holds only copies or shared ownership of its data"
+        ]
+      },
+      "distinguish_from": {
+        "REL-240": "a reference-capturing lambda outlives its scope in a callback rather than a thread"
+      }
+    },
+    "REL-242": {
+      "function_checkable": true,
+      "question": "Does this Rust function keep a lock guard or RefCell borrow alive across an .await, or while calling code that may lock or borrow the same value again?",
+      "present_when": {
+        "rust": [
+          "let guard = mutex.lock() (std or parking_lot) still in scope when an .await runs",
+          "a borrow() or borrow_mut() of a RefCell held while calling a closure, callback or method that borrows the same cell",
+          "a lock held while calling a function that takes the same lock"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the guard is dropped or its block ends before every .await and re-entrant call",
+          "the lock is tokio::sync::Mutex or another async mutex designed to be held across await, with no re-entrant locking"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1322": "the async function calls a blocking operation, rather than holding a guard across await",
+        "PERF-020": "the lock is held across slow I/O, causing contention but not deadlock"
+      }
+    },
     "PERF-001": {
       "function_checkable": true,
       "question": "Does this function issue a database or API query inside a loop over the results of an earlier query, one round trip per item?",
@@ -21417,6 +22021,446 @@
           "exact types are used only once or a fixed few times, not in a loop",
           "the exactness is required, such as money, cryptography or exact combinatorics, and values are rounded or reduced each step",
           "ordinary fixed-width integers or floating point are used"
+        ]
+      }
+    },
+    "PERF-011": {
+      "function_checkable": true,
+      "question": "Does a loop in this function repeatedly insert at or remove from the front of a contiguous list, array or vector, shifting all remaining elements each time?",
+      "present_when": {
+        "any": [
+          "a loop over input-sized data takes items from index 0 or adds items at index 0 of an array-backed sequence"
+        ],
+        "python": [
+          "list.pop(0), list.insert(0, x) or del lst[0] inside a while or for loop"
+        ],
+        "javascript": [
+          "array.shift() or array.unshift(x) inside a loop that runs once per item, such as a queue drained with while (queue.length)"
+        ],
+        "cpp": [
+          "vec.erase(vec.begin()) or vec.insert(vec.begin(), x) on a std::vector inside a loop"
+        ],
+        "rust": [
+          "Vec::remove(0) or Vec::insert(0, x) inside a loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the sequence is a deque or linked structure with constant-time front operations",
+          "the sequence is small and bounded by a constant, or the front operation runs once outside any loop"
+        ],
+        "python": [
+          "collections.deque with popleft or appendleft"
+        ],
+        "cpp": [
+          "std::deque or std::list"
+        ],
+        "rust": [
+          "VecDeque with pop_front or push_front"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-007": "the repeated cost is searching a sequence for a value, not shifting elements"
+      }
+    },
+    "PERF-012": {
+      "function_checkable": true,
+      "question": "Does this function await independent asynchronous calls one after another inside a loop, so each waits for the previous one to finish?",
+      "present_when": {
+        "javascript": [
+          "await fetch, a database call or another promise inside for or for...of, where no iteration uses an earlier iteration's result"
+        ],
+        "python": [
+          "await of an aiohttp, httpx, database or other coroutine inside a for loop over independent items"
+        ],
+        "rust": [
+          ".await on a request or I/O future created per item inside a for or while loop over independent items"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each iteration depends on the result of the previous one, such as pagination with a cursor or ordered writes",
+          "the loop deliberately serialises calls to respect a rate limit or ordering requirement stated in the code",
+          "the loop runs a small fixed number of times"
+        ],
+        "javascript": [
+          "promises are collected and awaited with Promise.all, Promise.allSettled or a concurrency limiter"
+        ],
+        "python": [
+          "coroutines are gathered with asyncio.gather, TaskGroup or a semaphore-limited pool"
+        ],
+        "rust": [
+          "futures are combined with join_all, FuturesUnordered, buffer_unordered or spawned tasks"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-001": "each request in the loop is driven by rows from an earlier query, an N+1 pattern",
+        "PERF-005": "the call blocks the thread rather than awaiting asynchronously"
+      }
+    },
+    "PERF-013": {
+      "function_checkable": true,
+      "question": "Does this function grow a buffer or vector one element at a time inside a loop when the final size is already known, so it reallocates and copies repeatedly?",
+      "present_when": {
+        "c": [
+          "realloc(buf, (n + 1) * size) or realloc by a fixed small increment inside a loop that appends one item per pass"
+        ],
+        "cpp": [
+          "push_back or emplace_back in a loop over a container or count of known size, with no reserve before the loop"
+        ],
+        "rust": [
+          "Vec::new() or String::new() followed by push or push_str in a loop over a known length, with no with_capacity or reserve"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the final size is not known before the loop and the container grows geometrically",
+          "the loop appends only a few items"
+        ],
+        "c": [
+          "the buffer size is doubled or multiplied on each growth, or allocated once at its final size"
+        ],
+        "cpp": [
+          "reserve(n) or a sized constructor is called before the loop"
+        ],
+        "rust": [
+          "Vec::with_capacity, reserve, or collect() from an iterator with a known size hint"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-004": "the repeated growth is string concatenation that creates a new string each time",
+        "CWE-1325": "the allocations are not bounded overall, rather than merely repeated"
+      }
+    },
+    "PERF-014": {
+      "function_checkable": true,
+      "question": "Does this function copy a large structure, string or container by value when it only reads it, such as a by-value parameter, a copying loop variable or a clone?",
+      "present_when": {
+        "c": [
+          "a parameter of a large struct type, such as one holding arrays, passed by value and only read"
+        ],
+        "cpp": [
+          "a std::vector, std::string, std::map or large class parameter taken by value and only read, with no std::move of it",
+          "for (auto x : container) over strings, vectors or large objects that are only read"
+        ],
+        "rust": [
+          "a String, Vec or large struct is cloned inside a loop or on each call where the clone is only read and a reference would compile"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is small, such as an integer, pointer or a struct of a few scalar fields"
+        ],
+        "c": [
+          "the struct is passed through a pointer to const"
+        ],
+        "cpp": [
+          "the parameter is const T& or a view such as std::string_view or std::span",
+          "the by-value parameter is moved into storage, the sink idiom"
+        ],
+        "rust": [
+          "the function borrows with &T or &[T], or the clone is needed because the value is moved into another owner"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1176": "the waste is repeated computation rather than copying data"
+      }
+    },
+    "PERF-015": {
+      "function_checkable": true,
+      "question": "Does this function make a copy of an object by serialising it and immediately parsing the result back?",
+      "present_when": {
+        "javascript": [
+          "JSON.parse(JSON.stringify(value)) used to clone an object or array"
+        ],
+        "python": [
+          "json.loads(json.dumps(obj)) or pickle.loads(pickle.dumps(obj)) used to clone"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the serialised form is sent, stored or validated, not just parsed straight back",
+          "the round trip runs once on small configuration data at start-up"
+        ],
+        "javascript": [
+          "structuredClone, a spread copy or a library deep clone is used"
+        ],
+        "python": [
+          "copy.copy, copy.deepcopy or a constructor copy is used"
+        ]
+      }
+    },
+    "PERF-016": {
+      "function_checkable": true,
+      "question": "Does a loop in this function throw and catch an exception for a routine case that occurs on many iterations, such as a missing key or bad item?",
+      "present_when": {
+        "any": [
+          "a try block inside a loop over input-sized data whose handler is expected to run for a large share of items, such as skipping invalid entries"
+        ],
+        "cpp": [
+          "std::stoi, at() or a custom throw caught inside the loop to skip items, or throw used to break out of a loop"
+        ],
+        "javascript": [
+          "throw and catch used inside a loop to skip items or to exit early from iteration"
+        ],
+        "python": [
+          "raise inside a loop to signal a common case, caught in the same loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the exception handles a genuinely rare failure such as an I/O error",
+          "the loop runs a small fixed number of times",
+          "the routine case is tested with a branch or non-throwing call before the operation"
+        ],
+        "python": [
+          "a try/except around a lookup where the exception is expected only rarely, which is idiomatic and cheap when nothing is raised"
+        ],
+        "cpp": [
+          "std::from_chars, find, count or an error code is used instead of a throwing call"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-390": "the exception is caught and ignored as an error-handling failure, not a speed problem"
+      }
+    },
+    "PERF-017": {
+      "function_checkable": true,
+      "question": "Does a loop in this function read or write data in very small pieces through an unbuffered file, socket or stream, making a system call for each one?",
+      "present_when": {
+        "any": [
+          "a loop issues one read or write call per byte, character, record or line on a handle that does no buffering"
+        ],
+        "c": [
+          "read(fd, &c, 1) or write(fd, buf, 1) inside a loop on a raw descriptor"
+        ],
+        "python": [
+          "writes per item to a file opened with buffering=0, or os.write per item inside a loop"
+        ],
+        "javascript": [
+          "fs.writeSync, fs.appendFileSync or fs.readSync called once per line or item inside a loop"
+        ],
+        "rust": [
+          "write or read calls per item on File, TcpStream or stdout without BufWriter, BufReader or a lock held for the loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handle is buffered, or output is collected and written once",
+          "the loop runs a small fixed number of times"
+        ],
+        "c": [
+          "stdio streams such as fwrite, fputc or fprintf, which buffer by default"
+        ],
+        "rust": [
+          "the handle is wrapped in BufWriter or BufReader, or stdout().lock() is taken before the loop"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-005": "the problem is that the call blocks a request handler or event loop, not the number of calls",
+        "CWE-1050": "the per-iteration cost is acquiring a resource such as a connection or lock, not unbuffered I/O"
+      }
+    },
+    "PERF-018": {
+      "function_checkable": true,
+      "question": "Does this function build costly debug or trace log messages, such as serialising objects or calling helpers, even when that log level may be disabled?",
+      "present_when": {
+        "any": [
+          "a debug, trace or verbose log call whose argument serialises a large object, joins a collection or calls an expensive function, in a loop or frequently called path"
+        ],
+        "python": [
+          "logger.debug(f\"...{expensive(x)}...\") or logger.debug(\"%s\" % json.dumps(obj)) where formatting happens before the call"
+        ],
+        "javascript": [
+          "logger.debug(`...${JSON.stringify(obj)}`) or console.debug with a serialised payload in a hot path"
+        ],
+        "rust": [
+          "format! or to_string called to build a String that is then passed to a debug! or trace! macro"
+        ],
+        "c": [
+          "snprintf of a debug message into a buffer before a call that checks the log level"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the message uses only cheap values such as plain variables or literals",
+          "the call is guarded by an explicit level check",
+          "the log call runs rarely, such as once at start-up or on an error path"
+        ],
+        "python": [
+          "logger.debug(\"... %s\", value) with lazy argument formatting"
+        ],
+        "rust": [
+          "arguments are passed directly to log or tracing macros, which skip evaluation when the level is off"
+        ]
+      }
+    },
+    "PERF-019": {
+      "function_checkable": true,
+      "question": "Does this function load all matching rows or documents from a data store only to count them or check whether any exist?",
+      "present_when": {
+        "any": [
+          "a query returns every matching record and the code then uses only its length or tests whether it is empty"
+        ],
+        "python": [
+          "len(Model.objects.filter(...)), len(cursor.fetchall()) or len(session.query(...).all()) used as a count, or a full list tested with if rows:"
+        ],
+        "javascript": [
+          "(await Model.find(...)).length or rows.length > 0 after selecting every matching row"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the query uses COUNT, count(), exists() or LIMIT 1",
+          "the loaded rows are also processed, so loading them is needed anyway",
+          "the query is bounded to a small fixed number of rows"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "the rows are loaded without a limit in order to process them, not just to count them"
+      }
+    },
+    "PERF-020": {
+      "function_checkable": true,
+      "question": "Does this function hold a lock while it performs slow I/O, sleeps or awaits, so other threads or tasks wait for that whole time?",
+      "present_when": {
+        "any": [
+          "a network request, database query, file read or write, sleep or await runs between acquiring a mutex or exclusive lock and releasing it"
+        ],
+        "python": [
+          "requests, database or file calls, or await, inside a with lock: block"
+        ],
+        "javascript": [
+          "an await on a network or database call while an async mutex or lock from a library is held"
+        ],
+        "cpp": [
+          "I/O or sleep calls inside the scope of a std::lock_guard, std::unique_lock or between lock() and unlock()"
+        ],
+        "c": [
+          "I/O or sleep calls between pthread_mutex_lock and pthread_mutex_unlock"
+        ],
+        "rust": [
+          "I/O or .await while a MutexGuard or RwLock write guard is alive"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the critical section only reads or updates in-memory state, and slow work happens after release",
+          "the lock exists specifically to serialise access to that I/O resource, such as one writer to a file"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-833": "the lock ordering can deadlock, rather than merely slowing others",
+        "REL-242": "a guard or borrow held across an await can deadlock or panic in Rust"
+      }
+    },
+    "PERF-021": {
+      "function_checkable": true,
+      "question": "Does this function wait for a condition by spinning in a loop that checks it repeatedly without sleeping, blocking or yielding?",
+      "present_when": {
+        "any": [
+          "a loop whose body only re-reads a flag, queue size, file or status until it changes, with no sleep, wait or yield",
+          "a loop that spins comparing the current time with a deadline to implement a delay"
+        ],
+        "c": [
+          "while (!flag) {} or while (!flag); on a volatile or atomic flag with no pause, sched_yield or sleep"
+        ],
+        "javascript": [
+          "a while loop on Date.now() to delay, which also blocks the event loop"
+        ],
+        "python": [
+          "while not done: pass or a loop polling a condition with no time.sleep or Event.wait"
+        ],
+        "rust": [
+          "loop { if flag.load(..) { break } } with no std::hint::spin_loop, park or sleep for longer than a short spin"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the loop sleeps, blocks on a wait, select, channel or future, or yields between checks",
+          "a bounded short spin precedes a blocking fallback, as in a spinlock with backoff"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-835": "the loop can never end because its exit condition is unreachable",
+        "CWE-1322": "the cost is blocking a single-threaded event loop by any means, not spinning specifically"
+      }
+    },
+    "PERF-022": {
+      "function_checkable": true,
+      "question": "Does this function call itself several times on overlapping arguments without caching results, so the same subproblems are solved again and again?",
+      "present_when": {
+        "any": [
+          "two or more recursive calls on smaller, overlapping arguments, such as f(n - 1) + f(n - 2), with no memo table",
+          "a recursive search over positions or substrings that revisits the same state through different paths without remembering it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "results are stored in a cache, memo dictionary or table that is checked before recursing",
+          "the recursive calls cover disjoint parts of the input, as in merge sort or tree traversal",
+          "the input is bounded to a small constant"
+        ],
+        "python": [
+          "the function is decorated with functools.cache or lru_cache"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-008": "the repeated work is an external call or lookup rather than a recursive computation",
+        "CWE-674": "the risk is unbounded recursion depth rather than repeated work"
+      }
+    },
+    "PERF-023": {
+      "function_checkable": true,
+      "question": "Does this function build a complete intermediate list or array only to scan it once, such as summing it or testing whether any element matches?",
+      "present_when": {
+        "python": [
+          "sum([...]), any([...]), all([...]), min([...]) or max([...]) with a list comprehension rather than a generator expression",
+          "readlines() or list(...) built only to be looped over once"
+        ],
+        "javascript": [
+          "array.filter(fn).length > 0 or filter(fn)[0] where some or find would stop early",
+          "map then a single reduce or forEach over a large array where one pass would do"
+        ],
+        "rust": [
+          "collect::<Vec<_>>() followed only by .iter() for a single pass, len() or is_empty()"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the intermediate collection is used more than once, returned or stored",
+          "the input is small and bounded"
+        ],
+        "python": [
+          "a generator expression or itertools pipeline feeds the reduction"
+        ],
+        "javascript": [
+          "some, every, find or a single reduce is used"
+        ],
+        "rust": [
+          "the iterator chain is consumed directly with sum, any, count or find"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "the whole data set is loaded from a store or file without limit, rather than copied in memory"
+      }
+    },
+    "PERF-024": {
+      "function_checkable": true,
+      "question": "Does a loop in this function write to the DOM or element styles and then read layout properties, forcing the browser to recompute layout each pass?",
+      "present_when": {
+        "javascript": [
+          "inside one loop, el.style, className, appendChild or innerHTML is changed and offsetHeight, offsetWidth, clientHeight, scrollTop or getBoundingClientRect is read"
+        ],
+        "tsx": [
+          "a ref's current element is resized or restyled and measured in the same loop inside an effect"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all layout reads happen before any writes, or writes are batched in requestAnimationFrame",
+          "the loop only writes, or only reads",
+          "the code does not run in a browser, for example a Node script"
         ]
       }
     }

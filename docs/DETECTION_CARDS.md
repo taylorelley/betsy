@@ -11,11 +11,14 @@ catalogs. The format is described in the [README](../README.md#detection-cards).
 
 **Complete in coverage, not yet validated and not cleared to ship.**
 
-- There are 971 cards: one for every entry that at least one language plans (961) plus 10 entries
-  that are no longer planned because their card marks them uncheckable. 897 are checkable; 74 are
-  marked not function-checkable and listed below. The 221 catalog entries without a card are
-  never planned for any language (hardware-only, introduced outside code, wrong language, or a
-  gate with nothing below it).
+- There are 1,014 cards: one for every entry that at least one language plans (1,004) plus 10
+  entries that are no longer planned because their card marks them uncheckable. 940 are
+  checkable; 74 are marked not function-checkable and listed below. The 221 catalog entries
+  without a card are never planned for any language (hardware-only, introduced outside code,
+  wrong language, or a gate with nothing below it). A unit test fails if a planned entry has no
+  card.
+- 43 cards belong to BETSY's own catalog entries (REL-214 to REL-242 and PERF-011 to PERF-024);
+  see "Extension catalogs" below. Their entries and cards were written together.
 - The cards for `CWE-` entries are new wording derived from MITRE content. Legal must confirm
   that the CWE terms of use allow this, with the notice in `data/weaknesses/CWE_NOTICE.txt`
   kept, before the cards ship. Provenance is recorded in `data/weaknesses/PROVENANCE.md`.
@@ -25,10 +28,52 @@ Each card was drafted from its catalog entry, its parent, children and siblings 
 the brief summarised in "Writing a card" below. Each card was then checked mechanically: every
 planned language receives at least one present and one not-present pattern; rendered criteria
 stay within 1,500 characters; distinguish IDs exist; gates stay checkable; and no ten consecutive
-words are copied from the entry's description. A human has read only a sample.
+words are copied from the entry's description. The length, ID and copying checks are unit tests
+(the copying test also covers the extended description). A human has read only a sample.
 
-Removing the 74 uncheckable entries takes the fixtures from 706 to 939 questions per function
-down to 655 to 867, depending on the language.
+Removing the 74 uncheckable entries saves 51 to 72 questions per function, depending on the
+language; the fixtures now plan 676 to 887.
+
+## Extension catalogs
+
+The scorpius-cli catalogs had no reliability entries for JavaScript, TypeScript, Python or C++,
+and only ten performance entries. BETSY adds its own in two files beside the copied ones, which
+stay byte for byte (a test checks their hashes against `data/weaknesses/PROVENANCE.md`):
+
+- `betsy_reliability_weaknesses.json`, REL-214 to REL-242: JavaScript (floating promises, async
+  callbacks in `forEach`, unchecked `NaN` from parsing, `for...in` over arrays, `typeof null`,
+  implicit globals, comparator-less `sort`, `return` followed by a line break), TypeScript only
+  (`as any` and double assertions, non-null `!`, `@ts-ignore`, unvalidated external data cast to a
+  type), Python (mutable defaults, `assert` as validation, also for C), Python and JavaScript
+  (late-binding closures, mutation while iterating, falsy values taken as missing, iterators
+  consumed twice, naive and aware date-times), C++ (exceptions leaving destructors, iterator
+  invalidation, views of temporaries, use after `std::move`, manual `lock`/`unlock`, slicing,
+  virtual calls in constructors, dangling reference captures, unjoined `std::thread`) and Rust
+  (guards or `RefCell` borrows held across `.await`).
+- `betsy_performance_weaknesses.json`, PERF-011 to PERF-024: front removal from arrays in a loop,
+  sequential `await` of independent calls, growth without reserving capacity, large by-value
+  copies, deep copy by serialisation, exceptions for routine cases in loops, unbuffered small I/O,
+  costly disabled log messages, fetching rows to count them, locks held across slow I/O,
+  busy-waiting, unmemoised overlapping recursion, materialising a sequence to scan it once, and
+  DOM layout thrashing.
+
+Each entry has `mapping_usage` "BETSY-authored ..." and a `PeerOf` edge to a CWE planned for all
+of its languages, so it is gated under that CWE rather than asked as a root; a unit test checks
+this. Where a candidate was already covered by a planned card (for example loose `==` under
+CWE-1024, `is` with literals under CWE-595, bare `except` under CWE-396, regex compilation in a
+loop under PERF-006), the entry was not added. Language-specific entries name their platforms
+(`TypeScript` reaches TypeScript and TSX only; `C` also reaches C++).
+
+## Language-specific patterns
+
+C++ reads `c` patterns and TypeScript and TSX read `javascript` ones, so those languages mostly
+saw C and JavaScript idioms. Cards now carry `cpp` patterns where C++ code looks different (STL
+containers and `at()`, iterators, smart pointers and RAII, `new`/`delete`, `std::thread` and
+`std::mutex`, casts, `string_view`, streams), `typescript` patterns where types change the
+picture (type assertions, `any`, non-null `!`, typed but unvalidated request bodies, schema
+validators as guards), and `tsx` patterns for React and JSX sinks (`dangerouslySetInnerHTML`,
+`href` from data, `target="_blank"`). Keys were added only where the language changes what to
+look for.
 
 ## Known weak spots
 
@@ -48,6 +93,14 @@ These came up while drafting and are the first places to look when reviewing res
   need excluding for most projects.
 - **Firmware-level hardware entries kept checkable** (CWE-1220, CWE-1232, CWE-1234, CWE-1282,
   CWE-1420): could be made uncheckable like the other hardware entries.
+- **BETSY-authored entries** have no external source to check against and have not been run
+  against a model. The likeliest to be noisy are PERF-014 (large by-value copies), PERF-018
+  (log message cost), REL-219 (implicit globals, which TypeScript rejects anyway), REL-227
+  (late-binding closures) and REL-230 (truthiness tests). 14 of the 29 reliability entries sit under
+  gates (CWE-755, CWE-697, CWE-710, CWE-664, CWE-20); the rest, and 13 of the 14 performance
+  entries, sit under findings such as CWE-754, CWE-825, CWE-407, CWE-1176 and CWE-1050, whose
+  low answers may hide them. If `betsy run recall` shows
+  gating misses, move them to `weakness::DETACHED` or to a broader parent such as CWE-400.
 - **Narrow sibling distinctions** (CWE-152 to CWE-154, CWE-796 and CWE-797, CWE-32 to CWE-35)
   depend on fine wording and may still be confused.
 

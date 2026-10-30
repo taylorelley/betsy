@@ -1,0 +1,1478 @@
+[
+  {
+    "id": "REL-214",
+    "name": "Floating Promise: Async Result Neither Awaited Nor Handled",
+    "description": "An async function is called or a promise is created, and its result is discarded with no await, then, catch or return, so failures are lost and completion is not ordered.",
+    "extended_description": "A promise that nobody observes can reject without any handler, which hides errors or crashes Node with an unhandled rejection. The calling code also carries on before the operation completes, so later steps may run against data that has not been written yet.",
+    "detection_methods": [
+      "Look for calls to async functions or promise-returning APIs used as statements",
+      "Check that every promise is awaited, returned, combined or given a catch handler"
+    ],
+    "potential_mitigations": [
+      "Await the promise or return it to the caller",
+      "Attach a catch handler when fire-and-forget is intended",
+      "Enable a lint rule that rejects floating promises"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-755",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-252",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Unhandled Errors",
+      "Out-of-Order Execution",
+      "Process Crash"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-215",
+    "name": "Async Callback Passed to an Iterator That Does Not Await It",
+    "description": "An async function is given to forEach, or to map without collecting the resulting promises, so the loop finishes before any of the work does and failures are not caught.",
+    "extended_description": "Array.prototype.forEach ignores the return value of its callback, so the promises an async callback returns are dropped. The surrounding function continues as if the work were done, errors become unhandled rejections, and code that relies on the results sees partial state. map with an async callback returns promises that still need awaiting.",
+    "detection_methods": [
+      "Look for .forEach(async ...) and for array methods given async callbacks",
+      "Check that map with an async callback is wrapped in Promise.all"
+    ],
+    "potential_mitigations": [
+      "Use for...of with await for sequential work",
+      "Use await Promise.all(items.map(async ...)) for parallel work"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-755",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-703",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Unhandled Errors",
+      "Out-of-Order Execution",
+      "Incomplete Processing"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-216",
+    "name": "Numeric Parse Result Used Without a NaN Check",
+    "description": "Text is converted to a number with parseInt, parseFloat, Number or unary plus and the result is used without testing whether the conversion failed.",
+    "extended_description": "JavaScript's numeric conversions do not throw on bad input; they return NaN, or a partial value when parseInt stops at the first invalid character. NaN then spreads silently through arithmetic and makes every comparison false, so range checks pass or fail in surprising ways. parseInt without a radix also misreads some inputs.",
+    "detection_methods": [
+      "Look for parseInt, parseFloat, Number() or unary plus on input text",
+      "Check for Number.isNaN, Number.isFinite or Number.isInteger before the value is used"
+    ],
+    "potential_mitigations": [
+      "Validate the result with Number.isFinite or Number.isInteger",
+      "Pass a radix to parseInt, or validate the whole string with a pattern first"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-754",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1287",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Bypassed Range Checks"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-217",
+    "name": "for...in Used to Iterate an Array or Untrusted Object",
+    "description": "A for...in loop is used over an array, or over an object whose prototype chain may hold extra enumerable properties, so the loop sees unexpected keys or string indices.",
+    "extended_description": "for...in enumerates enumerable string keys, including inherited ones. On arrays it yields indices as strings, can visit them out of order and includes any extra properties. On plain objects it also walks properties added to Object.prototype by libraries or by prototype pollution.",
+    "detection_methods": [
+      "Look for for (const k in arr) where arr is an array",
+      "Look for for...in over objects with no hasOwnProperty check"
+    ],
+    "potential_mitigations": [
+      "Use for...of, forEach or an index loop for arrays",
+      "Use Object.keys, Object.entries or an Object.hasOwn check for objects"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Processing of Injected Properties"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-218",
+    "name": "typeof Object Test That Lets null Through",
+    "description": "Code uses typeof x === 'object' to decide that a value is an object and then reads its properties, but typeof null is also 'object'.",
+    "extended_description": "A historical quirk of JavaScript makes typeof null return 'object'. Guards that rely only on that test let null pass and then fail with a TypeError when a property is accessed. Arrays also pass the test, which may not be intended.",
+    "detection_methods": [
+      "Look for typeof x === 'object' guards with no x !== null check",
+      "Check what happens next when the value is null or an array"
+    ],
+    "potential_mitigations": [
+      "Test x !== null alongside the typeof check",
+      "Use Array.isArray or a schema validator when the shape matters"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-697",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-754",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Runtime TypeError",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-219",
+    "name": "Assignment to an Undeclared Variable Creating an Implicit Global",
+    "description": "A variable is assigned without let, const or var, so in non-strict JavaScript it silently becomes a property of the global object shared by all code.",
+    "extended_description": "Outside strict mode, assigning to a name that has not been declared creates a global variable. Concurrent requests, other modules and later calls then share and overwrite it, causing state to leak between users or calls. A typo in a variable name produces the same effect.",
+    "detection_methods": [
+      "Look for assignments to names that are never declared in scope",
+      "Check whether the file or function is in strict mode"
+    ],
+    "potential_mitigations": [
+      "Declare variables with let or const",
+      "Enable strict mode or use ES modules, which are strict by default"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1108",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "State Leaking Between Calls",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-220",
+    "name": "Array Sorted Without a Comparator on Non-String Values",
+    "description": "Array.prototype.sort or toSorted is called with no comparison function on numbers, dates or mixed values, so elements are compared as strings.",
+    "extended_description": "Without a comparator JavaScript converts each element to a string and orders by UTF-16 code units. Numbers therefore sort as 1, 10, 2, and dates or objects sort by their string form. The result looks plausible on small test data and fails on real values.",
+    "detection_methods": [
+      "Look for .sort() or .toSorted() with no argument",
+      "Check the element type of the array being sorted"
+    ],
+    "potential_mitigations": [
+      "Pass a comparator such as (a, b) => a - b",
+      "Use localeCompare for strings that need locale order"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-697",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Ordering",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-221",
+    "name": "Line Break After return Triggering Automatic Semicolon Insertion",
+    "description": "A return statement is followed by a line break before its value, so JavaScript inserts a semicolon and the function returns undefined.",
+    "extended_description": "JavaScript's grammar ends a return statement at a line break. When the returned object literal, array or expression starts on the next line, the function returns undefined and the following code is unreachable, without any error at run time.",
+    "detection_methods": [
+      "Look for return on its own line followed by an expression on the next line"
+    ],
+    "potential_mitigations": [
+      "Start the returned expression on the same line as return, or wrap it in parentheses that open on that line"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-670",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Unreachable Code"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-222",
+    "name": "Type Assertion Overriding the Type Checker",
+    "description": "A TypeScript value is forced to another type with as any, a double assertion through unknown, or angle-bracket casts, hiding a real type mismatch from the compiler.",
+    "extended_description": "Type assertions change only what the compiler believes, not the value at run time. Casting through any or unknown removes the check that the two types overlap, so a wrong shape reaches code that trusts it, and later property access or method calls fail or read undefined.",
+    "detection_methods": [
+      "Look for as any, as unknown as T, <any> and similar casts",
+      "Check whether the asserted type matches what the value actually is"
+    ],
+    "potential_mitigations": [
+      "Fix the types, narrow with type guards, or validate at run time",
+      "Ban as any with a lint rule outside reviewed boundaries"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-704",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "TypeScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Runtime TypeError",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-223",
+    "name": "Non-Null Assertion on a Value That May Be Null or Undefined",
+    "description": "The TypeScript ! postfix operator tells the compiler a value is present when the code has not shown that it is.",
+    "extended_description": "The non-null assertion removes null and undefined from a type without any runtime check. Lookups such as Map.get, find, querySelector, optional fields and array indexing can all return nothing, and asserting otherwise moves the failure to a later TypeError or wrong result.",
+    "detection_methods": [
+      "Look for the postfix ! operator on results of lookups, optional properties or DOM queries"
+    ],
+    "potential_mitigations": [
+      "Check for null or undefined and handle the missing case",
+      "Use optional chaining with a fallback where absence is acceptable"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-754",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "TypeScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Runtime TypeError"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-224",
+    "name": "Type Errors Suppressed With ts-ignore or ts-expect-error",
+    "description": "A suppression comment tells the TypeScript compiler to skip a line or file, hiding a type error in code that is actually wrong.",
+    "extended_description": "Suppression comments turn off type checking for the following line or file. They are sometimes used to get a build to pass when a value has the wrong type, an argument is missing or a property does not exist. The underlying defect then ships unchecked, and later type changes are hidden as well.",
+    "detection_methods": [
+      "Search for @ts-ignore, @ts-expect-error and @ts-nocheck comments and inspect the suppressed line"
+    ],
+    "potential_mitigations": [
+      "Fix the type error, or replace the suppression with a narrow, documented type guard"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "TypeScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Hidden Type Errors",
+      "Runtime TypeError"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-225",
+    "name": "External Data Asserted to a Declared Type Without Runtime Validation",
+    "description": "Parsed JSON, a response body, storage contents or message data is cast to a TypeScript type and trusted without checking that it has that shape.",
+    "extended_description": "TypeScript types are erased at run time. Writing JSON.parse(text) as User or await res.json() as Order makes the compiler trust the shape, but nothing enforces it. Missing fields, wrong types or extra properties from a client, server or file then reach code that assumes they are valid.",
+    "detection_methods": [
+      "Look for JSON.parse, response.json(), localStorage reads or message data cast with as or assigned to a typed variable",
+      "Check for a schema validator or type guard between parsing and use"
+    ],
+    "potential_mitigations": [
+      "Validate with a schema library such as zod, io-ts, valibot or ajv",
+      "Write a type guard that checks each required field"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1287",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-20",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "TypeScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Runtime TypeError",
+      "Processing of Malformed Data"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-226",
+    "name": "Mutable Default Argument Shared Across Calls",
+    "description": "A Python function uses a list, dict, set or other mutable object as a default parameter value and then changes it, so the change persists into later calls.",
+    "extended_description": "Default values in Python are evaluated once, when the function is defined. A mutable default is therefore one object shared by every call that omits the argument. Appending to it or setting keys accumulates state across calls and across users, a frequent source of surprising bugs.",
+    "detection_methods": [
+      "Look for def f(x=[]), x={}, x=set() or a default that constructs a mutable object",
+      "Check whether the function mutates that parameter"
+    ],
+    "potential_mitigations": [
+      "Default to None and create a new object inside the function"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-664",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "State Leaking Between Calls",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-227",
+    "name": "Closure Capturing a Loop Variable by Late Binding",
+    "description": "Functions created inside a loop refer to the loop variable itself rather than its value at that iteration, so when called later they all see its final value.",
+    "extended_description": "Python closures and JavaScript functions over var bind names, not values. A lambda, callback or nested function defined in a loop and run after the loop finishes sees whatever the variable held last. Every handler then acts on the same item.",
+    "detection_methods": [
+      "Look for lambdas or nested functions created in loops that use the loop variable",
+      "In JavaScript, check whether the loop variable is declared with var"
+    ],
+    "potential_mitigations": [
+      "In Python, bind the value with a default argument or functools.partial",
+      "In JavaScript, declare the loop variable with let or const"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-228",
+    "name": "Collection Modified While Being Iterated",
+    "description": "A list, dict, set, array or map is changed by adding or removing elements during a loop over that same collection.",
+    "extended_description": "Changing a collection's size while iterating over it either raises an error, as with Python dicts and sets, or silently skips or repeats elements, as with Python lists and JavaScript arrays. The bug is often invisible on test data where nothing gets removed.",
+    "detection_methods": [
+      "Look for remove, pop, del, append, splice or delete on the collection being iterated",
+      "Check removal patterns inside forEach and for...of loops"
+    ],
+    "potential_mitigations": [
+      "Iterate over a copy, or build a new collection with the kept items",
+      "Collect changes and apply them after the loop",
+      "Iterate backwards by index when removing in place"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-664",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Skipped Elements",
+      "Runtime Error",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-229",
+    "name": "assert Used for Runtime Validation That Optimisation Removes",
+    "description": "Input checks, permission checks or other conditions the program depends on are written as assert statements, which are removed when Python runs with -O or C is built with NDEBUG.",
+    "extended_description": "Assertions document assumptions and are meant to be disabled in optimised builds. When an assert is the only thing rejecting bad input, an unauthorised caller or a missing value, that protection disappears in production configurations, and the code proceeds with the invalid state.",
+    "detection_methods": [
+      "Look for assert statements that test parameters, input data, permissions or return values from calls that can fail"
+    ],
+    "potential_mitigations": [
+      "Replace with explicit checks that raise an exception or return an error"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-20",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-617",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Bypassed Validation",
+      "Bypassed Authorisation",
+      "Incorrect Results"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-230",
+    "name": "Truthiness Test Where a Missing-Value Check Was Intended",
+    "description": "Code checks if not x, if (!x) or x || default to detect a missing value, but valid values such as 0, an empty string, an empty list or false also fail the test.",
+    "extended_description": "Python and JavaScript treat several legitimate values as false. A guard meant to catch None, null or undefined therefore also rejects a zero quantity, an empty name or a false flag, or replaces them with a default. The bug shows up only for those edge values.",
+    "detection_methods": [
+      "Look for if not x or if (!x) on optional parameters that can legitimately be 0, empty or false",
+      "Look for x or default and x || default on such values"
+    ],
+    "potential_mitigations": [
+      "Test x is None in Python",
+      "Use x == null, x === undefined or the ?? operator in JavaScript"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-697",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Valid Input Rejected"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-231",
+    "name": "One-Shot Iterator or Generator Consumed More Than Once",
+    "description": "A generator, map or filter object, file iterator or other single-pass iterator is looped over twice, and the second pass silently sees no items.",
+    "extended_description": "Many Python and JavaScript iteration objects can be traversed only once. After the first loop, sum, list conversion or membership test exhausts them, later passes yield nothing without raising an error, so counts become zero and checks quietly fail.",
+    "detection_methods": [
+      "Look for generators, map, filter, zip or file objects stored in a variable and iterated more than once",
+      "Check for in tests on iterators, which consume them"
+    ],
+    "potential_mitigations": [
+      "Convert to a list or tuple once before reuse",
+      "Recreate the iterator for each pass"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-672",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Silently Skipped Processing"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-232",
+    "name": "Naive and Time-Zone-Aware Date-Times Mixed",
+    "description": "Date-time values with and without a time zone, or values in local time and UTC, are compared, subtracted or stored together as if they were the same kind.",
+    "extended_description": "A naive date-time carries no zone, so its meaning depends on the machine running the code. Mixing naive and aware values raises errors in Python, and treating local time as UTC, or parsing date-only strings as UTC in JavaScript, shifts results by hours and breaks around daylight-saving changes.",
+    "detection_methods": [
+      "Look for datetime.now(), utcnow() or fromtimestamp() without tz compared with aware values",
+      "Look for new Date(string) on date-only or zone-less strings and getHours rather than getUTCHours"
+    ],
+    "potential_mitigations": [
+      "Use aware date-times in UTC internally, such as datetime.now(timezone.utc)",
+      "Parse with an explicit zone and convert to local time only for display"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-697",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1024",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Off-by-Hours Errors",
+      "Runtime Error"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-233",
+    "name": "Exception Escaping a Destructor or noexcept Function",
+    "description": "A C++ destructor, or a function declared noexcept, can let an exception propagate, which calls std::terminate and stops the program.",
+    "extended_description": "Destructors are implicitly noexcept, and functions marked noexcept promise not to throw. If an exception leaves either, the runtime calls std::terminate without unwinding further. Destructors that close files, flush buffers or call other code that can throw are the usual cause, as are move constructors marked noexcept.",
+    "detection_methods": [
+      "Look for calls that can throw inside destructors and noexcept functions without a try/catch",
+      "Look for explicit throw statements in those functions"
+    ],
+    "potential_mitigations": [
+      "Catch and handle or log exceptions inside the destructor",
+      "Move fallible cleanup into an explicit close method that callers can check"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-248",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-703",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Program Termination",
+      "Lost Cleanup"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-234",
+    "name": "Iterator, Pointer or Reference Used After Container Mutation Invalidates It",
+    "description": "An iterator, pointer or reference into a C++ container is kept across an operation that can reallocate or remove elements, and is then used.",
+    "extended_description": "Operations such as push_back, insert, erase, resize and rehash can move or free a container's elements. Iterators, pointers and references obtained earlier then refer to freed or shifted memory. Erasing inside a range loop and pushing into a vector while holding a reference to one of its elements are common forms.",
+    "detection_methods": [
+      "Look for push_back, insert, emplace, erase or resize while an iterator, pointer or reference into the same container is alive",
+      "Look for erase inside range-based for loops"
+    ],
+    "potential_mitigations": [
+      "Use the iterator returned by erase, or the erase-remove idiom",
+      "Reserve capacity first, or store indices instead of pointers"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-825",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-664",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Use of Freed Memory",
+      "Memory Corruption",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-235",
+    "name": "View or Reference Bound to a Temporary That Outlives It",
+    "description": "A std::string_view, std::span, const reference member, c_str() pointer or similar non-owning handle is taken from a temporary object and used after that temporary is destroyed.",
+    "extended_description": "Temporaries live only until the end of the full expression that creates them, unless bound directly to a local reference. Taking a view, a raw pointer or a reference to a member of a temporary, or of a range in a range-based for, leaves the handle dangling as soon as the statement ends.",
+    "detection_methods": [
+      "Look for string_view or span variables initialised from function results that return by value",
+      "Look for c_str() or data() of temporary strings stored in variables",
+      "Look for range-based for over a member of a temporary"
+    ],
+    "potential_mitigations": [
+      "Store the owning object in a named variable first",
+      "Return owning types instead of views from functions"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-825",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-664",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Use of Freed Memory",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-236",
+    "name": "Object Used After Being Moved From",
+    "description": "A C++ object is passed to std::move or otherwise moved from, and then read as if it still held its original value.",
+    "extended_description": "After a move the source is in a valid but unspecified state; strings and containers are usually empty, smart pointers are null. Code that keeps reading the moved-from object sees empty or default values, or dereferences a null pointer.",
+    "detection_methods": [
+      "Look for uses of a variable after it appears as std::move(x) or is passed to a by-value or rvalue-reference parameter"
+    ],
+    "potential_mitigations": [
+      "Do not use the variable after moving it, or reassign it first",
+      "Move only at the last use"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-672",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-664",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Null Pointer Dereference"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-237",
+    "name": "Mutex Locked and Unlocked by Hand Instead of With a Scoped Guard",
+    "description": "A C++ mutex is locked with lock() and released with unlock(), so an early return, break or exception between them leaves it locked.",
+    "extended_description": "Manual pairing of lock and unlock depends on every path reaching the unlock. Exceptions, early returns and later edits break that easily, leaving the mutex held and deadlocking the next thread that needs it. RAII guards release the lock automatically when the scope ends.",
+    "detection_methods": [
+      "Look for mutex.lock() and mutex.unlock() calls in the same function",
+      "Check every path between them for returns, breaks and calls that can throw"
+    ],
+    "potential_mitigations": [
+      "Use std::lock_guard, std::unique_lock or std::scoped_lock"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-667",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Deadlock",
+      "Denial of Service"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-238",
+    "name": "Derived Object Sliced by Copying Into a Base Value",
+    "description": "A derived class object is copied into a variable, parameter or container element of its base class type, losing its derived part and virtual behaviour.",
+    "extended_description": "Copying by value to a base type keeps only the base subobject. Virtual calls on the copy then use the base implementation, and derived data is dropped. This happens with by-value parameters, catch by value, and containers such as std::vector<Base>.",
+    "detection_methods": [
+      "Look for base-class parameters, locals or container element types holding derived objects by value",
+      "Look for catch clauses that take exceptions by value"
+    ],
+    "potential_mitigations": [
+      "Pass and store by reference or smart pointer",
+      "Catch exceptions by const reference",
+      "Make base classes non-copyable"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-704",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Lost Data"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-239",
+    "name": "Virtual Function Called From a Constructor or Destructor",
+    "description": "A C++ constructor or destructor calls a virtual member function, expecting the derived override, but the call resolves to the class being constructed or destroyed.",
+    "extended_description": "During construction and destruction the dynamic type is the class whose constructor or destructor is running. Virtual calls made there do not reach derived overrides, and calling a pure virtual function at that point is undefined behaviour that usually aborts.",
+    "detection_methods": [
+      "Look for calls to virtual members, directly or through helpers, inside constructors and destructors"
+    ],
+    "potential_mitigations": [
+      "Move the call into a separate init step after construction",
+      "Pass the needed data to the base constructor"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-758",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Results",
+      "Program Termination"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-240",
+    "name": "Lambda Capturing Locals by Reference That Outlives Their Scope",
+    "description": "A C++ lambda captures local variables by reference with [&] or [&x] and is stored, returned, or handed to a thread or callback that runs after the function returns.",
+    "extended_description": "Reference captures do not extend lifetimes. Once the enclosing function returns, the captured locals are destroyed and the lambda's references dangle. Asynchronous APIs such as std::thread, std::async, event loops and callback registrations make this easy to miss.",
+    "detection_methods": [
+      "Look for [&] or [&x] lambdas passed to threads, async tasks, callbacks or stored in members",
+      "Check whether the lambda can run after the scope ends"
+    ],
+    "potential_mitigations": [
+      "Capture by value or move ownership into the lambda",
+      "Use shared_ptr for state the callback needs"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-825",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-416",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Use of Freed Memory",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-241",
+    "name": "std::thread Destroyed While Joinable or Detached While Using Locals",
+    "description": "A std::thread object goes out of scope without join or detach, which terminates the program, or is detached while still using data owned by the function.",
+    "extended_description": "Destroying a joinable std::thread calls std::terminate. Early returns or exceptions between creating the thread and joining it trigger this. Detaching avoids the crash but leaves the thread running after the function returns, so any reference to the function's locals dangles.",
+    "detection_methods": [
+      "Look for std::thread locals with paths that skip join",
+      "Look for detach on threads that use references or pointers to locals"
+    ],
+    "potential_mitigations": [
+      "Use std::jthread or an RAII joiner",
+      "Pass data to detached threads by value or shared ownership"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-664",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-404",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Program Termination",
+      "Use of Freed Memory"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-242",
+    "name": "Lock Guard or RefCell Borrow Held Across an await or Re-entrant Call",
+    "description": "Rust code keeps a MutexGuard, RwLock guard or RefCell borrow alive across an await point or a call that may lock or borrow the same value again.",
+    "extended_description": "A guard held across await can deadlock when another task on the same executor needs the lock, and std guards also make the future non-Send. A RefCell borrow held while calling code that borrows the same cell mutably panics at run time with a BorrowMutError.",
+    "detection_methods": [
+      "Look for guards or borrows bound with let and still in scope at an .await",
+      "Look for callbacks or methods called while a RefCell borrow is held"
+    ],
+    "potential_mitigations": [
+      "Limit guard scope with a block or drop before await",
+      "Use an async-aware mutex where holding across await is needed",
+      "Clone the needed data out before calling back"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-833",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-667",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Deadlock",
+      "Panic"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  }
+]

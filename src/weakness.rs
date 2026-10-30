@@ -1,5 +1,6 @@
-//! Weakness catalogs copied from scorpius-cli, plus the deterministic per-language
-//! selection and CWE-1000 hierarchy used to plan per-function decision questions.
+//! Weakness catalogs copied from scorpius-cli and BETSY-owned extensions to them, plus the
+//! deterministic per-language selection and CWE-1000 hierarchy used to plan per-function
+//! decision questions.
 //! Nothing here calls a model: selection is a pure function of catalog and language.
 use crate::model::{hash, identity};
 use anyhow::{Context, Result};
@@ -7,7 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::OnceLock;
 
-const CATALOG_FILES: [(&str, &str, &[u8]); 3] = [
+/// The first three files are byte-for-byte copies of scorpius-cli; the `betsy_` files add
+/// entries written for BETSY under the same ID sequences.
+const CATALOG_FILES: [(&str, &str, &[u8]); 5] = [
     (
         "security",
         "cwe_database.json",
@@ -23,9 +26,19 @@ const CATALOG_FILES: [(&str, &str, &[u8]); 3] = [
         "performance_weaknesses.json",
         include_bytes!("../data/weaknesses/performance_weaknesses.json"),
     ),
+    (
+        "reliability",
+        "betsy_reliability_weaknesses.json",
+        include_bytes!("../data/weaknesses/betsy_reliability_weaknesses.json"),
+    ),
+    (
+        "performance",
+        "betsy_performance_weaknesses.json",
+        include_bytes!("../data/weaknesses/betsy_performance_weaknesses.json"),
+    ),
 ];
 /// Bumped whenever plan shape or question wording changes, so cached run identities differ.
-pub const PROFILE: &str = "function-v4";
+pub const PROFILE: &str = "function-v5";
 const HIERARCHY_VIEW: &str = "CWE-1000";
 const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
 /// Detection cards: an overlay that rewrites questions without touching the source catalogs.
@@ -1076,6 +1089,73 @@ mod tests {
                 .find(|n| n.id == *id)
                 .expect("planned for C");
             assert!(node.parent.is_none(), "{id} has a parent");
+        }
+    }
+
+    const LANGUAGES: [&str; 7] = [
+        "c",
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust",
+    ];
+
+    #[test]
+    fn every_planned_entry_has_a_card() {
+        for language in LANGUAGES {
+            for n in plan(language, &Selection::default()).unwrap().nodes {
+                assert!(
+                    cards().get(&n.id).is_some(),
+                    "{language}: {} has no card",
+                    n.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn betsy_authored_entries_are_gated_under_a_peer() {
+        let ours: Vec<&Weakness> = catalog()
+            .entries
+            .iter()
+            .filter(|w| w.mapping_usage.starts_with("BETSY-authored"))
+            .collect();
+        assert!(!ours.is_empty());
+        for language in LANGUAGES {
+            let p = plan(language, &Selection::default()).unwrap();
+            for n in p.nodes.iter().filter(|n| ours.iter().any(|w| w.id == n.id)) {
+                assert!(n.parent.is_some(), "{language}: {} is a root", n.id);
+            }
+        }
+    }
+
+    #[test]
+    fn cards_do_not_copy_catalog_descriptions() {
+        fn words(text: &str) -> Vec<String> {
+            text.split(|c: char| !c.is_alphanumeric())
+                .filter(|w| !w.is_empty())
+                .map(str::to_lowercase)
+                .collect()
+        }
+        for (id, card) in &cards().cards {
+            let w = catalog().get(id).unwrap();
+            let source = words(&format!("{} {}", w.description, w.extended_description));
+            let windows: BTreeSet<&[String]> = source.windows(10).collect();
+            let mut text = vec![card.question.clone(), card.reason.clone()];
+            for p in [&card.present_when, &card.not_present_when] {
+                text.extend(p.values().flatten().cloned());
+            }
+            text.extend(card.distinguish_from.values().cloned());
+            for t in text {
+                let t = words(&t);
+                assert!(
+                    t.windows(10).all(|run| !windows.contains(run)),
+                    "{id} copies its description: {}",
+                    t.join(" ")
+                );
+            }
         }
     }
 

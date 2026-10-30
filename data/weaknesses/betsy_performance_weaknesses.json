@@ -1,0 +1,681 @@
+[
+  {
+    "id": "PERF-011",
+    "name": "Front Insertion or Removal on an Array-Backed Sequence in a Loop",
+    "description": "Elements are repeatedly added to or taken from the start of a contiguous array or list, so each operation shifts every remaining element.",
+    "extended_description": "Dynamic arrays such as Python lists, JavaScript arrays, C++ vectors and Rust vectors store elements contiguously. Inserting or deleting at index zero moves all later elements, which costs time proportional to the length. Doing this once per item turns a linear pass into quadratic work, for example when a list is used as a queue.",
+    "detection_methods": [
+      "Look for pop(0), insert(0, x), shift(), unshift(), erase(begin()) or remove(0) inside loops",
+      "Check whether a list or vector is being used as a FIFO queue"
+    ],
+    "potential_mitigations": [
+      "Use a double-ended queue such as collections.deque, std::deque or VecDeque",
+      "Iterate with an index or reverse the processing order instead of removing from the front"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-407",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage",
+      "Quadratic Slowdown on Large Inputs"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-012",
+    "name": "Independent Async Operations Awaited One at a Time in a Loop",
+    "description": "A loop starts an asynchronous request for each item and waits for it to finish before starting the next, even though the requests do not depend on each other.",
+    "extended_description": "Awaiting inside a loop serialises network, disk or database calls. Total latency becomes the sum of all calls instead of roughly the slowest one. When each call is independent, starting them together with a bounded concurrency limit is usually far faster.",
+    "detection_methods": [
+      "Look for await inside for, for...of or while loops whose iterations do not use each other's results",
+      "Check for .await on futures created per item inside a loop"
+    ],
+    "potential_mitigations": [
+      "Collect the promises or futures and await them together with Promise.all, asyncio.gather or join_all",
+      "Bound concurrency with a semaphore, p-limit or buffer_unordered where the remote side needs it"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1050",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High Request Latency",
+      "Poor Throughput"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-013",
+    "name": "Container Grown Element by Element Without Reserving Known Capacity",
+    "description": "A buffer or vector is extended one element at a time inside a loop even though the final size is known beforehand, causing repeated reallocation and copying.",
+    "extended_description": "Growable containers reallocate when they run out of room. Most grow geometrically, but each reallocation still copies the contents, and hand-written C code that grows by one element at a time copies the whole buffer on every append. When the final size is known before the loop, reserving it up front removes this work.",
+    "detection_methods": [
+      "Look for realloc inside loops with a size that grows by a constant",
+      "Look for push_back or push in loops over a collection of known length with no reserve or with_capacity call"
+    ],
+    "potential_mitigations": [
+      "Allocate the final size once before the loop",
+      "Call reserve or with_capacity, or collect from a sized iterator",
+      "Grow buffers geometrically when the size is unknown"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-407",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage",
+      "Memory Churn"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-014",
+    "name": "Large Value Copied Where a Borrow or Reference Would Do",
+    "description": "A sizeable structure, string or container is copied by value when the code only needs to read it.",
+    "extended_description": "Passing or iterating large values by value duplicates their contents. In C and C++ a parameter of struct, std::vector or std::string type is copied on each call, and a range loop with a non-reference variable copies each element. In Rust, calling clone to satisfy the borrow checker inside a loop duplicates heap data that a reference would have served.",
+    "detection_methods": [
+      "Check parameter types for containers, strings or large structs passed by value and only read",
+      "Look for range-based for loops with a non-reference loop variable over heavy elements",
+      "Look for .clone() inside loops where the clone is only read"
+    ],
+    "potential_mitigations": [
+      "Pass by const reference, pointer to const or slice",
+      "Use const auto& in range loops",
+      "Borrow with & or use Rc or Arc for shared ownership instead of cloning"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage",
+      "Memory Churn"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-015",
+    "name": "Deep Copy Through a Serialisation Round Trip",
+    "description": "An object is cloned by serialising it to text or bytes and parsing it back, which is much slower than a structured copy.",
+    "extended_description": "Writing an object out as JSON or pickle and immediately reading it back creates a deep copy, but pays for encoding, string allocation and parsing. It also silently drops or changes values the format cannot represent, such as dates, undefined, NaN, functions or custom classes.",
+    "detection_methods": [
+      "Look for JSON.parse(JSON.stringify(x))",
+      "Look for pickle.loads(pickle.dumps(x)) or json.loads(json.dumps(x)) used to copy"
+    ],
+    "potential_mitigations": [
+      "Use structuredClone, copy.deepcopy or a purpose-built copy",
+      "Copy only the fields that will be changed"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage",
+      "Silent Loss of Values"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-016",
+    "name": "Exceptions Thrown for Expected Outcomes Inside a Hot Loop",
+    "description": "A loop signals a common, expected case such as a missing key or a non-numeric item by throwing and catching an exception on each pass.",
+    "extended_description": "Raising an exception captures stack information and unwinds frames, which costs far more than a branch. When the exceptional case happens on a large share of iterations, the loop spends most of its time in exception machinery. Testing for the case first, or using a non-throwing API, avoids the cost.",
+    "detection_methods": [
+      "Look for try/catch or try/except inside loops where the handler runs for routine data",
+      "Look for throw statements used to skip or end iterations"
+    ],
+    "potential_mitigations": [
+      "Test for the case with a lookup, parse that reports failure, or a precondition check",
+      "Use non-throwing APIs such as dict.get, std::from_chars or find"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-017",
+    "name": "Unbuffered Small Reads or Writes Inside a Loop",
+    "description": "Data is read or written a byte, character or line at a time through an unbuffered handle, so each item costs a system call.",
+    "extended_description": "System calls carry fixed overhead. Calling write, read or a synchronous file API for each small piece of data multiplies that overhead by the item count. Buffered streams, or collecting output and writing it once, reduce the number of calls by orders of magnitude.",
+    "detection_methods": [
+      "Look for read or write system calls inside loops with a size of one or a few bytes",
+      "Check file handles opened without buffering and written to inside loops"
+    ],
+    "potential_mitigations": [
+      "Wrap handles in buffered readers or writers",
+      "Collect output in memory and write it in large blocks"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1050",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage",
+      "Slow I/O"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-018",
+    "name": "Expensive Log Message Arguments Built When the Level Is Disabled",
+    "description": "A debug or trace log call formats strings, serialises objects or calls expensive functions to build its message before the logger decides to discard it.",
+    "extended_description": "Most logging libraries check the level inside the log call, but the arguments are evaluated first. Building a message with string formatting, JSON serialisation or a costly helper therefore runs even when debug output is switched off. In hot paths this can dominate run time.",
+    "detection_methods": [
+      "Look for f-strings, format calls, template literals or serialisation inside debug and trace log arguments",
+      "Check hot loops and request paths for verbose logging"
+    ],
+    "potential_mitigations": [
+      "Use the logger's lazy formatting with placeholders and arguments",
+      "Guard expensive messages with an isEnabledFor or level check",
+      "Use macros that skip argument evaluation when the level is off"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-019",
+    "name": "Rows Fetched Only to Count Them or Test Existence",
+    "description": "All matching records are loaded from a database or API just to find out how many there are or whether any exist.",
+    "extended_description": "Counting a result by loading it into memory transfers and materialises every row. The data store can return a count, or stop at the first match for an existence test, at a tiny fraction of the cost. The waste grows with table size and is often unnoticed in testing.",
+    "detection_methods": [
+      "Look for len() or .length of a full query result",
+      "Look for fetchall, all() or findAll followed only by a count or emptiness test"
+    ],
+    "potential_mitigations": [
+      "Use COUNT, count() or an exists() query",
+      "Fetch with LIMIT 1 for an existence test"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Excessive Database Load",
+      "High Request Latency",
+      "Memory Exhaustion"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-020",
+    "name": "Lock Held Across Slow I/O or an Await Point",
+    "description": "A mutex or other exclusive lock stays held while the code performs network, disk or other slow operations, serialising every other thread or task that needs it.",
+    "extended_description": "Locks protect shared state for short critical sections. Holding one while waiting on a remote call, a database query, a sleep or an await stretches the critical section to the length of that wait, so contending threads or tasks queue up behind it and throughput collapses under load.",
+    "detection_methods": [
+      "Look for network, file, database or sleep calls between a lock acquisition and its release",
+      "Look for await expressions inside lock scopes"
+    ],
+    "potential_mitigations": [
+      "Copy the needed state out under the lock, release it, then do the slow work",
+      "Restructure so the slow operation does not need the lock"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Poor Throughput",
+      "Lock Contention",
+      "High Request Latency"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-021",
+    "name": "Busy-Wait Polling Without Sleeping or Blocking",
+    "description": "A loop repeatedly checks a flag, file, queue or time value without yielding the processor, consuming a full core while it waits.",
+    "extended_description": "Spinning on a condition keeps a CPU core busy and can starve the thread that would make the condition true. It also wastes power. Waiting on a condition variable, event, channel, future or file notification, or at least sleeping between checks, lets the waiting thread use no CPU until there is work.",
+    "detection_methods": [
+      "Look for while loops whose bodies only test a flag or poll a state with no sleep, wait or yield",
+      "Look for loops comparing the current time with a deadline in a tight loop"
+    ],
+    "potential_mitigations": [
+      "Use condition variables, events, channels, futures or OS notification APIs",
+      "Sleep or back off between polls when polling is unavoidable"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      },
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "High CPU Usage",
+      "Thread Starvation",
+      "Power Waste"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-022",
+    "name": "Recursive Recomputation of Overlapping Subproblems Without Memoisation",
+    "description": "A recursive function calls itself on the same arguments many times along different branches and keeps no record of results, so work grows exponentially.",
+    "extended_description": "Recursions such as naive Fibonacci, path counting or edit distance branch into subproblems that repeat. Without a cache, each repeated subproblem is solved again from scratch, and the call count grows exponentially with the input. Memoising results or rewriting the recursion as a table makes the work polynomial.",
+    "detection_methods": [
+      "Look for functions that call themselves two or more times with overlapping argument ranges",
+      "Check whether any cache, memo table or decorator stores results"
+    ],
+    "potential_mitigations": [
+      "Memoise with a cache keyed by arguments, such as functools.cache",
+      "Rewrite as bottom-up dynamic programming"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-407",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Exponential Slowdown",
+      "Stack Exhaustion"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-023",
+    "name": "Full Sequence Materialised Only to Be Scanned Once",
+    "description": "An intermediate list or array is built in full and then consumed by a single pass, such as a sum, a search or an existence test, when a lazy iteration would avoid the allocation.",
+    "extended_description": "Building a complete list before reducing it allocates memory proportional to the data and prevents early exit. Generator expressions, iterator chains and short-circuiting methods can compute the same answer in constant extra memory and stop at the first match.",
+    "detection_methods": [
+      "Look for list comprehensions passed directly to sum, any, all, min or max",
+      "Look for filter(...).length > 0 or collect::<Vec<_>>() followed by a single iteration"
+    ],
+    "potential_mitigations": [
+      "Use generator expressions or iterator adaptors",
+      "Use short-circuiting methods such as some, find, any or position"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Memory Churn",
+      "Missed Early Exit"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "PERF-024",
+    "name": "Interleaved DOM Reads and Writes Forcing Repeated Layout",
+    "description": "Browser code alternates between changing styles or structure and reading layout properties inside a loop, forcing the browser to recompute layout on every pass.",
+    "extended_description": "Reading properties such as offsetHeight, getBoundingClientRect or scrollTop requires up-to-date layout. If the code has just written a style or inserted a node, the browser must recalculate layout synchronously before answering. Doing this once per element turns one layout into many, a pattern often called layout thrashing.",
+    "detection_methods": [
+      "Look for loops that write style or DOM changes and read layout properties in the same iteration",
+      "Check for getBoundingClientRect, offsetWidth or scrollHeight inside loops that also mutate elements"
+    ],
+    "potential_mitigations": [
+      "Read all layout values first, then apply all writes",
+      "Batch writes in requestAnimationFrame",
+      "Use CSS classes or transforms that avoid layout"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1176",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Slow Rendering",
+      "Unresponsive User Interface"
+    ],
+    "taxonomy_mappings": [],
+    "mapping_usage": "BETSY-authored performance weakness",
+    "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
+    "view_ids": [],
+    "view_names": []
+  }
+]
