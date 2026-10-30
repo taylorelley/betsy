@@ -2,6 +2,7 @@
 //! queue, one independent yes/no question per weakness, batched per hierarchy round.
 //! Model probabilities are stored apart from parser facts and are never treated as proof.
 use crate::{
+    contract::{self, Features},
     decide::{decide_splitting, Answer, Provider, ProviderError, State, Usage},
     dispatch,
     model::{identity, Function},
@@ -280,12 +281,13 @@ fn evaluate(
     provider: &dyn Provider,
     prepared: &Prepared,
     function: &Function,
+    features: &Features,
     cached: &HashMap<String, f64>,
     config: &Config,
     sem: &Semaphore,
 ) -> Result<Outcome, ProviderError> {
     let plan = &prepared.plan;
-    let state = State { function };
+    let state = State { function, features };
     let traits = weakness::traits();
     let mut frontier = plan.roots.clone();
     let mut decisions = vec![];
@@ -302,10 +304,7 @@ fn evaluate(
     if config.traits.is_some() && !config.exhaustive && plan.nodes.iter().any(|n| n.reach.is_some())
     {
         round += 1;
-        let proven = weakness::proven_traits(
-            &function.language,
-            function.source.as_deref().unwrap_or_default(),
-        );
+        let proven = traits.mask(&features.syntax_traits);
         let unproven: Vec<usize> = (0..traits.traits.len())
             .filter(|i| proven & (1 << i) == 0)
             .collect();
@@ -545,6 +544,7 @@ fn persist(
 
 struct Job {
     function: Function,
+    features: Features,
     prepared: Arc<Prepared>,
     cached: HashMap<String, f64>,
 }
@@ -588,6 +588,7 @@ pub fn drain(
                     provider.as_ref(),
                     &job.prepared,
                     &job.function,
+                    &job.features,
                     &job.cached,
                     config,
                     sem,
@@ -614,9 +615,11 @@ pub fn drain(
                                 }
                             };
                             let cached = cached(db, &config, &function)?;
+                            let features = contract::features(db, &function)?;
                             job_tx
                                 .send(Job {
                                     function,
+                                    features,
                                     prepared,
                                     cached,
                                 })

@@ -1,5 +1,6 @@
 use betsy::{
     analyze::{self, Config, Exec},
+    contract,
     decide::{self, mock::Mock, Answer, Provider, ProviderError, State, Usage},
     dispatch,
     model::*,
@@ -483,9 +484,11 @@ fn provider_failures_are_retryable_and_explicitly_retried() {
     assert_eq!(out["status"], "finished");
 }
 
-fn function() -> Function {
+fn function() -> (Function, contract::Features) {
     let (_t, db, m) = persisted();
-    store::get(&db, &m.snapshot_id, &m.functions[0].id).unwrap()
+    let f = store::get(&db, &m.snapshot_id, &m.functions[0].id).unwrap();
+    let x = contract::features(&db, &f).unwrap();
+    (f, x)
 }
 fn questions() -> Vec<weakness::Question> {
     vec![
@@ -495,13 +498,17 @@ fn questions() -> Vec<weakness::Question> {
 }
 #[test]
 fn jev_and_openai_wire_shapes() {
-    let f = function();
-    let state = State { function: &f };
+    let (f, x) = function();
+    let state = State {
+        function: &f,
+        features: &x,
+    };
     let qs = questions();
     let refs: Vec<&weakness::Question> = qs.iter().collect();
     let r = decide::jev::request("jev-latest", &state, &refs);
     assert_eq!(r["model"], "jev-latest");
     assert_eq!(r["state"]["source"], json!(f.source));
+    assert_eq!(r["state"]["features"], json!(x));
     assert_eq!(r["questions"]["CWE_89"]["type"], "noul");
     assert!(r["questions"]["REL_001"]["criteria"]["true"].is_string());
     let resp = json!({"model":"jev-1.13.0","answers":{"CWE_89":{"type":"noul","noul":0.93},"REL_001":{"type":"noul","noul":0.01}},"usage":{"input_tokens":360,"output_tokens":39}});
@@ -518,6 +525,10 @@ fn jev_and_openai_wire_shapes() {
         .unwrap()
         .contains(f.source.as_deref().unwrap()));
     assert_eq!(r["prompt_cache_key"], json!(f.source_hash));
+    assert!(r["input"]
+        .as_str()
+        .unwrap()
+        .contains(&format!("\nSize: {} lines, ", x.lines)));
     let resp = json!({"answers":[{"type":"refusal","name":"REL_001"},{"type":"predicate","name":"CWE_89","probability":0.4}],"usage":{"input_tokens":2000,"input_tokens_details":{"cached_tokens":1500}}});
     let (a, u) = decide::openai::parse(&resp, &refs).unwrap();
     assert_eq!(a, [Answer::Probability(0.4), Answer::Refused]);
@@ -567,8 +578,11 @@ fn stub(
 }
 #[test]
 fn http_retries_rate_limits_and_splits_oversized_requests() {
-    let f = function();
-    let state = State { function: &f };
+    let (f, x) = function();
+    let state = State {
+        function: &f,
+        features: &x,
+    };
     let qs = questions();
     let refs: Vec<&weakness::Question> = qs.iter().collect();
     let ok = |names: &[&str]| {

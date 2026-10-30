@@ -2,7 +2,7 @@ use anyhow::Result;
 use betsy::{
     analyze,
     decide::{self, Provider},
-    dispatch,
+    dispatch, external,
     model::Policy,
     report, scan, store,
     weakness::{self, Selection},
@@ -15,7 +15,7 @@ use std::sync::Arc;
 #[command(
     name = "betsy",
     version,
-    about = "BETSY — Bug Evaluation Through Simple Yes/No: parser-only function inventory"
+    about = "BETSY (Bug Evaluation Through Simple Yes/No): deterministic function inventory and per-function weakness decisions"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -299,6 +299,23 @@ enum RunCommand {
         #[command(flatten)]
         run: Run,
     },
+    /// Run a local analyzer once per pending function: request JSON on stdin, result JSON on
+    /// stdout. The program runs directly, without a shell: `run exec --run R -- prog args`.
+    Exec {
+        #[command(flatten)]
+        run: Run,
+        /// Kill the analyzer and record a retryable `timeout` failure after this long.
+        #[arg(long, default_value_t = 300)]
+        timeout_secs: u64,
+        /// Passed to the analyzer as `analysis_profile`.
+        #[arg(long)]
+        profile: Option<String>,
+        /// Stop after this many functions.
+        #[arg(long)]
+        limit: Option<usize>,
+        #[arg(required = true, last = true, value_name = "PROGRAM")]
+        command: Vec<String>,
+    },
     /// Above-threshold weakness decisions of an analysis run.
     Findings {
         #[command(flatten)]
@@ -424,6 +441,23 @@ fn execute(cli: Cli) -> Result<()> {
             RunCommand::Status { run } => {
                 let db = store::open(&run.db.db)?;
                 output(&dispatch::status(&db, &run.run)?)?;
+            }
+            RunCommand::Exec {
+                run,
+                timeout_secs,
+                profile,
+                limit,
+                mut command,
+            } => {
+                let program = command.remove(0);
+                let analyzer = external::Analyzer {
+                    program,
+                    args: command,
+                    timeout: std::time::Duration::from_secs(timeout_secs),
+                    profile,
+                };
+                let mut db = store::open(&run.db.db)?;
+                output(&external::drain(&mut db, &run.run, &analyzer, limit)?)?;
             }
             RunCommand::Recall { run, baseline } => {
                 let db = store::open(&run.db.db)?;

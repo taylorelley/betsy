@@ -198,6 +198,14 @@ impl Traits {
             hash: hash(TRAITS_FILE),
         })
     }
+    /// Mask of the named trait keys; unknown names are ignored.
+    pub fn mask(&self, names: &[String]) -> u64 {
+        self.traits
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| names.contains(&t.key))
+            .fold(0, |m, (i, _)| m | 1 << i)
+    }
     /// Trait keys named by a mask, in declaration order.
     pub fn names(&self, mask: u64) -> Vec<&str> {
         self.traits
@@ -648,5 +656,152 @@ pub fn question(id: &str, role: &Role) -> Question {
         criteria_true,
         criteria_false,
         hash,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn weakness(id: &str) -> Weakness {
+        Weakness {
+            id: id.into(),
+            name: "w".into(),
+            description: String::new(),
+            extended_description: String::new(),
+            abstraction: String::new(),
+            mapping_usage: String::new(),
+            applicable_platforms: vec![],
+            related_weaknesses: vec![],
+            modes_of_introduction: vec![],
+            catalog: String::new(),
+        }
+    }
+    fn platform(kind: &str, class: &str, name: &str) -> Platform {
+        Platform {
+            kind: kind.into(),
+            class: class.into(),
+            name: name.into(),
+        }
+    }
+    fn related(nature: &str, id: &str, view: &str, ordinal: &str) -> Related {
+        Related {
+            nature: nature.into(),
+            cwe_id: id.into(),
+            view_id: view.into(),
+            ordinal: ordinal.into(),
+        }
+    }
+
+    #[test]
+    fn ids_normalize_without_padding() {
+        for (raw, want) in [
+            ("CWE-89", "CWE-89"),
+            ("cwe_89", "CWE-89"),
+            (" 89 ", "CWE-89"),
+            ("REL-001", "REL-1"),
+            ("rel 1", "REL-1"),
+            ("perf-010", "PERF-10"),
+        ] {
+            assert_eq!(normalize_id(raw).as_deref(), Some(want), "{raw}");
+        }
+        for raw in ["", "CWE-", "CWE-0", "CWE-89a", "C3PO", "CWE/89", "1-2"] {
+            assert_eq!(normalize_id(raw), None, "{raw}");
+        }
+    }
+
+    #[test]
+    fn language_platforms_filter_only_named_languages() {
+        let mut w = weakness("CWE-1");
+        assert!(language_applies(&w, "python"));
+        w.applicable_platforms = vec![platform("Language", "", "C")];
+        assert!(language_applies(&w, "c") && language_applies(&w, "cpp"));
+        assert!(!language_applies(&w, "python") && !language_applies(&w, "rust"));
+        w.applicable_platforms = vec![platform("Language", "Memory-Unsafe", "")];
+        assert!(language_applies(&w, "rust") && !language_applies(&w, "javascript"));
+        w.applicable_platforms
+            .push(platform("Language", "Not Language-Specific", ""));
+        assert!(language_applies(&w, "javascript"));
+        w.applicable_platforms = vec![platform("Technology", "Web Based", "")];
+        assert!(
+            language_applies(&w, "python"),
+            "technology platforms do not restrict language"
+        );
+    }
+
+    #[test]
+    fn hardware_only_needs_every_specific_platform_to_be_hardware() {
+        let mut w = weakness("CWE-1");
+        assert!(!hardware_only(&w));
+        w.applicable_platforms = vec![
+            platform("Language", "", "Verilog"),
+            platform("Technology", "System on Chip", ""),
+            platform("Language", "Not Language-Specific", ""),
+        ];
+        assert!(hardware_only(&w));
+        w.applicable_platforms.push(platform("Language", "", "C"));
+        assert!(!hardware_only(&w));
+    }
+
+    #[test]
+    fn modes_outside_code_skip_only_when_none_touch_code() {
+        let mut w = weakness("CWE-1");
+        assert!(!introduced_outside_code(&w));
+        w.modes_of_introduction = vec!["Operation".into(), "Build and Compilation".into()];
+        assert!(introduced_outside_code(&w));
+        w.modes_of_introduction.push("Implementation".into());
+        assert!(!introduced_outside_code(&w));
+    }
+
+    #[test]
+    fn parents_prefer_primary_cwe_1000_edge_and_peers_for_other_catalogs() {
+        let mut w = weakness("CWE-5");
+        w.related_weaknesses = vec![
+            related("ChildOf", "CWE-1", "CWE-699", "Primary"),
+            related("ChildOf", "CWE-2", HIERARCHY_VIEW, ""),
+            related("ChildOf", "CWE-3", HIERARCHY_VIEW, "Primary"),
+            related("PeerOf", "CWE-4", HIERARCHY_VIEW, ""),
+        ];
+        assert_eq!(w.parent_candidates(), ["CWE-3"]);
+        w.related_weaknesses.remove(2);
+        assert_eq!(w.parent_candidates(), ["CWE-2"]);
+        w.id = "REL-5".into();
+        assert_eq!(w.parent_candidates(), ["CWE-4"]);
+    }
+
+    #[test]
+    fn compact_collapses_whitespace_and_truncates_by_character() {
+        assert_eq!(compact(" a \n\t b ", 10), "a b");
+        assert_eq!(compact("ééééé", 5), "ééééé");
+        assert_eq!(compact("ééééé", 4), "ééé…");
+        assert_eq!(compact("abc", 0), "…");
+    }
+
+    #[test]
+    fn questions_use_provider_safe_keys_and_stable_hashes() {
+        let q = question("cwe-89", &Role::Finding);
+        assert_eq!(
+            (q.weakness_id.as_str(), q.key.as_str()),
+            ("CWE-89", "CWE_89")
+        );
+        assert_eq!(q.hash, question("CWE-89", &Role::Finding).hash);
+        let gate = question("CWE-89", &Role::Gate);
+        assert_ne!(q.hash, gate.hash);
+        assert!(gate.instructions.starts_with("Is it plausible"));
+        let t = trait_question(&traits().traits[0]);
+        assert!(t.weakness_id.starts_with("trait:") && t.key.starts_with("TRAIT_"));
+    }
+
+    #[test]
+    fn trait_names_follow_mask_bits() {
+        let t = traits();
+        assert!(t.names(0).is_empty());
+        assert_eq!(
+            t.names(0b101),
+            [t.traits[0].key.as_str(), t.traits[2].key.as_str()]
+        );
+        let names: Vec<String> = t.names(0b101).into_iter().map(String::from).collect();
+        assert_eq!(t.mask(&names), 0b101);
+        assert_eq!(t.mask(&["no-such-trait".into()]), 0);
     }
 }

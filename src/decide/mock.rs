@@ -45,7 +45,7 @@ impl Mock {
 }
 impl Provider for Mock {
     fn config(&self) -> Value {
-        json!({"provider":"mock","model":"mock-v1","script":crate::model::identity(&self.script)})
+        json!({"provider":"mock","model":"mock-v1","script":crate::model::identity(&self.script),"state":super::STATE_VERSION})
     }
     fn max_questions(&self) -> usize {
         self.max_questions
