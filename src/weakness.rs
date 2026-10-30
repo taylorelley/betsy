@@ -889,19 +889,15 @@ fn card_question(
         ),
     }
 }
-/// The question for one planned weakness in one language: from its detection card when it has
-/// one, otherwise from the catalog prose.
-pub fn question(id: &str, role: &Role, language: &str) -> Question {
-    let w = catalog().get(id).expect("planned weakness exists");
+/// Question text from catalog prose, for entries without a detection card.
+fn prose_question(w: &Weakness, role: &Role) -> (String, String, String) {
     let detail = if w.extended_description.is_empty() {
         &w.description
     } else {
         &w.extended_description
     };
-    let card = cards().get(&w.id).filter(|c| c.function_checkable);
-    let (instructions, criteria_true, criteria_false) = match (card, role) {
-        (Some(card), _) => card_question(w, card, role, language),
-        (None, Role::Finding) => {
+    match role {
+        Role::Finding => {
             let (detail, exclusions) = split_exclusions(detail);
             let criteria_false = if exclusions.is_empty() {
                 format!("The function's code does not exhibit this weakness, or {OUTSIDE}.")
@@ -926,7 +922,7 @@ pub fn question(id: &str, role: &Role, language: &str) -> Question {
                 criteria_false,
             )
         }
-        (None, Role::Gate) => (
+        Role::Gate => (
             format!(
                 "Is it plausible that this function's code contains any weakness in the category {} \"{}\"? {}",
                 w.id,
@@ -936,7 +932,17 @@ pub fn question(id: &str, role: &Role, language: &str) -> Question {
             format!("The function plausibly involves {}.", w.name),
             "The function clearly does nothing related to this category.".to_string(),
         ),
-    };
+    }
+}
+/// The question for one planned weakness in one language: from its detection card when it has
+/// one, otherwise from the catalog prose.
+pub fn question(id: &str, role: &Role, language: &str) -> Question {
+    let w = catalog().get(id).expect("planned weakness exists");
+    let (instructions, criteria_true, criteria_false) =
+        match cards().get(&w.id).filter(|c| c.function_checkable) {
+            Some(card) => card_question(w, card, role, language),
+            None => prose_question(w, role),
+        };
     let hash = identity(&(&instructions, &criteria_true, &criteria_false));
     Question {
         weakness_id: w.id.clone(),
