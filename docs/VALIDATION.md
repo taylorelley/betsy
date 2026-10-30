@@ -14,14 +14,14 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `strace -f -e trace=network -o <scratch>/net.trace cargo test --locked --offline` | Passed: 61 tests; every connect was to 127.0.0.1, the local HTTP test server; no external addresses |
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
-| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 45,695 naive questions; 26,968 after prefilter; hierarchical lower bound 1,321 |
+| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 48,211 naive questions; 28,066 after prefilter; hierarchical lower bound 1,341 |
 | `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function) |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
 | `cargo audit --version` | Not installed locally; audit not run. Separate CI job installs and runs cargo-audit. |
 
 Per-language plans for the fixtures (planned questions per function, after the prefilter):
-C 869, C++ 887, JavaScript 683, Python 676, Rust 706, TypeScript 684, each at most six
+C 895, C++ 938, JavaScript 705, Python 713, Rust 730, TypeScript 706, each at most six
 rounds deep.
 
 ## v0.1 inventory and dispatch
@@ -66,7 +66,7 @@ self-references and duplicate IDs; that card criteria read per-language patterns
 and stay within 1,500 characters for every card and language; and that uncheckable cards are
 skipped by the prefilter but still asked when named explicitly; that every planned entry has a
 card; that BETSY-authored entries are gated under a planned peer CWE; and that no card copies ten
-consecutive words of its entry's description. All 1,014 cards load and render within the limit
+consecutive words of its entry's description. All 1,082 cards load and render within the limit
 for all seven languages. They have not been run against a provider or labelled
 code.
 

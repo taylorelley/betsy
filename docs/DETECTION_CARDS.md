@@ -11,13 +11,13 @@ catalogs. The format is described in the [README](../README.md#detection-cards).
 
 **Complete in coverage, not yet validated and not cleared to ship.**
 
-- There are 1,014 cards: one for every entry that at least one language plans (1,004) plus 10
-  entries that are no longer planned because their card marks them uncheckable. 940 are
+- There are 1,082 cards: one for every entry that at least one language plans (1,072) plus 10
+  entries that are no longer planned because their card marks them uncheckable. 1,008 are
   checkable; 74 are marked not function-checkable and listed below. The 221 catalog entries
   without a card are never planned for any language (hardware-only, introduced outside code,
   wrong language, or a gate with nothing below it). A unit test fails if a planned entry has no
   card.
-- 43 cards belong to BETSY's own catalog entries (REL-214 to REL-242 and PERF-011 to PERF-024);
+- 111 cards belong to BETSY's own catalog entries (REL-214 to REL-306 and PERF-011 to PERF-028);
   see "Extension catalogs" below. Their entries and cards were written together.
 - The cards for `CWE-` entries are new wording derived from MITRE content. Legal must confirm
   that the CWE terms of use allow this, with the notice in `data/weaknesses/CWE_NOTICE.txt`
@@ -32,7 +32,7 @@ words are copied from the entry's description. The length, ID and copying checks
 (the copying test also covers the extended description). A human has read only a sample.
 
 Removing the 74 uncheckable entries saves 51 to 72 questions per function, depending on the
-language; the fixtures now plan 676 to 887.
+language; the fixtures now plan 705 to 938.
 
 ## Extension catalogs
 
@@ -110,6 +110,14 @@ in `taxonomy_mappings`; the wording is BETSY's own.
   used only for sequential scans. Struct layout, prefetch hints, non-temporal stores, TLB and NUMA
   placement depend on type declarations, hardware or deployment and were left out.
 
+Where a CERT C or C++ rule was a form of an entry that already had a card, the card gained a
+pattern instead of a new entry being added: REL-034, REL-039, REL-096, REL-113, REL-132, REL-135,
+REL-145, REL-146, REL-165, REL-172, REL-235, CWE-191, CWE-364, CWE-366, CWE-475, CWE-476,
+CWE-687, CWE-754, CWE-758, CWE-762, CWE-772 and CWE-1341. REL-174 (`<tgmath.h>`) stays
+uncheckable, since its reason still holds. The POSIX side of FIO32-C (opening a FIFO or device as
+if it were a file) was not added to CWE-67, whose card is about Windows device names; it has no
+card yet.
+
 ## Language-specific patterns
 
 C++ reads `c` patterns and TypeScript and TSX read `javascript` ones, so those languages mostly
@@ -147,6 +155,12 @@ These came up while drafting and are the first places to look when reviewing res
   entries, sit under findings such as CWE-754, CWE-825, CWE-407, CWE-1176 and CWE-1050, whose
   low answers may hide them. If `betsy run recall` shows
   gating misses, move them to `weakness::DETACHED` or to a broader parent such as CWE-400.
+- **Entries from the second round (REL-243 to REL-306, PERF-025 to PERF-028)** have not been
+  run against a model either. The likeliest to be noisy are REL-304 (rigid name and address
+  formats) and REL-306 (locale-sensitive case conversion), which depend on what the data is;
+  PERF-028 (linked lists), which is often a reasonable design choice; REL-244 (C23 attributes),
+  which will rarely apply; and REL-278 (mixed return types), which overlaps documented `Optional`
+  returns. REL-289 (comparator contract) overlaps the JavaScript comparator pattern of CWE-475.
 - **Narrow sibling distinctions** (CWE-152 to CWE-154, CWE-796 and CWE-797, CWE-32 to CWE-35)
   depend on fine wording and may still be confused.
 

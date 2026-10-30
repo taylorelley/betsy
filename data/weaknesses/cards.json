@@ -3461,7 +3461,8 @@
         "c": [
           "len - n, end - offset or size - header on unsigned values with no prior test that the first is at least the second, and the result sizes a copy, allocation or loop",
           "an unsigned counter is decremented in a loop condition such as i-- >= 0 or while (n - 1 > x) where n can be 0",
-          "a signed value is reduced below INT_MIN, such as negating or subtracting from a value taken from input"
+          "a signed value is reduced below INT_MIN, such as negating or subtracting from a value taken from input",
+          "buf[strlen(buf) - 1] after fgets or a read, where the string may be empty"
         ],
         "cpp": [
           "v.size() - 1, s.length() - n or end - start on size_t without a check that the container is large enough, used as a count, substr length or loop bound"
@@ -7077,7 +7078,8 @@
         "c": [
           "a function registered with signal or sigaction modifies global data that the main code also changes, without blocking the signal",
           "a handler frees memory, closes files or changes data structures that other code may be using when the signal arrives",
-          "a handler calls longjmp or exit while the interrupted code may be part-way through an update"
+          "a handler calls longjmp or exit while the interrupted code may be part-way through an update",
+          "a handler that calls signal() to re-install itself, which races where the handler is reset on delivery"
         ],
         "cpp": [
           "a signal handler changes a std::vector, std::string or other object, or locks a std::mutex, that normal code also uses"
@@ -7105,7 +7107,11 @@
         "c": [
           "a global, static or heap object reachable from several threads is updated with ++, +=, or read-then-write, without holding a mutex",
           "a shared pointer is tested and then freed, replaced or initialised without a lock (for example lazy initialisation without once-semantics)",
-          "a thread routine passed to pthread_create or std::thread modifies data the creating code also uses"
+          "a thread routine passed to pthread_create or std::thread modifies data the creating code also uses",
+          "different threads write adjacent bit-fields of one struct, which share a memory location, without a common lock"
+        ],
+        "cpp": [
+          "a std::atomic updated with x = x + 1, x = !x or x = x * 2, which is a separate load and store rather than one atomic operation"
         ]
       },
       "not_present_when": {
@@ -7115,7 +7121,8 @@
           "the data is local or thread-local, or only read after being fully initialised before threads start"
         ],
         "cpp": [
-          "initialisation uses std::call_once or a function-local static"
+          "initialisation uses std::call_once or a function-local static",
+          "fetch_add, fetch_xor, compare_exchange or a lock makes the update a single atomic step"
         ]
       },
       "distinguish_from": {
@@ -9206,7 +9213,8 @@
         ],
         "cpp": [
           "std::copy into a destination that starts inside the source range, or std::memcpy on objects that are not trivially copyable",
-          "std::sort or std::set given a comparator that is not a strict weak ordering, such as <="
+          "std::sort or std::set given a comparator that is not a strict weak ordering, such as <=",
+          "memset, memcmp or strcmp applied to objects of a class with virtual functions or non-trivial members"
         ],
         "javascript": [
           "sort given a comparator that is inconsistent or returns a boolean, giving engine-dependent results"
@@ -9252,7 +9260,8 @@
           "a pointer is tested for NULL after it has already been dereferenced"
         ],
         "cpp": [
-          "a dynamic_cast<T*> result, weak_ptr::lock() result or moved-from std::unique_ptr is dereferenced without a null test"
+          "a dynamic_cast<T*> result, weak_ptr::lock() result or moved-from std::unique_ptr is dereferenced without a null test",
+          "std::string or std::string_view constructed from a pointer that can be null, such as getenv's result"
         ],
         "javascript": [
           "a property is read from a value that can be null or undefined, such as a find() or getElementById() result, without a check or optional chaining"
@@ -12505,7 +12514,8 @@
           "a size argument is the size of a pointer, of the wrong object, or misses the terminator"
         ],
         "c": [
-          "sizeof(ptr) passed as a buffer length, or strncpy with strlen(src) as the size"
+          "sizeof(ptr) passed as a buffer length, or strncpy with strlen(src) as the size",
+          "fsetpos given a position not obtained from fgetpos on the same stream, or fseek on a text stream with an offset not from ftell"
         ],
         "python": [
           "open(path, 'w') where append or read was clearly meant, or verify=False passed to a request"
@@ -12967,6 +12977,9 @@
         ],
         "typescript": [
           "the result of map.get(), array.find(), a nullable lookup or a findOne returning T | null is used with a ! assertion or an as T cast instead of a check"
+        ],
+        "c": [
+          "the buffer given to fgets or getline is used after the call returned NULL or -1, when its contents are indeterminate"
         ]
       },
       "not_present_when": {
@@ -13033,11 +13046,13 @@
         "c": [
           "signed integer overflow, shifts by negative or too-large counts, unsequenced modifications such as i = i++ , or reading uninitialised locals",
           "returning or keeping the address of a local, comparing pointers to unrelated objects, or a non-void function that can fall off its end",
-          "assuming sizeof(int), endianness, char signedness or struct layout"
+          "assuming sizeof(int), endianness, char signedness or struct layout",
+          "taking the address of, or declaring, a library name that may be a macro, such as assert, errno, setjmp or va_start"
         ],
         "cpp": [
           "reinterpret_cast used to read an object as an unrelated type, or reading a union member other than the one last written",
-          "dereferencing end(), calling front() or back() on an empty container, or using an iterator after the container changed"
+          "dereferencing end(), calling front() or back() on an empty container, or using an iterator after the container changed",
+          "offsetof applied to a type that is not standard-layout"
         ],
         "javascript": [
           "new Date() or Date.parse on non-ISO date strings, or sort with an inconsistent comparator"
@@ -13146,7 +13161,8 @@
       "present_when": {
         "c": [
           "memory from malloc, calloc or strdup is released with delete, or memory from new is released with free",
-          "memory allocated by a library-specific allocator is released with plain free, or the reverse"
+          "memory allocated by a library-specific allocator is released with plain free, or the reverse",
+          "realloc called on memory from aligned_alloc or posix_memalign, which may lose the alignment"
         ],
         "cpp": [
           "new[] paired with delete, or new paired with delete[]"
@@ -13394,6 +13410,9 @@
           "an error branch, early return, break or continue leaves the function after acquisition without the matching release",
           "a resource acquired inside a loop is not released before the next iteration",
           "a lock or connection is taken and the release is missing on one branch"
+        ],
+        "c": [
+          "tss_create or pthread_key_create with no destructor while heap values are stored in thread-specific storage, or no matching tss_delete"
         ]
       },
       "not_present_when": {
@@ -17646,11 +17665,13 @@
       "question": "Can this function release the same resource or handle twice, such as freeing memory or closing a file descriptor that was already released?",
       "present_when": {
         "c": [
-          "free, fclose, close or a destroy call on a pointer or descriptor that an earlier path already released and did not reset"
+          "free, fclose, close or a destroy call on a pointer or descriptor that an earlier path already released and did not reset",
+          "pthread_join or thrd_join called twice on the same thread, or after it was detached"
         ],
         "cpp": [
           "delete or delete[] is applied to a raw member pointer in two places, such as a destructor and a release method, without nulling it",
-          "two std::unique_ptr or std::shared_ptr objects are constructed from the same raw pointer"
+          "two std::unique_ptr or std::shared_ptr objects are constructed from the same raw pointer",
+          "join() or detach() called on a std::thread that was already joined or detached, with no joinable() check"
         ],
         "javascript": [
           "fs.closeSync or fs.close on the same fd twice, or a lock release called in both a catch and a finally block"
@@ -18636,7 +18657,8 @@
         "c": [
           "a #define NAME(args) inside or used by the function computes a value, such as MAX, MIN, ABS, SQUARE or CLAMP",
           "a call site passes x++, an assignment or a call into a macro that mentions that parameter more than once",
-          "a macro body uses a parameter without parentheses so precedence can change the result"
+          "a macro body uses a parameter without parentheses so precedence can change the result",
+          "getc, putc or another library function that may be a macro called with a stream argument that has side effects, such as getc(files[i++])"
         ],
         "cpp": [
           "#define SQUARE(x) or MAX(a, b) in C++ code, where std::max, a constexpr function or a template would do the same job"
@@ -18738,6 +18760,9 @@
           "a function is called with no prior declaration, or a declaration relies on implicit int",
           "compiler extensions appear, such as statement expressions, zero-length arrays, nested functions or case ranges",
           "a void function returns a value, or a non-void function returns without one"
+        ],
+        "cpp": [
+          "a reference qualified with const or volatile on the reference itself, such as int& const r"
         ]
       },
       "not_present_when": {
@@ -19696,6 +19721,9 @@
         "c": [
           "a handle typed as a pointer to a forward-declared struct is cast to char *, void * arithmetic, an integer or a concrete struct pointer",
           "an integer or unrelated pointer is cast to an opaque handle type"
+        ],
+        "cpp": [
+          "delete, or a cast to another class type, applied to a pointer to a class that is only forward-declared where it is used"
         ]
       },
       "not_present_when": {
@@ -20074,10 +20102,12 @@
         "c": [
           "sizeof is applied to an expression containing ++, --, = or a compound assignment",
           "sizeof is applied to a function call or dereferenced call result, such as sizeof(*next())",
-          "a macro passes an argument with a side effect into sizeof"
+          "a macro passes an argument with a side effect into sizeof",
+          "an expression with side effects as the controlling expression of _Generic or the operand of _Alignof"
         ],
         "cpp": [
-          "an increment, assignment or call expected to run placed inside decltype(...) or noexcept(...), whose operands are never evaluated"
+          "an increment, assignment or call expected to run placed inside decltype(...) or noexcept(...), whose operands are never evaluated",
+          "a side effect inside typeid on a non-polymorphic operand, or inside noexcept(...)"
         ]
       },
       "not_present_when": {
@@ -20469,7 +20499,8 @@
           "va_arg reads a type that default promotion changes, such as float, char or short, or va_end is missing on a path"
         ],
         "cpp": [
-          "a C-style ... parameter in C++ code, or a class object such as std::string passed through ... to printf-style functions"
+          "a C-style ... parameter in C++ code, or a class object such as std::string passed through ... to printf-style functions",
+          "va_start whose last named parameter is a reference, a class type or has a default argument"
         ]
       },
       "not_present_when": {
@@ -20517,6 +20548,9 @@
           "an if/else chain or switch returns a value on most branches but one branch, or the switch default, falls through to the end",
           "an error path uses return; with no expression in a function declared to return a value",
           "a loop is expected to return from inside, but the code after the loop has no return statement"
+        ],
+        "cpp": [
+          "a non-void function or lambda with a path that falls off the end, which is undefined in C++ even if callers ignore the value"
         ]
       },
       "not_present_when": {
@@ -20732,7 +20766,8 @@
         "c": [
           "a local's address is assigned to a global, a static, a heap object or a field of a caller-supplied structure",
           "a pointer to a variable declared in an inner block is used after that block has ended",
-          "a local's address is handed to a callback, thread or queue that may run after the function returns"
+          "a local's address is handed to a callback, thread or queue that may run after the function returns",
+          "putenv given a pointer to an automatic array, which stays in the environment after the function returns"
         ],
         "cpp": [
           "a lambda capturing locals by reference is stored or returned, or a string_view or span to a temporary is kept"
@@ -20741,7 +20776,8 @@
       "not_present_when": {
         "c": [
           "the pointer is only used while the local is still in scope and is not stored anywhere longer-lived",
-          "the stored object is static, heap-allocated or owned by the caller"
+          "the stored object is static, heap-allocated or owned by the caller",
+          "setenv is used, which copies the string"
         ]
       },
       "distinguish_from": {
@@ -20755,7 +20791,8 @@
         "c": [
           "a struct type defined inside the function has a final member written like uint8_t payload[];",
           "a struct with a flexible array member is declared as a local or static object, or copied by assignment or memcpy of sizeof",
-          "an allocation for such a struct omits or miscomputes the trailing array's size"
+          "an allocation for such a struct omits or miscomputes the trailing array's size",
+          "a struct with a flexible array member copied by assignment, or passed or returned by value, which drops the trailing elements"
         ]
       },
       "not_present_when": {
@@ -21114,6 +21151,9 @@
         "c": [
           "a local or parameter is named after a library function or object, such as time, index, abs, log, errno or exit",
           "a local identifier or tag begins with an underscore and a capital letter or with two underscores, such as _Buffer or __tmp"
+        ],
+        "cpp": [
+          "an identifier containing a double underscore, or a declaration or specialisation added to namespace std that the standard does not allow"
         ]
       },
       "not_present_when": {
@@ -21263,7 +21303,8 @@
           "a call to bsearch or bsearch_s"
         ],
         "cpp": [
-          "std::qsort or std::bsearch from <cstdlib>, especially on elements that are not trivially copyable"
+          "std::qsort or std::bsearch from <cstdlib>, especially on elements that are not trivially copyable",
+          "a comparator for std::qsort or std::bsearch that lacks extern \"C\" linkage or can throw"
         ]
       },
       "not_present_when": {
@@ -22795,6 +22836,9 @@
           "const char* p = get_name().c_str(); or data() of a temporary, then p used",
           "for (auto& x : get_obj().items()) where get_obj returns by value",
           "a std::function or lambda storing a reference into a temporary"
+        ],
+        "c": [
+          "an array member of a struct returned by value is written or its address kept, such as f().buf[0] = 1 or p = f().buf"
         ]
       },
       "not_present_when": {
@@ -22802,6 +22846,9 @@
           "the temporary is bound directly to a const T& or T&& local, which extends its lifetime",
           "the owning value is stored in a named variable that outlives the view",
           "the view refers to a string literal or a long-lived object"
+        ],
+        "c": [
+          "the returned struct is stored in a local before its array member is used"
         ]
       },
       "distinguish_from": {

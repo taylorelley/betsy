@@ -192,8 +192,8 @@ its idempotency key.
 
 `data/weaknesses/` embeds the scorpius-cli catalogs: 969 MITRE CWEs, 213 reliability (`REL-`)
 and 10 performance (`PERF-`) weaknesses, copied unchanged. BETSY adds its own entries in
-`betsy_reliability_weaknesses.json` (REL-214 to REL-242) and `betsy_performance_weaknesses.json`
-(PERF-011 to PERF-024): function-level JavaScript, TypeScript, Python, C++ and Rust reliability
+`betsy_reliability_weaknesses.json` (REL-214 to REL-306) and `betsy_performance_weaknesses.json`
+(PERF-011 to PERF-028): function-level JavaScript, TypeScript, Python, C++ and Rust reliability
 bugs and common performance mistakes that the copied catalogs lack. They use the same schema and
 ID sequences, so they behave like any other REL or PERF entry. Provenance and hashes are in
 `PROVENANCE.md`.
@@ -257,7 +257,7 @@ are untouched. Each card has:
 
 Cards are validated when loaded: unknown IDs, languages or fields, missing parts and
 self-references are errors. They are part of the catalog hash, so editing a card changes the
-run identity. Every entry that any language plans has a card (1,014, of which 74 are marked not
+run identity. Every entry that any language plans has a card (1,082, of which 74 are marked not
 function-checkable); the catalog prose is now used only for entries named explicitly with
 `--weakness` whose card is uncheckable. Status, review notes and the validation plan are in
 [docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
@@ -269,7 +269,7 @@ configuration when set.
 
 To keep this fast and cheap, BETSY layers six measures:
 
-1. **Deterministic prefilter** (profile `function-v5`). Entries are skipped, each with a
+1. **Deterministic prefilter** (profile `function-v6`). Entries are skipped, each with a
    recorded reason, when:
    - their explicit language platforms don't match the function's language;
    - they are hardware-only;
@@ -277,7 +277,7 @@ To keep this fast and cheap, BETSY layers six measures:
    - their [detection card](#detection-cards) marks them as not checkable within one function.
 
    MITRE `Prohibited`/`Discouraged` entries and Pillars are asked only as hierarchy gates and
-   are never reported. Fixtures go from 1,235 questions per function to 676–887, depending on
+   are never reported. Fixtures go from 1,303 questions per function to 705–938, depending on
    the language.
 2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
    CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;
