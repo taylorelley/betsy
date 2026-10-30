@@ -4,7 +4,7 @@ Dependency metadata inspected from the locked Cargo graph. Grammar crates are MI
 
 `data/weaknesses/` contains weakness catalogs copied from scorpius-cli (see its `PROVENANCE.md`). The MITRE CWE-derived `cwe_database.json` is used under the MITRE CWE Terms of Use; the required copyright designation and license are reproduced in `data/weaknesses/CWE_NOTICE.txt`.
 
-The HTTP client used by `funh analyze` is ureq 2.12.1 (MIT OR Apache-2.0) with rustls 0.23.46 (Apache-2.0 OR ISC OR MIT), ring 0.17.14 (Apache-2.0 AND ISC), rustls-webpki 0.103.16 (ISC), untrusted 0.9.0 (ISC), subtle 2.6.1 (BSD-3-Clause) and webpki-roots (CDLA-Permissive-2.0). It is only used when a network provider is selected.
+The HTTP client used by `betsy analyze` is ureq 2.12.1 (MIT OR Apache-2.0) with rustls 0.23.46 (Apache-2.0 OR ISC OR MIT), ring 0.17.14 (Apache-2.0 AND ISC), rustls-webpki 0.103.16 (ISC), untrusted 0.9.0 (ISC), subtle 2.6.1 (BSD-3-Clause) and webpki-roots (CDLA-Permissive-2.0). It is only used when a network provider is selected.
 
 ## (MIT OR Apache-2.0) AND Unicode-3.0
 

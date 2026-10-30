@@ -154,7 +154,7 @@ pub fn load_config(db: &Connection, run: &str) -> Result<Config> {
             |r| r.get(0),
         )
         .optional()?
-        .context("run has no analysis configuration (not created by `funh analyze`)")?;
+        .context("run has no analysis configuration (not created by `betsy analyze`)")?;
     Ok(serde_json::from_str(&s)?)
 }
 

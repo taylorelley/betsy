@@ -6,7 +6,7 @@ license = "MIT OR Apache-2.0"
 description = "BETSY — Bug Evaluation Through Simple Yes/No: deterministic function inventory"
 
 [[bin]]
-name = "funh"
+name = "betsy"
 path = "src/main.rs"
 
 [dependencies]

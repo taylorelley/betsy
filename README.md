@@ -4,8 +4,8 @@
 
 BETSY inventories source functions deterministically and dispatches them individually
 for later analysis. This milestone implements the attached [build specification](docs/BUILD_SPEC.md).
-The executable is `funh`, preserving the build pack's command interface.
-v0.2 adds weakness decisions: `funh analyze` asks a decision model (Jev or OpenAI
+The executable is `betsy`; its subcommands follow the build pack's command interface.
+v0.2 adds weakness decisions: `betsy analyze` asks a decision model (Jev or OpenAI
 Decisions) whether each catalog weakness is present in each function, one weakness per
 question. Scanning and every test stay offline. Model probabilities are stored apart from
 parser facts and are leads to verify, never proof.
@@ -19,7 +19,7 @@ model credentials or network access.
 
 ```sh
 cargo build --locked --release
-./target/release/funh scan tests/fixtures --db .funh/index.sqlite --strict
+./target/release/betsy scan tests/fixtures --db .betsy/index.sqlite --strict
 ```
 
 The scan returns JSON with a `snapshot_id`, `source_complete`, `sealed`, function count,
@@ -27,18 +27,18 @@ per-file coverage and explicit exclusions. The supplied fixtures produce **37 fu
 Use the returned identifiers in subsequent commands:
 
 ```sh
-funh list --db .funh/index.sqlite --snapshot <snapshot-id> --format json
-funh list --db .funh/index.sqlite --snapshot <snapshot-id> --format jsonl --source
-funh get --db .funh/index.sqlite --snapshot <snapshot-id> --id <function-id> --format json
-funh verify --db .funh/index.sqlite --snapshot <snapshot-id> --format json
-funh run create --db .funh/index.sqlite --snapshot <snapshot-id> --analyzer dummy-v1
-funh run next --db .funh/index.sqlite --run <run-id> --format json
-funh run complete --db .funh/index.sqlite --run <run-id> --id <function-id> --result-file result.json
-funh run status --db .funh/index.sqlite --run <run-id> --format json
+betsy list --db .betsy/index.sqlite --snapshot <snapshot-id> --format json
+betsy list --db .betsy/index.sqlite --snapshot <snapshot-id> --format jsonl --source
+betsy get --db .betsy/index.sqlite --snapshot <snapshot-id> --id <function-id> --format json
+betsy verify --db .betsy/index.sqlite --snapshot <snapshot-id> --format json
+betsy run create --db .betsy/index.sqlite --snapshot <snapshot-id> --analyzer dummy-v1
+betsy run next --db .betsy/index.sqlite --run <run-id> --format json
+betsy run complete --db .betsy/index.sqlite --run <run-id> --id <function-id> --result-file result.json
+betsy run status --db .betsy/index.sqlite --run <run-id> --format json
 ```
 
 Install the executable onto your PATH with `cargo install --path . --locked`, or use
-`./target/release/funh` in each command above. `result.json` can contain any valid JSON,
+`./target/release/betsy` in each command above. `result.json` can contain any valid JSON,
 for example `{"answer":true}`. The analyzer name identifies configuration; it does not
 execute an analyzer. `next` returns one stored-source record, or JSON `null` if no pending
 item remains. Claimed or failed items can still exist when it returns null.
@@ -50,8 +50,8 @@ TSX, Python, Rust, C (`c`, `h`), and C++ (`cc`, `cpp`, `cxx`, `hpp`, `hh`, `hxx`
 UTF-8 is required. Header interpretation can be overridden:
 
 ```sh
-funh scan ./repo --language h=cpp --include 'src/**' --exclude '**/generated/**'
-funh scan ./repo --allow-partial --no-ignore --max-file-bytes 8388608 --max-nodes 1000000
+betsy scan ./repo --language h=cpp --include 'src/**' --exclude '**/generated/**'
+betsy scan ./repo --allow-partial --no-ignore --max-file-bytes 8388608 --max-nodes 1000000
 ```
 
 Include/exclude globs match relative paths; exclude wins. The ignore crate applies
@@ -138,12 +138,12 @@ background recovery or automatic retries. Completion is idempotent for the same 
 result and rejects conflicting second results.
 
 ```sh
-funh run fail --run <run-id> --id <id> --code timeout --message 'Analyzer timed out' --retryable
-funh run retry --run <run-id> --id <id>
-funh run recover --run <run-id> --id <claimed-id>
+betsy run fail --run <run-id> --id <id> --code timeout --message 'Analyzer timed out' --retryable
+betsy run retry --run <run-id> --id <id>
+betsy run recover --run <run-id> --id <claimed-id>
 ```
 
-Use the same `--db` as your run, or accept `.funh/index.sqlite`. Without `--retryable`, a failure
+Use the same `--db` as your run, or accept `.betsy/index.sqlite`. Without `--retryable`, a failure
 is final. `retry` only requeues a retryable failure. After a worker stops, `recover` explicitly
 requeues a claimed item; first ensure the original worker is stopped. Every claim increments
 attempt count. An append-only event history preserves fault, retry, recovery and completion
@@ -157,13 +157,13 @@ occurrence IDs as their own idempotency keys. Run status is derived from persist
 and 10 performance (`PERF-`) weaknesses. Provenance and hashes are in its `PROVENANCE.md`.
 
 ```sh
-funh weaknesses list --language rust            # deterministic plan: nodes, roots, skips with reasons
-funh weaknesses plan --snapshot <snapshot-id>   # dry-run question/request budget, no network
-JEV_API_KEY=... funh analyze --snapshot <snapshot-id> --provider jev
-OPENAI_API_KEY=... funh analyze --snapshot <snapshot-id> --provider openai
-funh analyze --run <run-id> --provider jev --retry-failed   # resume; same provider flags required
-funh run findings --run <run-id> --format jsonl
-funh run recall --run <pruned-run> --baseline <exhaustive-run>   # what pruning missed, and why
+betsy weaknesses list --language rust            # deterministic plan: nodes, roots, skips with reasons
+betsy weaknesses plan --snapshot <snapshot-id>   # dry-run question/request budget, no network
+JEV_API_KEY=... betsy analyze --snapshot <snapshot-id> --provider jev
+OPENAI_API_KEY=... betsy analyze --snapshot <snapshot-id> --provider openai
+betsy analyze --run <run-id> --provider jev --retry-failed   # resume; same provider flags required
+betsy run findings --run <run-id> --format jsonl
+betsy run recall --run <pruned-run> --baseline <exhaustive-run>   # what pruning missed, and why
 ```
 
 Each question asks about exactly one weakness and gets an independent probability: a Jev
@@ -192,7 +192,7 @@ To keep this fast and cheap, BETSY layers six measures:
      they open only if both it and its parent pass.
    - `--max-rounds N` asks every remaining descendant in round N and stops, trading
      questions for latency. The C plan is six rounds deep.
-   - `--exhaustive` turns gating off. Comparing it with a gated run using `funh run recall`
+   - `--exhaustive` turns gating off. Comparing it with a gated run using `betsy run recall`
      is how to tune the threshold.
 3. **Trait filter** (`--traits`, off by default until tuned). `data/weaknesses/traits.json`
    defines observable function traits (buffer access, pointers, concurrency, file system,
@@ -239,7 +239,7 @@ trait-filtered, rounds, plan depth, trait answers, usage, and positives at or ab
 adding these tables, and v2 databases by rebuilding `weakness_decisions` to admit the `trait`
 origin.
 
-`funh run recall` compares a run with a baseline over the same snapshot. It reports the
+`betsy run recall` compares a run with a baseline over the same snapshot. It reports the
 share of the baseline's findings the run also reported, plus question and round totals for
 both. Each missed finding is attributed to its cause: a `trait` filter, a `gated` ancestor
 (named with its probability), or a probability `below_threshold`. Run it on labelled or

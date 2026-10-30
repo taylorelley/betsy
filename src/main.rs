@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 #[derive(Parser)]
 #[command(
-    name = "funh",
+    name = "betsy",
     version,
     about = "BETSY — Bug Evaluation Through Simple Yes/No: parser-only function inventory"
 )]
@@ -23,7 +23,7 @@ struct Cli {
 }
 #[derive(Args)]
 struct Db {
-    #[arg(long, default_value = ".funh/index.sqlite")]
+    #[arg(long, default_value = ".betsy/index.sqlite")]
     db: PathBuf,
 }
 #[derive(Clone, Copy, ValueEnum)]

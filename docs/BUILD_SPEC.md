@@ -241,15 +241,15 @@ pending -> claimed -> completed
 ## 10. Required CLI
 
 ```bash
-funh scan ./repo --db .funh/index.sqlite --strict
-funh scan ./repo --db .funh/index.sqlite --allow-partial
-funh list --db .funh/index.sqlite --snapshot <id> --format json
-funh get --db .funh/index.sqlite --snapshot <id> --id <function-id> --format json
-funh verify --db .funh/index.sqlite --snapshot <id> --format json
-funh run create --db .funh/index.sqlite --snapshot <id> --analyzer dummy-v1
-funh run next --db .funh/index.sqlite --run <run-id> --format json
-funh run complete --db .funh/index.sqlite --run <run-id> --id <function-id> --result-file result.json
-funh run status --db .funh/index.sqlite --run <run-id> --format json
+betsy scan ./repo --db .betsy/index.sqlite --strict
+betsy scan ./repo --db .betsy/index.sqlite --allow-partial
+betsy list --db .betsy/index.sqlite --snapshot <id> --format json
+betsy get --db .betsy/index.sqlite --snapshot <id> --id <function-id> --format json
+betsy verify --db .betsy/index.sqlite --snapshot <id> --format json
+betsy run create --db .betsy/index.sqlite --snapshot <id> --analyzer dummy-v1
+betsy run next --db .betsy/index.sqlite --run <run-id> --format json
+betsy run complete --db .betsy/index.sqlite --run <run-id> --id <function-id> --result-file result.json
+betsy run status --db .betsy/index.sqlite --run <run-id> --format json
 ```
 
 Implement JSONL streaming in `list` as a small optional convenience. All commands should have stable JSON outputs, explicit errors and nonzero exit codes on failure.

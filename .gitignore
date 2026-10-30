@@ -1,4 +1,4 @@
 /target/
-/.funh/
+/.betsy/
 *.sqlite
 *.sqlite-journal

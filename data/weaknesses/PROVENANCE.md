@@ -11,6 +11,6 @@ Copied byte for byte from `taylorelley/scorpius-cli` at commit
 | `cwe_metadata.json` | MITRE release metadata | | `fd4053b11464384cc146c9e114f502e88b9887eb3f041844cb76cd10340049f4` |
 | `CWE_NOTICE.txt` | MITRE copyright and license notice | | `e3f34d4d13a81749d965bdad2e4159fdbe750ce19dcaea474a66584ed486e6c1` |
 
-The files are embedded into `funh` at build time. Their combined hash is part of every
+The files are embedded into `betsy` at build time. Their combined hash is part of every
 analysis run's configuration, so editing a catalog never silently reuses old decisions.
 CWE content is subject to the MITRE terms reproduced in `CWE_NOTICE.txt`.

@@ -383,7 +383,7 @@ fn cli_strict_failure_and_partial_persistence() {
     fs::write(root.join("bad.js"), "function {").unwrap();
     let db = t.path().join("db.sqlite");
     let invoke = |partial: bool| {
-        let mut c = std::process::Command::new(env!("CARGO_BIN_EXE_funh"));
+        let mut c = std::process::Command::new(env!("CARGO_BIN_EXE_betsy"));
         c.arg("scan").arg(&root).arg("--db").arg(&db);
         if partial {
             c.arg("--allow-partial");

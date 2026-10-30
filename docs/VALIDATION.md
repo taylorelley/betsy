@@ -10,8 +10,8 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `cargo test --locked --offline` | Passed: 16 integration tests, 0 failures |
 | `cargo test --locked --offline --release` | Passed: 16 integration tests, 0 failures |
 | `strace -f -e trace=network -o /workspace/scratch/betsy-network.trace cargo test --locked --offline` | Passed: 16 tests; no socket, connect, sendto, bind or listen calls |
-| `./target/release/funh scan tests/fixtures --db .funh/index.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
-| `./target/release/funh verify --db .funh/index.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
+| `./target/release/betsy scan tests/fixtures --db .betsy/index.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
+| `./target/release/betsy verify --db .betsy/index.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
 | CLI smoke: scan, list, get, verify, run create, next, complete, status, repeat scan | Passed; 1 completed, 36 pending; repeated snapshot ID identical |
 | `cargo audit --version` | Not installed locally; audit not run. Separate CI job installs and runs cargo-audit. |
 
