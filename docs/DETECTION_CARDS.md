@@ -83,6 +83,20 @@ in `taxonomy_mappings`; the wording is BETSY's own.
   function-try-block handlers using members, handler order (also for Python), catching by value,
   deleting through a base without a virtual destructor, initialiser order, self-assignment,
   pointer-to-member misuse, copies that change their source, and `noreturn` functions that return.
+- **QuantifiedCode Python anti-patterns, W3Schools JavaScript mistakes and the SEI CERT Oracle
+  Java standard (REL-272 to REL-299).** BETSY does not scan Java, so only Java rules whose defect
+  also occurs in a supported language were used, and pure style items were left out. Five
+  Java-only CWEs (CWE-395, CWE-486, CWE-572, CWE-581, CWE-609) are never planned; their
+  transferable forms are REL-293, REL-279, REL-295 and REL-288. The new entries cover `+` on
+  values that may be strings, arrays used as maps, shadowed built-ins, wrong `super()` arguments,
+  loop `else` without `break`, wrong special-method signatures, mixed return types, type tests by
+  exact class or name, discarded results of non-mutating methods, assertions with side effects,
+  changes to loop-variable copies, `Decimal` from a float, floats compared as strings, binary data
+  decoded as text, default text encodings, `this` escaping a constructor, inconsistent equality
+  and hashing, broken comparators, mutated hash keys, cleanup left to finalisers, cleanup errors
+  masking the original, catching null-dereference errors, libraries calling `exit`, `Thread.run`
+  instead of `start`, pool tasks waiting on their own pool, lost background-task errors,
+  thread-local state left in pooled threads, and undrained child-process pipes.
 
 ## Language-specific patterns
 

@@ -23545,6 +23545,766 @@
         "REL-135": "an ordinary non-void function ends without returning a value"
       }
     },
+    "REL-272": {
+      "function_checkable": true,
+      "question": "Does this function add a number to a value that may still be a string, so + concatenates instead of adding?",
+      "present_when": {
+        "javascript": [
+          "input.value, event.target.value, URLSearchParams.get, localStorage.getItem, req.query or req.params combined with a number using + or +=",
+          "a running total or counter increased with += from a value read from text input or an untyped object"
+        ],
+        "typescript": [
+          "a value typed any or string from a request or form is added to a number"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the value is converted with Number, parseInt, parseFloat or unary + before the addition",
+          "string building is intended, such as forming a message",
+          "both operands are numbers produced by arithmetic in the function"
+        ],
+        "typescript": [
+          "the operand is typed number after a validating parse"
+        ]
+      },
+      "distinguish_from": {
+        "REL-216": "a numeric parse happens but its NaN result is not checked"
+      }
+    },
+    "REL-273": {
+      "function_checkable": true,
+      "question": "Does this function store values in an array under non-numeric keys, treating it as a map?",
+      "present_when": {
+        "javascript": [
+          "const a = []; a['name'] = v; or a[key] = v where key is a string such as an id or name",
+          "an array filled by string keys and then read with length, forEach, map, JSON.stringify or spread"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "a Map or a plain object holds keyed data",
+          "keys are integer indexes or values are added with push"
+        ]
+      }
+    },
+    "REL-274": {
+      "function_checkable": true,
+      "question": "Does this function bind a local variable, parameter or inner function to the name of a language built-in, in a scope where the built-in is or may be used?",
+      "present_when": {
+        "python": [
+          "a parameter or local named list, dict, str, id, type, input, sum, max, min, len, file, open, object, format or hash",
+          "for list in ...: or def f(type): followed by a call that needs the built-in"
+        ],
+        "javascript": [
+          "a local named undefined, NaN, Infinity, Object, Array, Promise or JSON",
+          "a variable named name, event, status or length at global scope in a browser script"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "no local name collides with a built-in",
+          "the name is an attribute or keyword argument such as obj.id or id=..."
+        ],
+        "javascript": [
+          "no local name collides with a global built-in",
+          "the name is an object property or inside a module where the global is not used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-165": "a C declaration reuses a reserved or standard library identifier"
+      }
+    },
+    "REL-275": {
+      "function_checkable": true,
+      "question": "Does this method call super() with an explicit class argument that is not the class the method is defined in?",
+      "present_when": {
+        "python": [
+          "inside class Child, super(Parent, self).__init__() or super(OtherClass, self).method()",
+          "super(type(self), self), which recurses forever in subclasses"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "zero-argument super() is used",
+          "the explicit argument names the enclosing class",
+          "the skip of a class is deliberate and commented"
+        ]
+      }
+    },
+    "REL-276": {
+      "function_checkable": true,
+      "question": "Does this function have a for or while loop with an else clause but no break in that loop?",
+      "present_when": {
+        "python": [
+          "for x in items: if match: return x or found = x (no break) ... else: raise NotFound",
+          "while cond: ... else: ... where the body never breaks out of this loop"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the loop body contains a break for this loop",
+          "the loop has no else clause"
+        ]
+      }
+    },
+    "REL-277": {
+      "function_checkable": true,
+      "question": "Is this a Python special or instance method whose signature or return does not match how Python calls it?",
+      "present_when": {
+        "python": [
+          "def __exit__(self) or def __exit__(self, exc) instead of four parameters or *args",
+          "def method(): or def method(x): inside a class with no staticmethod decorator, where x is not used as the instance",
+          "__init__ that returns a value other than None",
+          "__eq__, __len__, __bool__, __hash__ or __iter__ returning the wrong kind of value"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the signature matches the data model",
+          "the method is decorated with staticmethod or classmethod",
+          "__init__ returns nothing"
+        ]
+      }
+    },
+    "REL-278": {
+      "function_checkable": true,
+      "question": "Does this function hand back its usual result type on success but a different kind of value, for example None, False, -1 or a message string, to signal failure?",
+      "present_when": {
+        "python": [
+          "return a list or object on success and return False, -1 or 'error' on failure",
+          "an implicit None from a missing return on one path of a function that otherwise returns a value"
+        ],
+        "javascript": [
+          "return an object or array on success and return false, -1, null or an error message string on failure"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "failure raises an exception",
+          "the function is annotated Optional[...] and documented to return None"
+        ],
+        "javascript": [
+          "failure throws",
+          "the TypeScript return type declares the union and callers must narrow it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-393": "the returned status code is the wrong one, rather than a type that differs between paths"
+      }
+    },
+    "REL-279": {
+      "function_checkable": true,
+      "question": "Does this function decide a value's type by comparing its exact class or its class name rather than using isinstance or instanceof?",
+      "present_when": {
+        "python": [
+          "type(x) == Foo, type(x) is Foo or type(x) in (A, B) where subclasses should also match",
+          "type(x).__name__ == 'Foo' or x.__class__.__name__ compared with a string"
+        ],
+        "javascript": [
+          "obj.constructor.name === 'Foo' or Object.prototype.toString comparison used to pick a class",
+          "obj.constructor === Foo where subclasses should also match"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "isinstance or issubclass is used",
+          "exact type matching is intentional, such as in __eq__ or a serialiser registry"
+        ],
+        "javascript": [
+          "instanceof, Array.isArray or a discriminant property is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-595": "two objects are compared by identity instead of by value"
+      }
+    },
+    "REL-280": {
+      "function_checkable": true,
+      "question": "Does this function call a method that returns a new value without changing its receiver, and then discard that result?",
+      "present_when": {
+        "python": [
+          "s.strip(), s.replace(...), s.lower() or name.format(...) used as a bare statement",
+          "sorted(items) or reversed(items) as a statement, or a datetime .replace(...) result not assigned"
+        ],
+        "javascript": [
+          "str.trim(), str.replace(...), str.toUpperCase(), arr.concat(...), arr.slice() or arr.map(...) whose result is not used",
+          "date-fns or moment-style immutable add or subtract result discarded"
+        ],
+        "cpp": [
+          "std::remove or std::remove_if called without erase on the result",
+          "std::unique result ignored, or a std::string_view substr result discarded"
+        ],
+        "rust": [
+          "an iterator adapter such as .map(...) or .filter(...) built and dropped, or s.trim() or s.to_lowercase() discarded",
+          "a #[must_use] method result discarded with let _ ="
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the result is assigned, returned or passed",
+          "an in-place method such as list.sort() or list.reverse() is used"
+        ],
+        "javascript": [
+          "the result is assigned, returned or passed",
+          "an in-place method such as arr.sort() or arr.push() is used"
+        ],
+        "cpp": [
+          "the erase-remove idiom or std::erase_if is used"
+        ],
+        "rust": [
+          "the iterator is consumed with collect, for_each or a for loop",
+          "the result is assigned"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "a status or error return value is ignored, rather than a transformed value"
+      }
+    },
+    "REL-281": {
+      "function_checkable": true,
+      "question": "Does this function place an operation with a needed side effect inside an assertion that can be compiled or optimised out?",
+      "present_when": {
+        "c": [
+          "assert(x = f()), assert(p++), assert(fclose(fp) == 0), assert(init()) or assert(pop(&q))"
+        ],
+        "python": [
+          "assert queue.pop(), assert f.write(...), assert lock.acquire() or assert (n := compute())"
+        ],
+        "rust": [
+          "debug_assert!(v.pop().is_some()), debug_assert!(file.flush().is_ok()) or debug_assert!(iter.next() ...)"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the asserted expression only reads values",
+          "the work is done before the assert and only its result is tested"
+        ],
+        "python": [
+          "the asserted expression only reads values"
+        ],
+        "rust": [
+          "assert! is used, which stays in release builds",
+          "debug_assert! only reads values"
+        ]
+      },
+      "distinguish_from": {
+        "REL-229": "assert is used for input validation that disappears, rather than wrapping a side effect"
+      }
+    },
+    "REL-282": {
+      "function_checkable": true,
+      "question": "Does this function change a for-each loop variable or a by-value parameter as if that would update the container element or the caller's variable?",
+      "present_when": {
+        "python": [
+          "for x in items: x = x.strip() or x += 1 with items expected to change",
+          "a parameter rebound, such as data = data or {}, where the caller's object was meant to be updated"
+        ],
+        "javascript": [
+          "for (let x of arr) { x = x.trim(); } or arr.forEach(x => { x = ...; }) with arr expected to change"
+        ],
+        "cpp": [
+          "for (auto x : v) { x.field = ...; } or for (auto s : names) s += suffix; with v expected to change",
+          "a by-value parameter modified with the result never returned"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "items[i] is written, or a new list is built and used",
+          "the loop variable is only a local temporary"
+        ],
+        "javascript": [
+          "arr[i] is written, map builds a new array, or a property of an object element is changed"
+        ],
+        "cpp": [
+          "for (auto& x : v) is used",
+          "the parameter is a reference or pointer, or the modified copy is returned"
+        ]
+      }
+    },
+    "REL-283": {
+      "function_checkable": true,
+      "question": "Does this function build an exact decimal value from a binary floating-point literal or variable?",
+      "present_when": {
+        "python": [
+          "Decimal(0.1), Decimal(price) where price is a float, or Fraction(0.1)"
+        ],
+        "rust": [
+          "Decimal::from_f64(x), Decimal::try_from(0.1_f64) or BigDecimal::from_f64 on a value meant to be exact"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "Decimal('0.1'), Decimal(str(x)) after rounding, or integers are used",
+          "Decimal.from_float followed by quantize to the intended places"
+        ],
+        "rust": [
+          "Decimal::from_str(\"0.1\"), dec!(0.1) or integer minor units are used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-185": "plain floats are used where decimal fractions are assumed exact, with no decimal type involved"
+      }
+    },
+    "REL-284": {
+      "function_checkable": true,
+      "question": "Does this function compare floating-point numbers by comparing their string representations?",
+      "present_when": {
+        "python": [
+          "str(x) == '0.3', str(a) == str(b), f'{x}' compared with text, or a float's string sliced to test its digits"
+        ],
+        "javascript": [
+          "x.toString() === '0.3', String(a) === String(b) or x.toFixed(2) === y.toFixed(2) used as an equality test"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "values are compared with math.isclose or an explicit tolerance",
+          "the values are integers or Decimal"
+        ],
+        "javascript": [
+          "Math.abs(a - b) < epsilon or integer minor units are compared",
+          "toFixed is used only for display"
+        ]
+      },
+      "distinguish_from": {
+        "REL-190": "computed floats are compared with exact numeric equality"
+      }
+    },
+    "REL-285": {
+      "function_checkable": true,
+      "question": "Does this function turn non-text bytes, such as a digest, ciphertext or file content, into a string by character decoding?",
+      "present_when": {
+        "python": [
+          "digest().decode(), ciphertext.decode('utf-8', errors='replace' or 'ignore'), or str(data, 'latin-1') on bytes later encoded back and compared"
+        ],
+        "javascript": [
+          "buffer.toString() or toString('utf8') on a hash, encrypted or binary buffer",
+          "TextDecoder used on binary data that is later re-encoded"
+        ],
+        "rust": [
+          "String::from_utf8_lossy on binary data",
+          "from_utf8_unchecked on bytes that are not known to be UTF-8"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "hexdigest(), base64.b64encode or .hex() is used for text form",
+          "the bytes are known to be encoded text"
+        ],
+        "javascript": [
+          "toString('hex') or toString('base64') is used",
+          "the buffer holds encoded text"
+        ],
+        "rust": [
+          "hex or base64 encoding is used",
+          "the data is checked with String::from_utf8 and the error handled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-838": "text is written with an encoding the receiver does not expect"
+      }
+    },
+    "REL-286": {
+      "function_checkable": true,
+      "question": "Does this function read or write text without stating the character encoding, so the result depends on the platform default?",
+      "present_when": {
+        "python": [
+          "open(path), open(path, 'w'), Path.read_text() or write_text() without encoding=",
+          "io.TextIOWrapper or subprocess text=True without an encoding, for data shared across systems"
+        ],
+        "cpp": [
+          "std::wifstream or std::wofstream without imbue of an explicit codecvt",
+          "mbstowcs, wcstombs or std::wstring_convert relying on the global locale for file or network data"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "encoding='utf-8' or another explicit encoding is passed",
+          "the file is opened in binary mode"
+        ],
+        "cpp": [
+          "files are read as bytes and decoded with a named encoding",
+          "the locale is set explicitly before conversion"
+        ]
+      }
+    },
+    "REL-287": {
+      "function_checkable": true,
+      "question": "Does this constructor call an overridable method on the object, or hand the object to other code, before it has set all of its fields?",
+      "present_when": {
+        "javascript": [
+          "a constructor calling this.render(), this.init() or another method a subclass may override, before its own fields are assigned",
+          "emitter.on('x', this.handler), registry.add(this) or setTimeout using this before the remaining fields are set"
+        ],
+        "python": [
+          "__init__ calling self.setup() or self.validate() that subclasses override, before all attributes are assigned",
+          "self registered with a thread, signal, observer or global registry before __init__ finishes"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "methods and registration happen after every field is set",
+          "the class is not meant to be subclassed and the called method only uses set fields"
+        ],
+        "python": [
+          "methods and registration happen after every attribute is set",
+          "the called method is private by name mangling and uses only set attributes"
+        ]
+      },
+      "distinguish_from": {
+        "REL-239": "a C++ constructor or destructor calls a virtual function"
+      }
+    },
+    "REL-288": {
+      "function_checkable": true,
+      "question": "Does this function implement equality or hashing for a type in a way that disagrees with the other, or that is not symmetric?",
+      "present_when": {
+        "python": [
+          "__hash__ uses a field that __eq__ ignores, or __eq__ is defined on a mutable class that still keeps a custom __hash__",
+          "__eq__ returns True for another type that does not return True back"
+        ],
+        "cpp": [
+          "a std::hash specialisation or hasher uses members that operator== does not compare",
+          "operator== compares with a tolerance while the hash uses exact values"
+        ],
+        "rust": [
+          "impl PartialEq by hand while Hash is derived, or impl Hash using fields that eq ignores",
+          "PartialEq between two types implemented in one direction only"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "@dataclass(frozen=True) or both methods use the same tuple of fields",
+          "__hash__ = None for mutable types"
+        ],
+        "cpp": [
+          "the hash and operator== use the same members"
+        ],
+        "rust": [
+          "both PartialEq and Hash are derived, or both are written over the same fields"
+        ]
+      }
+    },
+    "REL-289": {
+      "function_checkable": true,
+      "question": "Does this function supply or implement a comparator that is not a consistent ordering?",
+      "present_when": {
+        "javascript": [
+          "arr.sort((a, b) => a > b) or a < b, returning a boolean instead of a negative, zero or positive number",
+          "a comparator returning a - b on values that may be NaN, strings or very large numbers"
+        ],
+        "python": [
+          "a cmp function returning bool used with functools.cmp_to_key",
+          "__lt__ that is not consistent with __eq__ or is not transitive"
+        ],
+        "rust": [
+          "sort_by(|a, b| a.partial_cmp(b).unwrap()) on floats that may be NaN",
+          "an Ord impl that disagrees with PartialEq or returns Less for equal items"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the comparator returns a number from a subtraction of finite numbers, localeCompare or explicit -1, 0, 1"
+        ],
+        "python": [
+          "a key function is used instead of a comparator",
+          "the comparator returns -1, 0 or 1 for all cases"
+        ],
+        "rust": [
+          "total_cmp, cmp on Ord types or sort_by_key is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-220": "sort is called with no comparator at all on non-string values"
+      }
+    },
+    "REL-290": {
+      "function_checkable": true,
+      "question": "Does this function change an object, in a field that its hash or ordering depends on, while that object is a key in a map or set?",
+      "present_when": {
+        "python": [
+          "an instance with a field-based __hash__ added to a set or dict and then one of those fields reassigned"
+        ],
+        "rust": [
+          "a key type with Cell, RefCell or atomics inside a HashMap or BTreeMap key, changed after insertion"
+        ],
+        "cpp": [
+          "a key in std::set or std::map changed through const_cast or a mutable member that operator< or the hash uses"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "keys are immutable, such as tuples, strings or frozen dataclasses",
+          "the key is removed before it is changed and then reinserted"
+        ],
+        "rust": [
+          "keys have no interior mutability, or only fields excluded from Hash and Eq change"
+        ],
+        "cpp": [
+          "keys are const and unmodified, or the entry is extracted and reinserted"
+        ]
+      }
+    },
+    "REL-291": {
+      "function_checkable": true,
+      "question": "Does this function rely on garbage collection, through a finaliser or a weak reference, to release a resource or to keep needed data alive?",
+      "present_when": {
+        "python": [
+          "__del__ is the only place a file, socket, lock or connection is closed",
+          "a value needed later is held only through weakref.ref or a WeakValueDictionary"
+        ],
+        "javascript": [
+          "FinalizationRegistry callbacks close handles, files or connections",
+          "the only reference to needed data is a WeakRef or WeakMap value"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "resources are closed with with, try/finally or an explicit close",
+          "weak references are used only for optional caches"
+        ],
+        "javascript": [
+          "resources are closed explicitly, for example in finally",
+          "WeakRef is used only for an optional cache"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-772": "the resource is never released at all, with no finaliser"
+      }
+    },
+    "REL-292": {
+      "function_checkable": true,
+      "question": "Does a finally block or error handler in this function run a cleanup call that can raise and so replace the original error?",
+      "present_when": {
+        "python": [
+          "finally: conn.close() or f.close() or tx.rollback() without its own try",
+          "except Exception: cleanup(); raise where cleanup can raise"
+        ],
+        "javascript": [
+          "finally { await client.release(); } or fs.closeSync(fd) unguarded",
+          "a catch block that runs cleanup which may throw before rethrowing"
+        ],
+        "cpp": [
+          "a catch block that calls a throwing cleanup before rethrow",
+          "scope-exit cleanup that can throw while another exception is in flight"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "cleanup is wrapped in its own try with the error logged",
+          "a with statement or contextlib.ExitStack manages cleanup",
+          "raise ... from err keeps the cause"
+        ],
+        "javascript": [
+          "cleanup errors are caught separately",
+          "a new Error is created with cause: err"
+        ],
+        "cpp": [
+          "cleanup functions are noexcept or wrapped in their own try"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-584": "the finally block contains a return that discards the exception"
+      }
+    },
+    "REL-293": {
+      "function_checkable": true,
+      "question": "Does this function catch AttributeError or TypeError to handle a value that might be missing, instead of checking for it?",
+      "present_when": {
+        "python": [
+          "try: name = user.profile.name except AttributeError: name = None",
+          "except TypeError around subscripting a value that may be None"
+        ],
+        "javascript": [
+          "try { x = obj.a.b; } catch (e) { x = undefined; } or catch of TypeError for cannot read properties of undefined"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "an explicit is None check or getattr(obj, 'a', None) is used",
+          "the handler targets a specific documented exception from a call"
+        ],
+        "javascript": [
+          "optional chaining ?. or an explicit null check is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "a generic exception is caught for unrelated failures"
+      }
+    },
+    "REL-294": {
+      "function_checkable": true,
+      "question": "Does this function, which is not the program's entry point, terminate the whole process?",
+      "present_when": {
+        "python": [
+          "sys.exit(), os._exit() or exit() inside a library function, view, route handler, task or callback"
+        ],
+        "javascript": [
+          "process.exit() inside a module function, Express or Next.js handler, event listener or library code"
+        ],
+        "rust": [
+          "std::process::exit or std::process::abort in library code or a request handler"
+        ],
+        "cpp": [
+          "exit, std::exit, abort or quick_exit called in a library function or request handler on a recoverable error"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the function is main or a CLI entry point",
+          "an exception is raised instead"
+        ],
+        "javascript": [
+          "the code is a CLI entry script",
+          "an error is thrown or passed to next(err)"
+        ],
+        "rust": [
+          "the function is main or returns a Result"
+        ],
+        "cpp": [
+          "the function is main",
+          "the error is thrown or returned"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-382": "a J2EE application calls System.exit"
+      }
+    },
+    "REL-295": {
+      "function_checkable": true,
+      "question": "Does this function run a thread's work on the current thread by calling run() or by calling the target while creating the thread?",
+      "present_when": {
+        "python": [
+          "t = threading.Thread(target=work); t.run()",
+          "threading.Thread(target=work(x)) or Process(target=work()) where work is called immediately"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "start() is called and target is the function itself, with arguments in args",
+          "run() is called from a Thread subclass's own start logic by design"
+        ]
+      }
+    },
+    "REL-296": {
+      "function_checkable": true,
+      "question": "Does this function, running as a pool task, submit work to the same bounded pool and block waiting for it?",
+      "present_when": {
+        "python": [
+          "inside a function run by ThreadPoolExecutor, executor.submit(...).result() on the same executor"
+        ],
+        "cpp": [
+          "a task on a fixed thread pool enqueues another task to that pool and calls future.get() or wait()"
+        ],
+        "rust": [
+          "a rayon or threadpool job that spawns into the same pool and blocks on a channel recv or join handle",
+          "block_on inside a task on a single-threaded or bounded Tokio runtime waiting for another task on it"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "child work goes to a different executor or is run inline",
+          "the parent does not wait"
+        ],
+        "cpp": [
+          "child tasks use another pool, or the parent continues without waiting"
+        ],
+        "rust": [
+          "rayon::join or scope is used, which can run work in the waiting thread",
+          "the waiting happens outside the pool"
+        ]
+      }
+    },
+    "REL-297": {
+      "function_checkable": true,
+      "question": "Does this function start a background task and discard its handle or future, so an error in the task is never checked?",
+      "present_when": {
+        "python": [
+          "asyncio.create_task(coro) or loop.create_task used as a statement with no reference kept",
+          "executor.submit(fn) whose future is never checked"
+        ],
+        "rust": [
+          "tokio::spawn(...) or std::thread::spawn(...) with the JoinHandle dropped while the task returns a Result",
+          "let _ = handle.join(); ignoring a panic or error"
+        ],
+        "cpp": [
+          "std::async result discarded or a std::future never .get()",
+          "a std::thread task whose exception is never captured or reported"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the task or future is awaited, gathered or has add_done_callback that checks exceptions",
+          "the task body catches and logs every error"
+        ],
+        "rust": [
+          "the JoinHandle is awaited or joined and its result checked",
+          "the task handles its own errors"
+        ],
+        "cpp": [
+          "the future is .get() or the task reports errors through a channel"
+        ]
+      },
+      "distinguish_from": {
+        "REL-214": "a JavaScript promise is neither awaited nor handled"
+      }
+    },
+    "REL-298": {
+      "function_checkable": true,
+      "question": "Does this function set thread-local state while running on a reused thread and leave it set when it finishes?",
+      "present_when": {
+        "python": [
+          "threading.local() attribute such as ctx.user = ... set in a request or task handler with no reset in finally"
+        ],
+        "cpp": [
+          "a thread_local variable assigned a request, user or transaction value in pooled task code and not restored"
+        ],
+        "rust": [
+          "thread_local! value set with .set or borrow_mut in a pooled job without restoring the old value"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the value is reset in finally or contextvars with token reset is used",
+          "the thread is not reused"
+        ],
+        "cpp": [
+          "a scope guard restores the previous value"
+        ],
+        "rust": [
+          "a guard restores the old value on drop",
+          "the value is passed explicitly instead"
+        ]
+      }
+    },
+    "REL-299": {
+      "function_checkable": true,
+      "question": "Does this function start a child process with output piped and wait for it to finish without draining the pipe?",
+      "present_when": {
+        "python": [
+          "subprocess.Popen(..., stdout=PIPE or stderr=PIPE) followed by p.wait() with no read or communicate()"
+        ],
+        "rust": [
+          "Command::new(...).stdout(Stdio::piped()).spawn() followed by child.wait() without reading stdout"
+        ],
+        "c": [
+          "pipe and fork or popen, then waitpid or pclose before reading the child's output to the end"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "communicate() or subprocess.run(capture_output=True) is used",
+          "output goes to DEVNULL or a file"
+        ],
+        "rust": [
+          "output() or wait_with_output() is used, or a thread reads the pipe"
+        ],
+        "c": [
+          "the parent reads until end of file before waiting",
+          "output is redirected to a file"
+        ]
+      }
+    },
     "PERF-001": {
       "function_checkable": true,
       "question": "Does this function issue a database or API query inside a loop over the results of an earlier query, one round trip per item?",
