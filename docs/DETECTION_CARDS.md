@@ -11,13 +11,13 @@ catalogs. The format is described in the [README](../README.md#detection-cards).
 
 **Complete in coverage, not yet validated and not cleared to ship.**
 
-- There are 1,014 cards: one for every entry that at least one language plans (1,004) plus 10
-  entries that are no longer planned because their card marks them uncheckable. 940 are
+- There are 1,082 cards: one for every entry that at least one language plans (1,072) plus 10
+  entries that are no longer planned because their card marks them uncheckable. 1,008 are
   checkable; 74 are marked not function-checkable and listed below. The 221 catalog entries
   without a card are never planned for any language (hardware-only, introduced outside code,
   wrong language, or a gate with nothing below it). A unit test fails if a planned entry has no
   card.
-- 43 cards belong to BETSY's own catalog entries (REL-214 to REL-242 and PERF-011 to PERF-024);
+- 111 cards belong to BETSY's own catalog entries (REL-214 to REL-306 and PERF-011 to PERF-028);
   see "Extension catalogs" below. Their entries and cards were written together.
 - The cards for `CWE-` entries are new wording derived from MITRE content. Legal must confirm
   that the CWE terms of use allow this, with the notice in `data/weaknesses/CWE_NOTICE.txt`
@@ -32,7 +32,7 @@ words are copied from the entry's description. The length, ID and copying checks
 (the copying test also covers the extended description). A human has read only a sample.
 
 Removing the 74 uncheckable entries saves 51 to 72 questions per function, depending on the
-language; the fixtures now plan 676 to 887.
+language; the fixtures now plan 705 to 938.
 
 ## Extension catalogs
 
@@ -63,6 +63,63 @@ this. Where a candidate was already covered by a planned card (for example loose
 CWE-1024, `is` with literals under CWE-595, bare `except` under CWE-396, regex compilation in a
 loop under PERF-006), the entry was not added. Language-specific entries name their platforms
 (`TypeScript` reaches TypeScript and TSX only; `C` also reaches C++).
+
+### Entries from coding standards and references
+
+A second round compared the cards with published coding standards and reference material, and
+added an entry wherever a function-level defect had no card. Each entry records its source rules
+in `taxonomy_mappings`; the wording is BETSY's own.
+
+- **SEI CERT C and C++ (REL-243 to REL-271).** Of 205 rules, 119 were already covered, 10 cannot
+  be decided from one function, and 32 were closer to an existing card than to a new entry.
+  The new entries cover struct padding copied out or compared with `memcmp`, C23
+  `[[unsequenced]]` functions with side effects, writes through and stale pointers from
+  `getenv`/`strerror`/`localeconv`, exit and fault-signal handlers that do not end the program,
+  `errno` tested without being reset, update streams switched without a flush or seek, mutexes
+  destroyed while held, condition waits and weak compare-exchange outside a loop, single notifies
+  for mixed predicates, asynchronous thread termination, unnamed C++ guards, polymorphic arrays,
+  mixed iterator ranges, stateful predicates, raw storage without construction, misaligned
+  placement new, replacement `operator new` and handlers that break their contract,
+  function-try-block handlers using members, handler order (also for Python), catching by value,
+  deleting through a base without a virtual destructor, initialiser order, self-assignment,
+  pointer-to-member misuse, copies that change their source, and `noreturn` functions that return.
+- **QuantifiedCode Python anti-patterns, W3Schools JavaScript mistakes and the SEI CERT Oracle
+  Java standard (REL-272 to REL-299).** BETSY does not scan Java, so only Java rules whose defect
+  also occurs in a supported language were used, and pure style items were left out. Five
+  Java-only CWEs (CWE-395, CWE-486, CWE-572, CWE-581, CWE-609) are never planned; their
+  transferable forms are REL-293, REL-279, REL-295 and REL-288. The new entries cover `+` on
+  values that may be strings, arrays used as maps, shadowed built-ins, wrong `super()` arguments,
+  loop `else` without `break`, wrong special-method signatures, mixed return types, type tests by
+  exact class or name, discarded results of non-mutating methods, assertions with side effects,
+  changes to loop-variable copies, `Decimal` from a float, floats compared as strings, binary data
+  decoded as text, default text encodings, `this` escaping a constructor, inconsistent equality
+  and hashing, broken comparators, mutated hash keys, cleanup left to finalisers, cleanup errors
+  masking the original, catching null-dereference errors, libraries calling `exit`, `Thread.run`
+  instead of `start`, pool tasks waiting on their own pool, lost background-task errors,
+  thread-local state left in pooled threads, and undrained child-process pipes.
+- **"Every programmer should know" and the Machinery bug taxonomy (REL-300 to REL-306).** Most
+  of the linked material (floating point, Unicode, regex, crypto, latency, naive date-times) was
+  already carded. The new entries cover listeners, timers and subscriptions with no cleanup, wall
+  clocks used for durations, fixed-length calendar arithmetic, digit-string identifiers parsed as
+  numbers, rigid name and address formats, unbounded retries without backoff, and locale-sensitive
+  case conversion for comparison. Architecture-level fallacies, such as changing topology or
+  clocks ordered across machines, cannot be decided from one function and were left out.
+- **Drepper, "What Every Programmer Should Know About Memory" (PERF-025 to PERF-028).** Arrays
+  walked against their storage order (including naive matrix products), false sharing between
+  per-thread slots, one shared atomic counter updated per item by every thread, and linked lists
+  used only for sequential scans. They hang directly under the CWE-400 gate rather than under
+  CWE-1176 or CWE-1050, whose questions (avoidable work, resources acquired per iteration) a
+  cache-hostile loop does not answer yes to; a test checks this. Struct layout, prefetch hints,
+  non-temporal stores, TLB and NUMA placement depend on type declarations, hardware or
+  deployment and were left out.
+
+Where a CERT C or C++ rule was a form of an entry that already had a card, the card gained a
+pattern instead of a new entry being added: REL-034, REL-039, REL-096, REL-113, REL-132, REL-135,
+REL-145, REL-146, REL-165, REL-172, REL-235, CWE-191, CWE-364, CWE-366, CWE-475, CWE-476,
+CWE-687, CWE-754, CWE-758, CWE-762, CWE-772 and CWE-1341. REL-174 (`<tgmath.h>`) stays
+uncheckable, since its reason still holds. The POSIX side of FIO32-C (opening a FIFO or device as
+if it were a file) was not added to CWE-67, whose card is about Windows device names; it has no
+card yet.
 
 ## Language-specific patterns
 
@@ -101,6 +158,12 @@ These came up while drafting and are the first places to look when reviewing res
   entries, sit under findings such as CWE-754, CWE-825, CWE-407, CWE-1176 and CWE-1050, whose
   low answers may hide them. If `betsy run recall` shows
   gating misses, move them to `weakness::DETACHED` or to a broader parent such as CWE-400.
+- **Entries from the second round (REL-243 to REL-306, PERF-025 to PERF-028)** have not been
+  run against a model either. The likeliest to be noisy are REL-304 (rigid name and address
+  formats) and REL-306 (locale-sensitive case conversion), which depend on what the data is;
+  PERF-028 (linked lists), which is often a reasonable design choice; REL-244 (C23 attributes),
+  which will rarely apply; and REL-278 (mixed return types), which overlaps documented `Optional`
+  returns. REL-289 (comparator contract) overlaps the JavaScript comparator pattern of CWE-475.
 - **Narrow sibling distinctions** (CWE-152 to CWE-154, CWE-796 and CWE-797, CWE-32 to CWE-35)
   depend on fine wording and may still be confused.
 

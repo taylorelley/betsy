@@ -278,6 +278,10 @@
     "PERF-021": ["iteration"],
     "PERF-023": ["iteration"],
     "PERF-024": ["iteration"],
+    "PERF-025": ["iteration"],
+    "PERF-026": ["concurrency"],
+    "PERF-027": ["concurrency"],
+    "PERF-028": ["iteration"],
     "REL-214": ["concurrency"],
     "REL-215": ["concurrency"],
     "REL-216": ["type_conversion"],
@@ -288,6 +292,15 @@
     "REL-231": ["iteration"],
     "REL-237": ["concurrency"],
     "REL-241": ["concurrency"],
-    "REL-242": ["concurrency"]
+    "REL-242": ["concurrency"],
+    "REL-252": ["concurrency"],
+    "REL-253": ["concurrency"],
+    "REL-254": ["concurrency"],
+    "REL-255": ["concurrency"],
+    "REL-295": ["concurrency", "resources"],
+    "REL-296": ["concurrency"],
+    "REL-297": ["concurrency"],
+    "REL-298": ["concurrency"],
+    "REL-305": ["network", "data_store"]
   }
 }

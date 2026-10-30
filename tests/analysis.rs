@@ -91,7 +91,7 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213 + 29, 10 + 14)
+        (969, 213 + 93, 10 + 18)
     );
     // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
     // entries live in the betsy_ files.
@@ -159,6 +159,24 @@ fn plans_account_for_every_weakness_and_match_golden() {
     assert!(has("cpp", "PERF-013") && has("rust", "PERF-013") && !has("python", "PERF-013"));
     assert!(has("javascript", "PERF-024") && !has("python", "PERF-024"));
     assert!(LANGUAGES.iter().all(|l| has(l, "PERF-022")));
+    // Entries from the SEI CERT C and C++ standards.
+    assert!(has("c", "REL-250") && has("cpp", "REL-250") && !has("rust", "REL-250"));
+    assert!(has("cpp", "REL-256") && !has("c", "REL-256"));
+    assert!(has("python", "REL-264") && has("cpp", "REL-264") && !has("c", "REL-264"));
+    assert!(has("rust", "REL-253") && !has("javascript", "REL-253"));
+    // Entries from QuantifiedCode, W3Schools and the CERT Java rules that carry over.
+    assert!(has("tsx", "REL-272") && !has("python", "REL-272"));
+    assert!(has("python", "REL-275") && !has("javascript", "REL-275"));
+    assert!(has("rust", "REL-280") && has("cpp", "REL-280") && !has("c", "REL-280"));
+    assert!(has("c", "REL-299") && has("python", "REL-299") && !has("javascript", "REL-299"));
+    // Time, text and distributed-systems entries apply to every language but REL-300.
+    assert!(LANGUAGES
+        .iter()
+        .all(|l| has(l, "REL-301") && has(l, "REL-305")));
+    assert!(has("tsx", "REL-300") && has("python", "REL-300") && !has("rust", "REL-300"));
+    // Memory and cache performance entries.
+    assert!(has("python", "PERF-025") && has("cpp", "PERF-025") && !has("javascript", "PERF-025"));
+    assert!(has("rust", "PERF-026") && has("cpp", "PERF-026") && !has("python", "PERF-026"));
 }
 
 #[test]
@@ -190,6 +208,41 @@ fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
         assert_eq!(n.wave, expected, "{}", n.id);
     }
     assert!(p.depth() > 2 && p.first_wave() >= p.roots.len());
+}
+
+#[test]
+fn memory_performance_entries_sit_under_the_resource_gate() {
+    // CWE-1176 and CWE-1050 ask about avoidable work and per-iteration resources, which a
+    // cache-hostile loop does not show, so these hang directly under the CWE-400 gate.
+    for language in ["c", "cpp", "rust", "python"] {
+        let p = weakness::plan(language, &Selection::default()).unwrap();
+        for id in ["PERF-025", "PERF-026", "PERF-027", "PERF-028"] {
+            let Some(n) = p.nodes.iter().find(|n| n.id == id) else {
+                assert!(language == "python" && id != "PERF-025", "{language}: {id}");
+                continue;
+            };
+            let parent = &p.nodes[n.parent.unwrap()];
+            assert_eq!(parent.id, "CWE-400", "{language}: {id}");
+            assert_eq!(parent.role, weakness::Role::Gate, "{language}: {id}");
+        }
+    }
+    // A process started with Process(target=f()) is a resource even when no concurrency
+    // trait is present, so REL-295 stays reachable through either trait.
+    let t = weakness::traits();
+    let bit = |k: &str| 1u64 << t.traits.iter().position(|x| x.key == k).unwrap();
+    let p = weakness::plan("python", &Selection::default()).unwrap();
+    let n = p.nodes.iter().find(|n| n.id == "REL-295").unwrap();
+    assert_eq!(n.requires, Some(bit("concurrency") | bit("resources")));
+    let mut i = p.nodes.iter().position(|n| n.id == "REL-295").unwrap();
+    while let Some(parent) = p.nodes[i].parent {
+        let reach = p.nodes[parent].reach;
+        assert!(
+            reach.is_none_or(|r| r & bit("resources") != 0),
+            "{}",
+            p.nodes[parent].id
+        );
+        i = parent;
+    }
 }
 
 #[test]

@@ -38,7 +38,7 @@ const CATALOG_FILES: [(&str, &str, &[u8]); 5] = [
     ),
 ];
 /// Bumped whenever plan shape or question wording changes, so cached run identities differ.
-pub const PROFILE: &str = "function-v5";
+pub const PROFILE: &str = "function-v6";
 const HIERARCHY_VIEW: &str = "CWE-1000";
 const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
 /// Detection cards: an overlay that rewrites questions without touching the source catalogs.

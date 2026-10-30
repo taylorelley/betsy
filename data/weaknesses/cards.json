@@ -3461,7 +3461,8 @@
         "c": [
           "len - n, end - offset or size - header on unsigned values with no prior test that the first is at least the second, and the result sizes a copy, allocation or loop",
           "an unsigned counter is decremented in a loop condition such as i-- >= 0 or while (n - 1 > x) where n can be 0",
-          "a signed value is reduced below INT_MIN, such as negating or subtracting from a value taken from input"
+          "a signed value is reduced below INT_MIN, such as negating or subtracting from a value taken from input",
+          "buf[strlen(buf) - 1] after fgets or a read, where the string may be empty"
         ],
         "cpp": [
           "v.size() - 1, s.length() - n or end - start on size_t without a check that the container is large enough, used as a count, substr length or loop bound"
@@ -7077,7 +7078,8 @@
         "c": [
           "a function registered with signal or sigaction modifies global data that the main code also changes, without blocking the signal",
           "a handler frees memory, closes files or changes data structures that other code may be using when the signal arrives",
-          "a handler calls longjmp or exit while the interrupted code may be part-way through an update"
+          "a handler calls longjmp or exit while the interrupted code may be part-way through an update",
+          "a handler that calls signal() to re-install itself, which races where the handler is reset on delivery"
         ],
         "cpp": [
           "a signal handler changes a std::vector, std::string or other object, or locks a std::mutex, that normal code also uses"
@@ -7105,7 +7107,11 @@
         "c": [
           "a global, static or heap object reachable from several threads is updated with ++, +=, or read-then-write, without holding a mutex",
           "a shared pointer is tested and then freed, replaced or initialised without a lock (for example lazy initialisation without once-semantics)",
-          "a thread routine passed to pthread_create or std::thread modifies data the creating code also uses"
+          "a thread routine passed to pthread_create or std::thread modifies data the creating code also uses",
+          "different threads write adjacent bit-fields of one struct, which share a memory location, without a common lock"
+        ],
+        "cpp": [
+          "a std::atomic updated with x = x + 1, x = !x or x = x * 2, which is a separate load and store rather than one atomic operation"
         ]
       },
       "not_present_when": {
@@ -7115,7 +7121,8 @@
           "the data is local or thread-local, or only read after being fully initialised before threads start"
         ],
         "cpp": [
-          "initialisation uses std::call_once or a function-local static"
+          "initialisation uses std::call_once or a function-local static",
+          "fetch_add, fetch_xor, compare_exchange or a lock makes the update a single atomic step"
         ]
       },
       "distinguish_from": {
@@ -9206,7 +9213,8 @@
         ],
         "cpp": [
           "std::copy into a destination that starts inside the source range, or std::memcpy on objects that are not trivially copyable",
-          "std::sort or std::set given a comparator that is not a strict weak ordering, such as <="
+          "std::sort or std::set given a comparator that is not a strict weak ordering, such as <=",
+          "memset, memcmp or strcmp applied to objects of a class with virtual functions or non-trivial members"
         ],
         "javascript": [
           "sort given a comparator that is inconsistent or returns a boolean, giving engine-dependent results"
@@ -9252,7 +9260,8 @@
           "a pointer is tested for NULL after it has already been dereferenced"
         ],
         "cpp": [
-          "a dynamic_cast<T*> result, weak_ptr::lock() result or moved-from std::unique_ptr is dereferenced without a null test"
+          "a dynamic_cast<T*> result, weak_ptr::lock() result or moved-from std::unique_ptr is dereferenced without a null test",
+          "std::string or std::string_view constructed from a pointer that can be null, such as getenv's result"
         ],
         "javascript": [
           "a property is read from a value that can be null or undefined, such as a find() or getElementById() result, without a check or optional chaining"
@@ -12505,7 +12514,8 @@
           "a size argument is the size of a pointer, of the wrong object, or misses the terminator"
         ],
         "c": [
-          "sizeof(ptr) passed as a buffer length, or strncpy with strlen(src) as the size"
+          "sizeof(ptr) passed as a buffer length, or strncpy with strlen(src) as the size",
+          "fsetpos given a position not obtained from fgetpos on the same stream, or fseek on a text stream with an offset not from ftell"
         ],
         "python": [
           "open(path, 'w') where append or read was clearly meant, or verify=False passed to a request"
@@ -12967,6 +12977,9 @@
         ],
         "typescript": [
           "the result of map.get(), array.find(), a nullable lookup or a findOne returning T | null is used with a ! assertion or an as T cast instead of a check"
+        ],
+        "c": [
+          "the buffer given to fgets or getline is used after the call returned NULL or -1, when its contents are indeterminate"
         ]
       },
       "not_present_when": {
@@ -13033,11 +13046,13 @@
         "c": [
           "signed integer overflow, shifts by negative or too-large counts, unsequenced modifications such as i = i++ , or reading uninitialised locals",
           "returning or keeping the address of a local, comparing pointers to unrelated objects, or a non-void function that can fall off its end",
-          "assuming sizeof(int), endianness, char signedness or struct layout"
+          "assuming sizeof(int), endianness, char signedness or struct layout",
+          "taking the address of, or declaring, a library name that may be a macro, such as assert, errno, setjmp or va_start"
         ],
         "cpp": [
           "reinterpret_cast used to read an object as an unrelated type, or reading a union member other than the one last written",
-          "dereferencing end(), calling front() or back() on an empty container, or using an iterator after the container changed"
+          "dereferencing end(), calling front() or back() on an empty container, or using an iterator after the container changed",
+          "offsetof applied to a type that is not standard-layout"
         ],
         "javascript": [
           "new Date() or Date.parse on non-ISO date strings, or sort with an inconsistent comparator"
@@ -13146,7 +13161,8 @@
       "present_when": {
         "c": [
           "memory from malloc, calloc or strdup is released with delete, or memory from new is released with free",
-          "memory allocated by a library-specific allocator is released with plain free, or the reverse"
+          "memory allocated by a library-specific allocator is released with plain free, or the reverse",
+          "realloc called on memory from aligned_alloc or posix_memalign, which may lose the alignment"
         ],
         "cpp": [
           "new[] paired with delete, or new paired with delete[]"
@@ -13394,6 +13410,9 @@
           "an error branch, early return, break or continue leaves the function after acquisition without the matching release",
           "a resource acquired inside a loop is not released before the next iteration",
           "a lock or connection is taken and the release is missing on one branch"
+        ],
+        "c": [
+          "tss_create or pthread_key_create with no destructor while heap values are stored in thread-specific storage, or no matching tss_delete"
         ]
       },
       "not_present_when": {
@@ -17646,11 +17665,13 @@
       "question": "Can this function release the same resource or handle twice, such as freeing memory or closing a file descriptor that was already released?",
       "present_when": {
         "c": [
-          "free, fclose, close or a destroy call on a pointer or descriptor that an earlier path already released and did not reset"
+          "free, fclose, close or a destroy call on a pointer or descriptor that an earlier path already released and did not reset",
+          "pthread_join or thrd_join called twice on the same thread, or after it was detached"
         ],
         "cpp": [
           "delete or delete[] is applied to a raw member pointer in two places, such as a destructor and a release method, without nulling it",
-          "two std::unique_ptr or std::shared_ptr objects are constructed from the same raw pointer"
+          "two std::unique_ptr or std::shared_ptr objects are constructed from the same raw pointer",
+          "join() or detach() called on a std::thread that was already joined or detached, with no joinable() check"
         ],
         "javascript": [
           "fs.closeSync or fs.close on the same fd twice, or a lock release called in both a catch and a finally block"
@@ -18636,7 +18657,8 @@
         "c": [
           "a #define NAME(args) inside or used by the function computes a value, such as MAX, MIN, ABS, SQUARE or CLAMP",
           "a call site passes x++, an assignment or a call into a macro that mentions that parameter more than once",
-          "a macro body uses a parameter without parentheses so precedence can change the result"
+          "a macro body uses a parameter without parentheses so precedence can change the result",
+          "getc, putc or another library function that may be a macro called with a stream argument that has side effects, such as getc(files[i++])"
         ],
         "cpp": [
           "#define SQUARE(x) or MAX(a, b) in C++ code, where std::max, a constexpr function or a template would do the same job"
@@ -18738,6 +18760,9 @@
           "a function is called with no prior declaration, or a declaration relies on implicit int",
           "compiler extensions appear, such as statement expressions, zero-length arrays, nested functions or case ranges",
           "a void function returns a value, or a non-void function returns without one"
+        ],
+        "cpp": [
+          "a reference qualified with const or volatile on the reference itself, such as int& const r"
         ]
       },
       "not_present_when": {
@@ -19696,6 +19721,9 @@
         "c": [
           "a handle typed as a pointer to a forward-declared struct is cast to char *, void * arithmetic, an integer or a concrete struct pointer",
           "an integer or unrelated pointer is cast to an opaque handle type"
+        ],
+        "cpp": [
+          "delete, or a cast to another class type, applied to a pointer to a class that is only forward-declared where it is used"
         ]
       },
       "not_present_when": {
@@ -20074,10 +20102,12 @@
         "c": [
           "sizeof is applied to an expression containing ++, --, = or a compound assignment",
           "sizeof is applied to a function call or dereferenced call result, such as sizeof(*next())",
-          "a macro passes an argument with a side effect into sizeof"
+          "a macro passes an argument with a side effect into sizeof",
+          "an expression with side effects as the controlling expression of _Generic or the operand of _Alignof"
         ],
         "cpp": [
-          "an increment, assignment or call expected to run placed inside decltype(...) or noexcept(...), whose operands are never evaluated"
+          "an increment, assignment or call expected to run placed inside decltype(...) or noexcept(...), whose operands are never evaluated",
+          "a side effect inside typeid on a non-polymorphic operand, or inside noexcept(...)"
         ]
       },
       "not_present_when": {
@@ -20469,7 +20499,8 @@
           "va_arg reads a type that default promotion changes, such as float, char or short, or va_end is missing on a path"
         ],
         "cpp": [
-          "a C-style ... parameter in C++ code, or a class object such as std::string passed through ... to printf-style functions"
+          "a C-style ... parameter in C++ code, or a class object such as std::string passed through ... to printf-style functions",
+          "va_start whose last named parameter is a reference, a class type or has a default argument"
         ]
       },
       "not_present_when": {
@@ -20517,6 +20548,9 @@
           "an if/else chain or switch returns a value on most branches but one branch, or the switch default, falls through to the end",
           "an error path uses return; with no expression in a function declared to return a value",
           "a loop is expected to return from inside, but the code after the loop has no return statement"
+        ],
+        "cpp": [
+          "a non-void function or lambda with a path that falls off the end, which is undefined in C++ even if callers ignore the value"
         ]
       },
       "not_present_when": {
@@ -20732,7 +20766,8 @@
         "c": [
           "a local's address is assigned to a global, a static, a heap object or a field of a caller-supplied structure",
           "a pointer to a variable declared in an inner block is used after that block has ended",
-          "a local's address is handed to a callback, thread or queue that may run after the function returns"
+          "a local's address is handed to a callback, thread or queue that may run after the function returns",
+          "putenv given a pointer to an automatic array, which stays in the environment after the function returns"
         ],
         "cpp": [
           "a lambda capturing locals by reference is stored or returned, or a string_view or span to a temporary is kept"
@@ -20741,7 +20776,8 @@
       "not_present_when": {
         "c": [
           "the pointer is only used while the local is still in scope and is not stored anywhere longer-lived",
-          "the stored object is static, heap-allocated or owned by the caller"
+          "the stored object is static, heap-allocated or owned by the caller",
+          "setenv is used, which copies the string"
         ]
       },
       "distinguish_from": {
@@ -20755,7 +20791,8 @@
         "c": [
           "a struct type defined inside the function has a final member written like uint8_t payload[];",
           "a struct with a flexible array member is declared as a local or static object, or copied by assignment or memcpy of sizeof",
-          "an allocation for such a struct omits or miscomputes the trailing array's size"
+          "an allocation for such a struct omits or miscomputes the trailing array's size",
+          "a struct with a flexible array member copied by assignment, or passed or returned by value, which drops the trailing elements"
         ]
       },
       "not_present_when": {
@@ -21114,6 +21151,9 @@
         "c": [
           "a local or parameter is named after a library function or object, such as time, index, abs, log, errno or exit",
           "a local identifier or tag begins with an underscore and a capital letter or with two underscores, such as _Buffer or __tmp"
+        ],
+        "cpp": [
+          "an identifier containing a double underscore, or a declaration or specialisation added to namespace std that the standard does not allow"
         ]
       },
       "not_present_when": {
@@ -21263,7 +21303,8 @@
           "a call to bsearch or bsearch_s"
         ],
         "cpp": [
-          "std::qsort or std::bsearch from <cstdlib>, especially on elements that are not trivially copyable"
+          "std::qsort or std::bsearch from <cstdlib>, especially on elements that are not trivially copyable",
+          "a comparator for std::qsort or std::bsearch that lacks extern \"C\" linkage or can throw"
         ]
       },
       "not_present_when": {
@@ -22795,6 +22836,9 @@
           "const char* p = get_name().c_str(); or data() of a temporary, then p used",
           "for (auto& x : get_obj().items()) where get_obj returns by value",
           "a std::function or lambda storing a reference into a temporary"
+        ],
+        "c": [
+          "an array member of a struct returned by value is written or its address kept, such as f().buf[0] = 1 or p = f().buf"
         ]
       },
       "not_present_when": {
@@ -22802,6 +22846,9 @@
           "the temporary is bound directly to a const T& or T&& local, which extends its lifetime",
           "the owning value is stored in a named variable that outlives the view",
           "the view refers to a string literal or a long-lived object"
+        ],
+        "c": [
+          "the returned struct is stored in a local before its array member is used"
         ]
       },
       "distinguish_from": {
@@ -22943,6 +22990,1605 @@
       "distinguish_from": {
         "CWE-1322": "the async function calls a blocking operation, rather than holding a guard across await",
         "PERF-020": "the lock is held across slow I/O, causing contention but not deadlock"
+      }
+    },
+    "REL-243": {
+      "function_checkable": true,
+      "question": "Does this function copy a whole structure out to another trust domain after setting its members one by one, so padding bytes may hold leftover memory?",
+      "present_when": {
+        "c": [
+          "a local or heap struct has its members assigned individually and is then passed with sizeof(the struct) to copy_to_user, send, sendto, write, fwrite or memcpy into an outgoing buffer",
+          "a struct allocated with malloc rather than calloc is filled field by field and then written as a whole"
+        ],
+        "cpp": [
+          "a class or struct object with mixed-size members is written with reinterpret_cast<const char*>(&obj) and sizeof(obj) to a stream or socket"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the struct is zeroed in full with memset, calloc or = {0} before its members are set",
+          "fields are serialised individually into the output buffer",
+          "the struct has no padding, for example it is packed or every member has the same size",
+          "the copy stays inside the same process and trust domain"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-457": "a member itself is read before being assigned, rather than padding being copied out"
+      }
+    },
+    "REL-244": {
+      "function_checkable": true,
+      "question": "Is this function marked [[unsequenced]] or [[reproducible]] while its body writes shared state, performs I/O or reads volatile data?",
+      "present_when": {
+        "c": [
+          "[[reproducible]] or [[unsequenced]] on the definition and the body assigns a global or static, prints, logs, allocates, or calls a function with side effects",
+          "[[unsequenced]] on a function whose result depends on a mutable global or on data reached through a pointer argument",
+          "volatile objects are read or written inside an attributed function"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the function has neither attribute",
+          "the attributed body only computes from its parameters and local variables"
+        ]
+      }
+    },
+    "REL-245": {
+      "function_checkable": true,
+      "question": "Does this function decide whether two structures, floating-point values or class objects are equal by comparing their raw bytes?",
+      "present_when": {
+        "c": [
+          "memcmp(&a, &b, sizeof a) or bcmp on struct or union values whose members differ in size or alignment",
+          "memcmp on float or double values or on structs containing them"
+        ],
+        "cpp": [
+          "std::memcmp or a byte loop over objects of a class with virtual functions, std::string, std::vector or other non-trivial members"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the comparison is member by member, or the operands are arrays of unsigned char or other byte buffers",
+          "the struct has no padding and only integer members, or it was zeroed in full before every member was set"
+        ],
+        "cpp": [
+          "operator== or a defaulted comparison compares the values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-597": "the code compares two C strings by pointer instead of by content"
+      }
+    },
+    "REL-246": {
+      "function_checkable": true,
+      "question": "Does this function modify the storage returned by getenv, setlocale, localeconv, strerror or a similar library call instead of a copy?",
+      "present_when": {
+        "c": [
+          "the result of getenv is passed to strtok, strcat, toupper in a loop or written through an index",
+          "fields of the struct returned by localeconv are assigned",
+          "the string from setlocale, strerror or asctime is edited in place"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the result is copied with strdup, strncpy or snprintf into an owned buffer before any change",
+          "the result is only read"
+        ]
+      }
+    },
+    "REL-247": {
+      "function_checkable": true,
+      "question": "Does this function hold on to a result of getenv, strerror, setlocale, localeconv or an envp entry and read it after another call that can overwrite or move that storage?",
+      "present_when": {
+        "c": [
+          "char *a = getenv(\"X\"); char *b = getenv(\"Y\"); and then a is used",
+          "the result of strerror or setlocale is saved, the same function is called again, and the first result is read",
+          "envp is iterated or indexed after setenv, putenv or unsetenv in the same function"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each result is copied with strdup or into an owned buffer before the next such call",
+          "each result is used immediately and not kept",
+          "thread-safe variants that fill caller buffers, such as strerror_r, are used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "the pointer refers to memory the program itself freed"
+      }
+    },
+    "REL-248": {
+      "function_checkable": true,
+      "question": "Is this function an exit handler, or does it register one, where the handler calls exit, quick_exit or longjmp instead of returning?",
+      "present_when": {
+        "c": [
+          "a function passed to atexit or at_quick_exit contains exit(...), quick_exit(...) or longjmp(...)",
+          "this function's body is such a handler, recognisable from an atexit registration in the same body or its name and role"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the handler performs cleanup and returns",
+          "the function is not registered for program termination"
+        ]
+      }
+    },
+    "REL-249": {
+      "function_checkable": true,
+      "question": "Does this function install or act as a handler for SIGFPE, SIGSEGV, SIGILL or SIGBUS that can return normally?",
+      "present_when": {
+        "c": [
+          "signal(SIGFPE, h) or sigaction for SIGSEGV, SIGILL or SIGBUS where the handler body ends without _Exit, abort or siglongjmp",
+          "a handler for these signals sets a flag and returns"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every path in the handler calls _Exit, abort or siglongjmp",
+          "the handler is for asynchronous signals such as SIGINT or SIGTERM"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-479": "the handler calls functions that are not async-signal-safe"
+      }
+    },
+    "REL-250": {
+      "function_checkable": true,
+      "question": "Does this function judge a library call's success by errno without clearing errno beforehand, or without first seeing a failure in the call's return value?",
+      "present_when": {
+        "c": [
+          "strtol, strtoul, strtod or strtoll is followed by if (errno) or errno == ERANGE with no errno = 0 before the call",
+          "fopen, malloc, printf or another call is followed by a test of errno while its return value is not checked",
+          "errno is read in a signal handler after a library call"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "errno = 0 immediately precedes the call and errno is read right after it",
+          "errno is consulted only after the return value signals failure, such as NULL or -1",
+          "errno is not used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the return value is ignored and errno is not consulted at all"
+      }
+    },
+    "REL-251": {
+      "function_checkable": true,
+      "question": "Does this function read from and write to the same update stream without a flush or seek call between the change of direction?",
+      "present_when": {
+        "c": [
+          "fread, fgets or fgetc followed by fwrite, fputs or fprintf on the same FILE opened with r+, w+ or a+, or the reverse order, with no fflush, fseek, fsetpos or rewind between"
+        ],
+        "cpp": [
+          "an std::fstream is read with >> or getline and then written with << or write, or the reverse, with no seekg, seekp or flush between"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "fflush, fseek, fsetpos or rewind separates every switch between input and output",
+          "the stream is used only for reading or only for writing",
+          "reading hit end of file before the write, which the library allows"
+        ]
+      }
+    },
+    "REL-252": {
+      "function_checkable": true,
+      "question": "Does this function destroy a mutex, or let it go out of scope, while it is still locked or while threads that use it may still be running?",
+      "present_when": {
+        "c": [
+          "pthread_mutex_destroy or mtx_destroy is called on a path where the mutex was locked and not unlocked",
+          "a local pthread_mutex_t is shared with threads that are not joined before the function returns"
+        ],
+        "cpp": [
+          "a local std::mutex is captured by threads or async tasks that are detached or not joined before the scope ends"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every lock is released and every thread using the mutex is joined before destruction",
+          "the mutex has static or longer lifetime than all its users"
+        ]
+      },
+      "distinguish_from": {
+        "REL-237": "the mutex is locked and unlocked by hand without a guard but is not destroyed while held"
+      }
+    },
+    "REL-253": {
+      "function_checkable": true,
+      "question": "Does this function wait on a condition variable without re-checking its predicate in a loop, or call a weak compare-exchange without retrying?",
+      "present_when": {
+        "c": [
+          "pthread_cond_wait or cnd_wait called once under if (!ready) or with no predicate test",
+          "atomic_compare_exchange_weak used once with no loop around it"
+        ],
+        "cpp": [
+          "cv.wait(lock) without a predicate argument and not inside while (!ready)",
+          "compare_exchange_weak called once outside a loop"
+        ],
+        "python": [
+          "Condition.wait() called once under if or with no predicate test, instead of while not ready or wait_for(predicate)"
+        ],
+        "rust": [
+          "Condvar::wait called once under if, instead of in a while loop or wait_while"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the wait or compare-exchange sits in a loop that re-tests the condition",
+          "compare_exchange_strong is used where a single attempt is intended"
+        ],
+        "cpp": [
+          "the wait uses the predicate overload wait(lock, pred), wait_for or wait_until with a predicate"
+        ],
+        "python": [
+          "wait_for(predicate) is used, or the wait is inside while not predicate"
+        ],
+        "rust": [
+          "wait_while is used, or the wait is inside while !ready"
+        ]
+      },
+      "distinguish_from": {
+        "REL-254": "the wait is looped but notify_one wakes the wrong waiter, or waiters use different mutexes"
+      }
+    },
+    "REL-254": {
+      "function_checkable": true,
+      "question": "Does this function signal a shared condition variable with a single-waiter notify while waiters test different conditions, or wait on one condition variable with different mutexes?",
+      "present_when": {
+        "c": [
+          "pthread_cond_signal or cnd_signal on a condition variable whose waiters each wait for their own turn or state value",
+          "pthread_cond_wait on the same condition variable with different mutex arguments in different places"
+        ],
+        "cpp": [
+          "notify_one on a std::condition_variable used by several threads waiting for different predicates, such as a turn counter"
+        ],
+        "python": [
+          "Condition.notify() or notify(1) where waiting threads each wait for a different value"
+        ],
+        "rust": [
+          "Condvar::notify_one where several threads wait for different states",
+          "one Condvar used with guards from different Mutexes"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "notify_all, pthread_cond_broadcast or cnd_broadcast is used",
+          "all waiters wait for the same condition, so any one of them can proceed",
+          "each predicate has its own condition variable"
+        ],
+        "python": [
+          "notify_all() is used, or every waiter waits for the same condition"
+        ],
+        "rust": [
+          "notify_all is used, or all waiters share one predicate and one Mutex"
+        ]
+      },
+      "distinguish_from": {
+        "REL-253": "the wait is not inside a predicate loop"
+      }
+    },
+    "REL-255": {
+      "function_checkable": true,
+      "question": "Does this function stop a thread with a terminating signal or enable asynchronous cancellation?",
+      "present_when": {
+        "c": [
+          "pthread_kill(thread, SIGKILL), SIGTERM or another signal whose default action ends the process",
+          "pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, ...)"
+        ],
+        "cpp": [
+          "pthread_kill or TerminateThread called on the native handle of a std::thread"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the thread is asked to stop through a flag or message it checks",
+          "deferred cancellation is used with cleanup handlers",
+          "pthread_kill sends a signal with a handler, such as SIGUSR1, to wake the thread"
+        ]
+      }
+    },
+    "REL-256": {
+      "function_checkable": true,
+      "question": "Does this function contain a statement meant to create a guard or object that C++ instead parses as a function declaration or an immediately destroyed temporary?",
+      "present_when": {
+        "cpp": [
+          "std::lock_guard<std::mutex>(m);, std::unique_lock<std::mutex>(m); or std::scoped_lock{m}; with no variable name",
+          "a scope timer, RAII guard or transaction object constructed without a name",
+          "Widget w(); followed by use of w as an object"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "every guard has a name, such as std::lock_guard lk(m);",
+          "brace initialisation such as Widget w{}; is used",
+          "an unnamed temporary is intended, such as a call whose result is used in the same expression"
+        ]
+      }
+    },
+    "REL-257": {
+      "function_checkable": true,
+      "question": "Does this function index, iterate or delete[] an array of derived class objects through a pointer to the base class?",
+      "present_when": {
+        "cpp": [
+          "Base* p = new Derived[n]; followed by p[i], p + i or delete[] p",
+          "a Base* parameter is indexed or advanced while the function or its callers pass arrays of a derived type"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the objects are held as std::vector<std::unique_ptr<Base>> or an array of Base*",
+          "the pointer type is the same as the element type",
+          "the classes are final value types without derived arrays"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-843": "the object is accessed as an unrelated type rather than an array element with the wrong stride"
+      }
+    },
+    "REL-258": {
+      "function_checkable": true,
+      "question": "Does this function pass an iterator range whose ends come from different containers, or whose start may lie after its end?",
+      "present_when": {
+        "cpp": [
+          "std::sort(a.begin(), b.end()), std::copy(v.begin(), w.end(), out) or erase(x.begin(), y.end())",
+          "a range from find results or offsets, such as (it2, it1), where it2 can come after it1 with no check"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "both iterators come from the same container in order",
+          "std::ranges algorithms are called with the container itself"
+        ]
+      },
+      "distinguish_from": {
+        "REL-234": "an iterator became invalid after the container was changed"
+      }
+    },
+    "REL-259": {
+      "function_checkable": true,
+      "question": "Does this function pass a predicate that changes its own internal state on each call to a standard algorithm?",
+      "present_when": {
+        "cpp": [
+          "a [n = 0]() mutable { return ++n == 3; } lambda or a functor incrementing a member, passed to remove_if, find_if, partition or copy_if",
+          "a predicate that records what it has already seen in its own members"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the predicate has no mutable state",
+          "the state is held outside and captured by reference, or std::ref wraps the functor",
+          "the algorithm is std::for_each or std::generate, which return or use the function object as intended"
+        ]
+      }
+    },
+    "REL-260": {
+      "function_checkable": true,
+      "question": "Does this function use raw storage as an object of a non-trivial class type without constructing it, or free such storage without destroying the object?",
+      "present_when": {
+        "cpp": [
+          "S* p = static_cast<S*>(malloc(sizeof(S))); followed by p->member or a method call, where S has a constructor, virtual functions or members such as std::string",
+          "free or allocator.deallocate on storage holding such an object without p->~S() or std::destroy_at",
+          "realloc of an array of non-trivial objects"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "placement new or std::construct_at creates the object and std::destroy_at or ~S() ends it",
+          "the type is trivially constructible and destructible",
+          "new, delete or a standard container manages the objects"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-762": "memory is released with a deallocation function that does not match how it was allocated"
+      }
+    },
+    "REL-261": {
+      "function_checkable": true,
+      "question": "Does this function construct an object in storage that may be too small or not suitably aligned for its type?",
+      "present_when": {
+        "cpp": [
+          "char buf[N]; new (buf) T(...) with no alignas(T) on buf, or N smaller than sizeof(T)",
+          "placement new at an offset into a byte buffer that is not a multiple of alignof(T)",
+          "malloc or plain operator new used for a type declared with alignas larger than the default alignment"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the buffer is declared alignas(T) unsigned char[sizeof(T)] or uses std::aligned_storage",
+          "std::aligned_alloc or aligned operator new provides the storage",
+          "an allocator or container constructs the object"
+        ]
+      },
+      "distinguish_from": {
+        "REL-260": "the storage is fine but the object is never constructed or destroyed"
+      }
+    },
+    "REL-262": {
+      "function_checkable": true,
+      "question": "Is this function a replacement operator new, new handler or terminate handler that breaks what the standard requires of it?",
+      "present_when": {
+        "cpp": [
+          "a throwing operator new that returns nullptr or malloc's null result instead of throwing std::bad_alloc",
+          "a function passed to std::set_terminate that returns",
+          "a new handler that returns without freeing any memory, so allocation loops forever"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "operator new throws std::bad_alloc on failure, or is the nothrow form returning nullptr",
+          "the terminate handler ends with std::abort or std::_Exit",
+          "the function is not a replacement or handler"
+        ]
+      }
+    },
+    "REL-263": {
+      "function_checkable": true,
+      "question": "Is this a constructor or destructor with a function-try-block whose catch handler uses the object's members or base classes?",
+      "present_when": {
+        "cpp": [
+          "C::C() try : a(...), b(...) { } catch (...) { b.close(); } or any use of this, a member or a base in the handler",
+          "a destructor function-try-block handler that calls member functions"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the handler only logs, uses the caught exception or rethrows",
+          "the function-try-block is on an ordinary function"
+        ]
+      }
+    },
+    "REL-264": {
+      "function_checkable": true,
+      "question": "Does any try statement in this function list a handler for a base exception type before a handler for one of its subclasses?",
+      "present_when": {
+        "cpp": [
+          "catch (const std::exception&) before catch (const std::runtime_error&), or catch (...) before any other handler"
+        ],
+        "python": [
+          "except Exception: before except ValueError:, except OSError: before except FileNotFoundError:, or except LookupError before except KeyError"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "handlers go from most derived to most general",
+          "the exception types are unrelated"
+        ],
+        "python": [
+          "handlers go from most specific to most general",
+          "the exception classes are unrelated"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "a single overly broad catch is the only handler"
+      }
+    },
+    "REL-265": {
+      "function_checkable": true,
+      "question": "Does this function catch a class-type exception by value, or throw or catch exceptions as pointers?",
+      "present_when": {
+        "cpp": [
+          "catch (std::exception e) or catch (MyError e) without a reference",
+          "throw new MyError(...) or catch (MyError* e)"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "handlers catch const E& or E&, or catch (...)",
+          "exceptions are thrown by value",
+          "the caught type is a scalar such as int"
+        ]
+      },
+      "distinguish_from": {
+        "REL-238": "an ordinary derived object, not an exception, is sliced by a copy"
+      }
+    },
+    "REL-266": {
+      "function_checkable": true,
+      "question": "Does this function delete, or hand ownership through, a base-class pointer to a derived object whose base has no virtual destructor?",
+      "present_when": {
+        "cpp": [
+          "Base* b = new Derived; ... delete b; where Base, as declared in the visible code, has no virtual destructor",
+          "std::unique_ptr<Base> p(new Derived) or std::make_unique<Derived>() converted to unique_ptr<Base> for a base without a virtual destructor"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the base declares virtual ~Base() or is final",
+          "the object is deleted through its own type",
+          "std::shared_ptr<Base> is created from make_shared<Derived>, which keeps the right deleter"
+        ]
+      },
+      "distinguish_from": {
+        "REL-257": "an array of derived objects is indexed or deleted through a base pointer"
+      }
+    },
+    "REL-267": {
+      "function_checkable": true,
+      "question": "Does a member initialiser in this constructor read another member that is declared, and so initialised, after it?",
+      "present_when": {
+        "cpp": [
+          "C(int n) : size(data.size()), data(n) where size is declared before data",
+          "a base or member initialiser calls a member function that reads members not yet initialised"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "initialisers use only constructor parameters, constants or members declared earlier",
+          "the class declaration shows the read member is declared first"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-457": "a local variable, not a member in an initialiser list, is read before it is assigned"
+      }
+    },
+    "REL-268": {
+      "function_checkable": true,
+      "question": "Is this a copy assignment operator that frees the object's own resources before copying from the source, with no protection against self-assignment?",
+      "present_when": {
+        "cpp": [
+          "operator=(const T& o) { delete p; p = new X(*o.p); return *this; } with no this != &o check",
+          "free(buf) followed by memcpy from o.buf in an assignment operator"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "copy-and-swap is used",
+          "the new copy is made before the old resource is released",
+          "if (this != &o) guards the body",
+          "the operator is defaulted or the class has no owning members"
+        ]
+      }
+    },
+    "REL-269": {
+      "function_checkable": true,
+      "question": "Does this function apply a pointer to member with .* or ->* to an object that may not have that member?",
+      "present_when": {
+        "cpp": [
+          "void (Base::*f)() = static_cast<void (Base::*)()>(&Derived::g); (base_obj.*f)() where base_obj is not a Derived",
+          "a null pointer to member applied with .* or ->*"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the member pointer is of the object's own class or a base of it",
+          "the dynamic type is checked before the call"
+        ]
+      }
+    },
+    "REL-270": {
+      "function_checkable": true,
+      "question": "Is this a copy constructor or copy assignment operator that changes the object being copied from?",
+      "present_when": {
+        "cpp": [
+          "T(T& other) or T(const T& other) that sets other.ptr = nullptr, resets a member of other or calls a mutating method on it",
+          "const_cast<T&>(other) used to modify the source, or a mutable member of the source changed"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the source is only read",
+          "the function is a move constructor or move assignment taking T&&"
+        ]
+      }
+    },
+    "REL-271": {
+      "function_checkable": true,
+      "question": "Is this function declared [[noreturn]] or _Noreturn yet has a path that returns?",
+      "present_when": {
+        "c": [
+          "_Noreturn void fail(...) with an if that calls exit on only one branch, or a body that can reach its end"
+        ],
+        "cpp": [
+          "[[noreturn]] void f() whose body has a return, a conditional throw with no else, or a loop that can finish"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every path calls abort, exit, _Exit, longjmp, throws or loops forever",
+          "the function is not declared noreturn"
+        ]
+      },
+      "distinguish_from": {
+        "REL-135": "an ordinary non-void function ends without returning a value"
+      }
+    },
+    "REL-272": {
+      "function_checkable": true,
+      "question": "Does this function add a number to a value that may still be a string, so + concatenates instead of adding?",
+      "present_when": {
+        "javascript": [
+          "input.value, event.target.value, URLSearchParams.get, localStorage.getItem, req.query or req.params combined with a number using + or +=",
+          "a running total or counter increased with += from a value read from text input or an untyped object"
+        ],
+        "typescript": [
+          "a value typed any or string from a request or form is added to a number"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the value is converted with Number, parseInt, parseFloat or unary + before the addition",
+          "string building is intended, such as forming a message",
+          "both operands are numbers produced by arithmetic in the function"
+        ],
+        "typescript": [
+          "the operand is typed number after a validating parse"
+        ]
+      },
+      "distinguish_from": {
+        "REL-216": "a numeric parse happens but its NaN result is not checked"
+      }
+    },
+    "REL-273": {
+      "function_checkable": true,
+      "question": "Does this function store values in an array under non-numeric keys, treating it as a map?",
+      "present_when": {
+        "javascript": [
+          "const a = []; a['name'] = v; or a[key] = v where key is a string such as an id or name",
+          "an array filled by string keys and then read with length, forEach, map, JSON.stringify or spread"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "a Map or a plain object holds keyed data",
+          "keys are integer indexes or values are added with push"
+        ]
+      }
+    },
+    "REL-274": {
+      "function_checkable": true,
+      "question": "Does this function bind a local variable, parameter or inner function to the name of a language built-in, in a scope where the built-in is or may be used?",
+      "present_when": {
+        "python": [
+          "a parameter or local named list, dict, str, id, type, input, sum, max, min, len, file, open, object, format or hash",
+          "for list in ...: or def f(type): followed by a call that needs the built-in"
+        ],
+        "javascript": [
+          "a local named undefined, NaN, Infinity, Object, Array, Promise or JSON",
+          "a variable named name, event, status or length at global scope in a browser script"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "no local name collides with a built-in",
+          "the name is an attribute or keyword argument such as obj.id or id=..."
+        ],
+        "javascript": [
+          "no local name collides with a global built-in",
+          "the name is an object property or inside a module where the global is not used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-165": "a C declaration reuses a reserved or standard library identifier"
+      }
+    },
+    "REL-275": {
+      "function_checkable": true,
+      "question": "Does this method call super() with an explicit class argument that is not the class the method is defined in?",
+      "present_when": {
+        "python": [
+          "inside class Child, super(Parent, self).__init__() or super(OtherClass, self).method()",
+          "super(type(self), self), which recurses forever in subclasses"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "zero-argument super() is used",
+          "the explicit argument names the enclosing class",
+          "the skip of a class is deliberate and commented"
+        ]
+      }
+    },
+    "REL-276": {
+      "function_checkable": true,
+      "question": "Does this function have a for or while loop with an else clause but no break in that loop?",
+      "present_when": {
+        "python": [
+          "for x in items: if match: return x or found = x (no break) ... else: raise NotFound",
+          "while cond: ... else: ... where the body never breaks out of this loop"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the loop body contains a break for this loop",
+          "the loop has no else clause"
+        ]
+      }
+    },
+    "REL-277": {
+      "function_checkable": true,
+      "question": "Is this a Python special or instance method whose signature or return does not match how Python calls it?",
+      "present_when": {
+        "python": [
+          "def __exit__(self) or def __exit__(self, exc) instead of four parameters or *args",
+          "def method(): or def method(x): inside a class with no staticmethod decorator, where x is not used as the instance",
+          "__init__ that returns a value other than None",
+          "__eq__, __len__, __bool__, __hash__ or __iter__ returning the wrong kind of value"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the signature matches the data model",
+          "the method is decorated with staticmethod or classmethod",
+          "__init__ returns nothing"
+        ]
+      }
+    },
+    "REL-278": {
+      "function_checkable": true,
+      "question": "Does this function hand back its usual result type on success but a different kind of value, for example None, False, -1 or a message string, to signal failure?",
+      "present_when": {
+        "python": [
+          "return a list or object on success and return False, -1 or 'error' on failure",
+          "an implicit None from a missing return on one path of a function that otherwise returns a value"
+        ],
+        "javascript": [
+          "return an object or array on success and return false, -1, null or an error message string on failure"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "failure raises an exception",
+          "the function is annotated Optional[...] and documented to return None"
+        ],
+        "javascript": [
+          "failure throws",
+          "the TypeScript return type declares the union and callers must narrow it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-393": "the returned status code is the wrong one, rather than a type that differs between paths"
+      }
+    },
+    "REL-279": {
+      "function_checkable": true,
+      "question": "Does this function decide a value's type by comparing its exact class or its class name rather than using isinstance or instanceof?",
+      "present_when": {
+        "python": [
+          "type(x) == Foo, type(x) is Foo or type(x) in (A, B) where subclasses should also match",
+          "type(x).__name__ == 'Foo' or x.__class__.__name__ compared with a string"
+        ],
+        "javascript": [
+          "obj.constructor.name === 'Foo' or Object.prototype.toString comparison used to pick a class",
+          "obj.constructor === Foo where subclasses should also match"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "isinstance or issubclass is used",
+          "exact type matching is intentional, such as in __eq__ or a serialiser registry"
+        ],
+        "javascript": [
+          "instanceof, Array.isArray or a discriminant property is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-595": "two objects are compared by identity instead of by value"
+      }
+    },
+    "REL-280": {
+      "function_checkable": true,
+      "question": "Does this function call a method that returns a new value without changing its receiver, and then discard that result?",
+      "present_when": {
+        "python": [
+          "s.strip(), s.replace(...), s.lower() or name.format(...) used as a bare statement",
+          "sorted(items) or reversed(items) as a statement, or a datetime .replace(...) result not assigned"
+        ],
+        "javascript": [
+          "str.trim(), str.replace(...), str.toUpperCase(), arr.concat(...), arr.slice() or arr.map(...) whose result is not used",
+          "date-fns or moment-style immutable add or subtract result discarded"
+        ],
+        "cpp": [
+          "std::remove or std::remove_if called without erase on the result",
+          "std::unique result ignored, or a std::string_view substr result discarded"
+        ],
+        "rust": [
+          "an iterator adapter such as .map(...) or .filter(...) built and dropped, or s.trim() or s.to_lowercase() discarded",
+          "a #[must_use] method result discarded with let _ ="
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the result is assigned, returned or passed",
+          "an in-place method such as list.sort() or list.reverse() is used"
+        ],
+        "javascript": [
+          "the result is assigned, returned or passed",
+          "an in-place method such as arr.sort() or arr.push() is used"
+        ],
+        "cpp": [
+          "the erase-remove idiom or std::erase_if is used"
+        ],
+        "rust": [
+          "the iterator is consumed with collect, for_each or a for loop",
+          "the result is assigned"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "a status or error return value is ignored, rather than a transformed value"
+      }
+    },
+    "REL-281": {
+      "function_checkable": true,
+      "question": "Does this function place an operation with a needed side effect inside an assertion that can be compiled or optimised out?",
+      "present_when": {
+        "c": [
+          "assert(x = f()), assert(p++), assert(fclose(fp) == 0), assert(init()) or assert(pop(&q))"
+        ],
+        "python": [
+          "assert queue.pop(), assert f.write(...), assert lock.acquire() or assert (n := compute())"
+        ],
+        "rust": [
+          "debug_assert!(v.pop().is_some()), debug_assert!(file.flush().is_ok()) or debug_assert!(iter.next() ...)"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the asserted expression only reads values",
+          "the work is done before the assert and only its result is tested"
+        ],
+        "python": [
+          "the asserted expression only reads values"
+        ],
+        "rust": [
+          "assert! is used, which stays in release builds",
+          "debug_assert! only reads values"
+        ]
+      },
+      "distinguish_from": {
+        "REL-229": "assert is used for input validation that disappears, rather than wrapping a side effect"
+      }
+    },
+    "REL-282": {
+      "function_checkable": true,
+      "question": "Does this function change a for-each loop variable or a by-value parameter as if that would update the container element or the caller's variable?",
+      "present_when": {
+        "python": [
+          "for x in items: x = x.strip() or x += 1 with items expected to change",
+          "a parameter rebound, such as data = data or {}, where the caller's object was meant to be updated"
+        ],
+        "javascript": [
+          "for (let x of arr) { x = x.trim(); } or arr.forEach(x => { x = ...; }) with arr expected to change"
+        ],
+        "cpp": [
+          "for (auto x : v) { x.field = ...; } or for (auto s : names) s += suffix; with v expected to change",
+          "a by-value parameter modified with the result never returned"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "items[i] is written, or a new list is built and used",
+          "the loop variable is only a local temporary"
+        ],
+        "javascript": [
+          "arr[i] is written, map builds a new array, or a property of an object element is changed"
+        ],
+        "cpp": [
+          "for (auto& x : v) is used",
+          "the parameter is a reference or pointer, or the modified copy is returned"
+        ]
+      }
+    },
+    "REL-283": {
+      "function_checkable": true,
+      "question": "Does this function build an exact decimal value from a binary floating-point literal or variable?",
+      "present_when": {
+        "python": [
+          "Decimal(0.1), Decimal(price) where price is a float, or Fraction(0.1)"
+        ],
+        "rust": [
+          "Decimal::from_f64(x), Decimal::try_from(0.1_f64) or BigDecimal::from_f64 on a value meant to be exact"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "Decimal('0.1'), Decimal(str(x)) after rounding, or integers are used",
+          "Decimal.from_float followed by quantize to the intended places"
+        ],
+        "rust": [
+          "Decimal::from_str(\"0.1\"), dec!(0.1) or integer minor units are used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-185": "plain floats are used where decimal fractions are assumed exact, with no decimal type involved"
+      }
+    },
+    "REL-284": {
+      "function_checkable": true,
+      "question": "Does this function compare floating-point numbers by comparing their string representations?",
+      "present_when": {
+        "python": [
+          "str(x) == '0.3', str(a) == str(b), f'{x}' compared with text, or a float's string sliced to test its digits"
+        ],
+        "javascript": [
+          "x.toString() === '0.3', String(a) === String(b) or x.toFixed(2) === y.toFixed(2) used as an equality test"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "values are compared with math.isclose or an explicit tolerance",
+          "the values are integers or Decimal"
+        ],
+        "javascript": [
+          "Math.abs(a - b) < epsilon or integer minor units are compared",
+          "toFixed is used only for display"
+        ]
+      },
+      "distinguish_from": {
+        "REL-190": "computed floats are compared with exact numeric equality"
+      }
+    },
+    "REL-285": {
+      "function_checkable": true,
+      "question": "Does this function turn non-text bytes, such as a digest, ciphertext or file content, into a string by character decoding?",
+      "present_when": {
+        "python": [
+          "digest().decode(), ciphertext.decode('utf-8', errors='replace' or 'ignore'), or str(data, 'latin-1') on bytes later encoded back and compared"
+        ],
+        "javascript": [
+          "buffer.toString() or toString('utf8') on a hash, encrypted or binary buffer",
+          "TextDecoder used on binary data that is later re-encoded"
+        ],
+        "rust": [
+          "String::from_utf8_lossy on binary data",
+          "from_utf8_unchecked on bytes that are not known to be UTF-8"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "hexdigest(), base64.b64encode or .hex() is used for text form",
+          "the bytes are known to be encoded text"
+        ],
+        "javascript": [
+          "toString('hex') or toString('base64') is used",
+          "the buffer holds encoded text"
+        ],
+        "rust": [
+          "hex or base64 encoding is used",
+          "the data is checked with String::from_utf8 and the error handled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-838": "text is written with an encoding the receiver does not expect"
+      }
+    },
+    "REL-286": {
+      "function_checkable": true,
+      "question": "Does this function read or write text without stating the character encoding, so the result depends on the platform default?",
+      "present_when": {
+        "python": [
+          "open(path), open(path, 'w'), Path.read_text() or write_text() without encoding=",
+          "io.TextIOWrapper or subprocess text=True without an encoding, for data shared across systems"
+        ],
+        "cpp": [
+          "std::wifstream or std::wofstream without imbue of an explicit codecvt",
+          "mbstowcs, wcstombs or std::wstring_convert relying on the global locale for file or network data"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "encoding='utf-8' or another explicit encoding is passed",
+          "the file is opened in binary mode"
+        ],
+        "cpp": [
+          "files are read as bytes and decoded with a named encoding",
+          "the locale is set explicitly before conversion"
+        ]
+      }
+    },
+    "REL-287": {
+      "function_checkable": true,
+      "question": "Does this constructor call an overridable method on the object, or hand the object to other code, before it has set all of its fields?",
+      "present_when": {
+        "javascript": [
+          "a constructor calling this.render(), this.init() or another method a subclass may override, before its own fields are assigned",
+          "emitter.on('x', this.handler), registry.add(this) or setTimeout using this before the remaining fields are set"
+        ],
+        "python": [
+          "__init__ calling self.setup() or self.validate() that subclasses override, before all attributes are assigned",
+          "self registered with a thread, signal, observer or global registry before __init__ finishes"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "methods and registration happen after every field is set",
+          "the class is not meant to be subclassed and the called method only uses set fields"
+        ],
+        "python": [
+          "methods and registration happen after every attribute is set",
+          "the called method is private by name mangling and uses only set attributes"
+        ]
+      },
+      "distinguish_from": {
+        "REL-239": "a C++ constructor or destructor calls a virtual function"
+      }
+    },
+    "REL-288": {
+      "function_checkable": true,
+      "question": "Does this function implement equality or hashing for a type in a way that disagrees with the other, or that is not symmetric?",
+      "present_when": {
+        "python": [
+          "__hash__ uses a field that __eq__ ignores, or __eq__ is defined on a mutable class that still keeps a custom __hash__",
+          "__eq__ returns True for another type that does not return True back"
+        ],
+        "cpp": [
+          "a std::hash specialisation or hasher uses members that operator== does not compare",
+          "operator== compares with a tolerance while the hash uses exact values"
+        ],
+        "rust": [
+          "impl PartialEq by hand while Hash is derived, or impl Hash using fields that eq ignores",
+          "PartialEq between two types implemented in one direction only"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "@dataclass(frozen=True) or both methods use the same tuple of fields",
+          "__hash__ = None for mutable types"
+        ],
+        "cpp": [
+          "the hash and operator== use the same members"
+        ],
+        "rust": [
+          "both PartialEq and Hash are derived, or both are written over the same fields"
+        ]
+      }
+    },
+    "REL-289": {
+      "function_checkable": true,
+      "question": "Does this function supply or implement a comparator that is not a consistent ordering?",
+      "present_when": {
+        "javascript": [
+          "arr.sort((a, b) => a > b) or a < b, returning a boolean instead of a negative, zero or positive number",
+          "a comparator returning a - b on values that may be NaN, strings or very large numbers"
+        ],
+        "python": [
+          "a cmp function returning bool used with functools.cmp_to_key",
+          "__lt__ that is not consistent with __eq__ or is not transitive"
+        ],
+        "rust": [
+          "sort_by(|a, b| a.partial_cmp(b).unwrap()) on floats that may be NaN",
+          "an Ord impl that disagrees with PartialEq or returns Less for equal items"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the comparator returns a number from a subtraction of finite numbers, localeCompare or explicit -1, 0, 1"
+        ],
+        "python": [
+          "a key function is used instead of a comparator",
+          "the comparator returns -1, 0 or 1 for all cases"
+        ],
+        "rust": [
+          "total_cmp, cmp on Ord types or sort_by_key is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-220": "sort is called with no comparator at all on non-string values"
+      }
+    },
+    "REL-290": {
+      "function_checkable": true,
+      "question": "Does this function change an object, in a field that its hash or ordering depends on, while that object is a key in a map or set?",
+      "present_when": {
+        "python": [
+          "an instance with a field-based __hash__ added to a set or dict and then one of those fields reassigned"
+        ],
+        "rust": [
+          "a key type with Cell, RefCell or atomics inside a HashMap or BTreeMap key, changed after insertion"
+        ],
+        "cpp": [
+          "a key in std::set or std::map changed through const_cast or a mutable member that operator< or the hash uses"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "keys are immutable, such as tuples, strings or frozen dataclasses",
+          "the key is removed before it is changed and then reinserted"
+        ],
+        "rust": [
+          "keys have no interior mutability, or only fields excluded from Hash and Eq change"
+        ],
+        "cpp": [
+          "keys are const and unmodified, or the entry is extracted and reinserted"
+        ]
+      }
+    },
+    "REL-291": {
+      "function_checkable": true,
+      "question": "Does this function rely on garbage collection, through a finaliser or a weak reference, to release a resource or to keep needed data alive?",
+      "present_when": {
+        "python": [
+          "__del__ is the only place a file, socket, lock or connection is closed",
+          "a value needed later is held only through weakref.ref or a WeakValueDictionary"
+        ],
+        "javascript": [
+          "FinalizationRegistry callbacks close handles, files or connections",
+          "the only reference to needed data is a WeakRef or WeakMap value"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "resources are closed with with, try/finally or an explicit close",
+          "weak references are used only for optional caches"
+        ],
+        "javascript": [
+          "resources are closed explicitly, for example in finally",
+          "WeakRef is used only for an optional cache"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-772": "the resource is never released at all, with no finaliser"
+      }
+    },
+    "REL-292": {
+      "function_checkable": true,
+      "question": "Does a finally block or error handler in this function run a cleanup call that can raise and so replace the original error?",
+      "present_when": {
+        "python": [
+          "finally: conn.close() or f.close() or tx.rollback() without its own try",
+          "except Exception: cleanup(); raise where cleanup can raise"
+        ],
+        "javascript": [
+          "finally { await client.release(); } or fs.closeSync(fd) unguarded",
+          "a catch block that runs cleanup which may throw before rethrowing"
+        ],
+        "cpp": [
+          "a catch block that calls a throwing cleanup before rethrow",
+          "scope-exit cleanup that can throw while another exception is in flight"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "cleanup is wrapped in its own try with the error logged",
+          "a with statement or contextlib.ExitStack manages cleanup",
+          "raise ... from err keeps the cause"
+        ],
+        "javascript": [
+          "cleanup errors are caught separately",
+          "a new Error is created with cause: err"
+        ],
+        "cpp": [
+          "cleanup functions are noexcept or wrapped in their own try"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-584": "the finally block contains a return that discards the exception"
+      }
+    },
+    "REL-293": {
+      "function_checkable": true,
+      "question": "Does this function catch AttributeError or TypeError to handle a value that might be missing, instead of checking for it?",
+      "present_when": {
+        "python": [
+          "try: name = user.profile.name except AttributeError: name = None",
+          "except TypeError around subscripting a value that may be None"
+        ],
+        "javascript": [
+          "try { x = obj.a.b; } catch (e) { x = undefined; } or catch of TypeError for cannot read properties of undefined"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "an explicit is None check or getattr(obj, 'a', None) is used",
+          "the handler targets a specific documented exception from a call"
+        ],
+        "javascript": [
+          "optional chaining ?. or an explicit null check is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "a generic exception is caught for unrelated failures"
+      }
+    },
+    "REL-294": {
+      "function_checkable": true,
+      "question": "Does this function, which is not the program's entry point, terminate the whole process?",
+      "present_when": {
+        "python": [
+          "sys.exit(), os._exit() or exit() inside a library function, view, route handler, task or callback"
+        ],
+        "javascript": [
+          "process.exit() inside a module function, Express or Next.js handler, event listener or library code"
+        ],
+        "rust": [
+          "std::process::exit or std::process::abort in library code or a request handler"
+        ],
+        "cpp": [
+          "exit, std::exit, abort or quick_exit called in a library function or request handler on a recoverable error"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the function is main or a CLI entry point",
+          "an exception is raised instead"
+        ],
+        "javascript": [
+          "the code is a CLI entry script",
+          "an error is thrown or passed to next(err)"
+        ],
+        "rust": [
+          "the function is main or returns a Result"
+        ],
+        "cpp": [
+          "the function is main",
+          "the error is thrown or returned"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-382": "a J2EE application calls System.exit"
+      }
+    },
+    "REL-295": {
+      "function_checkable": true,
+      "question": "Does this function run a thread's work on the current thread by calling run() or by calling the target while creating the thread?",
+      "present_when": {
+        "python": [
+          "t = threading.Thread(target=work); t.run()",
+          "threading.Thread(target=work(x)) or Process(target=work()) where work is called immediately"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "start() is called and target is the function itself, with arguments in args",
+          "run() is called from a Thread subclass's own start logic by design"
+        ]
+      }
+    },
+    "REL-296": {
+      "function_checkable": true,
+      "question": "Does this function, running as a pool task, submit work to the same bounded pool and block waiting for it?",
+      "present_when": {
+        "python": [
+          "inside a function run by ThreadPoolExecutor, executor.submit(...).result() on the same executor"
+        ],
+        "cpp": [
+          "a task on a fixed thread pool enqueues another task to that pool and calls future.get() or wait()"
+        ],
+        "rust": [
+          "a rayon or threadpool job that spawns into the same pool and blocks on a channel recv or join handle",
+          "block_on inside a task on a single-threaded or bounded Tokio runtime waiting for another task on it"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "child work goes to a different executor or is run inline",
+          "the parent does not wait"
+        ],
+        "cpp": [
+          "child tasks use another pool, or the parent continues without waiting"
+        ],
+        "rust": [
+          "rayon::join or scope is used, which can run work in the waiting thread",
+          "the waiting happens outside the pool"
+        ]
+      }
+    },
+    "REL-297": {
+      "function_checkable": true,
+      "question": "Does this function start a background task and discard its handle or future, so an error in the task is never checked?",
+      "present_when": {
+        "python": [
+          "asyncio.create_task(coro) or loop.create_task used as a statement with no reference kept",
+          "executor.submit(fn) whose future is never checked"
+        ],
+        "rust": [
+          "tokio::spawn(...) or std::thread::spawn(...) with the JoinHandle dropped while the task returns a Result",
+          "let _ = handle.join(); ignoring a panic or error"
+        ],
+        "cpp": [
+          "std::async result discarded or a std::future never .get()",
+          "a std::thread task whose exception is never captured or reported"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the task or future is awaited, gathered or has add_done_callback that checks exceptions",
+          "the task body catches and logs every error"
+        ],
+        "rust": [
+          "the JoinHandle is awaited or joined and its result checked",
+          "the task handles its own errors"
+        ],
+        "cpp": [
+          "the future is .get() or the task reports errors through a channel"
+        ]
+      },
+      "distinguish_from": {
+        "REL-214": "a JavaScript promise is neither awaited nor handled"
+      }
+    },
+    "REL-298": {
+      "function_checkable": true,
+      "question": "Does this function set thread-local state while running on a reused thread and leave it set when it finishes?",
+      "present_when": {
+        "python": [
+          "threading.local() attribute such as ctx.user = ... set in a request or task handler with no reset in finally"
+        ],
+        "cpp": [
+          "a thread_local variable assigned a request, user or transaction value in pooled task code and not restored"
+        ],
+        "rust": [
+          "thread_local! value set with .set or borrow_mut in a pooled job without restoring the old value"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the value is reset in finally or contextvars with token reset is used",
+          "the thread is not reused"
+        ],
+        "cpp": [
+          "a scope guard restores the previous value"
+        ],
+        "rust": [
+          "a guard restores the old value on drop",
+          "the value is passed explicitly instead"
+        ]
+      }
+    },
+    "REL-299": {
+      "function_checkable": true,
+      "question": "Does this function start a child process with output piped and wait for it to finish without draining the pipe?",
+      "present_when": {
+        "python": [
+          "subprocess.Popen(..., stdout=PIPE or stderr=PIPE) followed by p.wait() with no read or communicate()"
+        ],
+        "rust": [
+          "Command::new(...).stdout(Stdio::piped()).spawn() followed by child.wait() without reading stdout"
+        ],
+        "c": [
+          "pipe and fork or popen, then waitpid or pclose before reading the child's output to the end"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "communicate() or subprocess.run(capture_output=True) is used",
+          "output goes to DEVNULL or a file"
+        ],
+        "rust": [
+          "output() or wait_with_output() is used, or a thread reads the pipe"
+        ],
+        "c": [
+          "the parent reads until end of file before waiting",
+          "output is redirected to a file"
+        ]
+      }
+    },
+    "REL-300": {
+      "function_checkable": true,
+      "question": "Does this function register a listener, timer, observer or subscription as part of setting something up, without removing it when that thing is torn down?",
+      "present_when": {
+        "javascript": [
+          "useEffect(() => { window.addEventListener(...) or setInterval(...) or store.subscribe(...) }) with no cleanup function returned",
+          "componentDidMount, connectedCallback or a constructor that adds listeners or timers with no removal in componentWillUnmount, disconnectedCallback or a dispose method"
+        ],
+        "tsx": [
+          "a React effect or hook that subscribes, observes or starts a timer and returns no cleanup"
+        ],
+        "python": [
+          "an object's __init__ or setup connects a signal, registers a callback or starts a timer with no disconnect in close, __exit__ or teardown"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the effect returns a function that removes the listener, clears the timer or unsubscribes",
+          "the listener uses { once: true } or an AbortSignal that is aborted on teardown",
+          "the registration is made once at module load for the program's lifetime"
+        ],
+        "python": [
+          "teardown disconnects or cancels the registration",
+          "the registration uses a weak reference or lives for the whole program"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-401": "memory is allocated and never freed, rather than a callback registration being left behind"
+      }
+    },
+    "REL-301": {
+      "function_checkable": true,
+      "question": "Does this function measure an elapsed time, timeout or deadline using wall-clock readings instead of a monotonic clock?",
+      "present_when": {
+        "python": [
+          "start = time.time() ... time.time() - start, or a deadline computed with datetime.now() and compared later"
+        ],
+        "javascript": [
+          "Date.now() - start or new Date() differences used for a timeout, retry delay, rate limit or benchmark"
+        ],
+        "c": [
+          "time(NULL), gettimeofday or clock_gettime(CLOCK_REALTIME) differences used as durations"
+        ],
+        "cpp": [
+          "std::chrono::system_clock::now() differences used for timeouts or measuring work"
+        ],
+        "rust": [
+          "SystemTime::now() with duration_since or elapsed used for a timeout or measurement"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "time.monotonic() or time.perf_counter() is used"
+        ],
+        "javascript": [
+          "performance.now() or process.hrtime is used",
+          "the wall-clock value is only stored or displayed"
+        ],
+        "c": [
+          "clock_gettime(CLOCK_MONOTONIC) is used"
+        ],
+        "cpp": [
+          "std::chrono::steady_clock is used"
+        ],
+        "rust": [
+          "std::time::Instant is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-232": "naive and time-zone-aware date-times are mixed"
+      }
+    },
+    "REL-302": {
+      "function_checkable": true,
+      "question": "Does this function advance or compare calendar dates by adding fixed numbers of seconds or days where days, months or years can differ in length?",
+      "present_when": {
+        "any": [
+          "86400, 24 * 3600, 24*60*60*1000, 30 or 365 used to compute tomorrow, next month, next year or an age from local date-times"
+        ],
+        "python": [
+          "timedelta(days=30) for one month or timedelta(days=365) for one year, or adding 86400 to a local timestamp"
+        ],
+        "javascript": [
+          "date.getTime() + 24*60*60*1000 for the next local day, or setDate(getDate() + 30) for next month"
+        ],
+        "c": [
+          "adding 86400 to a time_t and then calling localtime to get the next calendar day"
+        ],
+        "rust": [
+          "Duration::from_secs(86400) added to a local date-time for the next day"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the values are UTC instants and a fixed duration is truly meant",
+          "a calendar-aware API steps months and years"
+        ],
+        "python": [
+          "dateutil.relativedelta, date + timedelta(days=1) on a plain date, or zoneinfo-aware arithmetic is used"
+        ],
+        "javascript": [
+          "Temporal, date-fns addMonths or addDays, or Luxon is used"
+        ],
+        "c": [
+          "mktime normalises a struct tm whose tm_mday or tm_mon was incremented"
+        ],
+        "rust": [
+          "chrono Months, checked_add_months or NaiveDate succ is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-232": "naive and aware date-times are mixed rather than stepped by fixed amounts"
+      }
+    },
+    "REL-303": {
+      "function_checkable": true,
+      "question": "Does this function convert a phone number, postcode, account number or other digit-string identifier into a numeric type?",
+      "present_when": {
+        "python": [
+          "int(phone), int(postcode), int(account_no) or float(card_number), then stored, compared or formatted"
+        ],
+        "javascript": [
+          "Number(zip), parseInt(phone) or +accountId on an identifier, or an ID longer than 15 digits handled as a number"
+        ],
+        "c": [
+          "atoi, atol or strtol on a phone number, postcode or account string that is then stored or compared"
+        ],
+        "cpp": [
+          "std::stoi or std::stoll on a phone number, postcode or account string"
+        ],
+        "rust": [
+          "phone.parse::<u64>() or postcode.parse::<u32>() and the number kept as the identifier"
+        ],
+        "typescript": [
+          "an identifier field declared as number in a type for data that arrives as digit strings"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the identifier is kept as a string and validated with a pattern",
+          "the digits are parsed only to compute a checksum, with the string kept as the identifier"
+        ],
+        "javascript": [
+          "BigInt or a string is used for long identifiers"
+        ]
+      },
+      "distinguish_from": {
+        "REL-216": "a parsed number is used without checking for NaN"
+      }
+    },
+    "REL-304": {
+      "function_checkable": true,
+      "question": "Does this function validate, split or reformat a person's name or postal address using rules that only fit some cultures or countries?",
+      "present_when": {
+        "any": [
+          "a name checked against a pattern like ^[A-Za-z]+$ or [a-zA-Z ]{2,20} that rejects accents, apostrophes, hyphens or non-Latin scripts",
+          "a full name split on the first or last space into first and last name, or a surname made mandatory",
+          "an address required to have a house number, a state or a five-digit postcode regardless of country"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is stored as entered with only length or control-character checks",
+          "address rules depend on the country and come from a maintained library",
+          "the field is not a person's name or a postal address"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-20": "input that should be restricted is not validated enough, rather than valid input being rejected"
+      }
+    },
+    "REL-305": {
+      "function_checkable": true,
+      "question": "Does this function retry a failed network, database or service call in a loop with no attempt limit, or with no delay that grows between attempts?",
+      "present_when": {
+        "any": [
+          "while true or an unbounded loop that calls a remote service, catches the failure and loops again",
+          "a retry loop with a fixed short sleep or no sleep at all, and no maximum attempt count"
+        ],
+        "javascript": [
+          "a recursive retry function that calls itself on rejection with no attempt counter"
+        ],
+        "python": [
+          "while True: try: requests.get(...) break except RequestException: continue"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "attempts are capped and the delay grows, for example exponentially with jitter",
+          "a retry library or client retry policy such as tenacity, backoff, p-retry, tokio-retry or the SDK's built-in retries is used",
+          "the loop is a long-running consumer that waits on a blocking call rather than retrying a failure"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-021": "the loop polls a condition without sleeping rather than retrying a failed call",
+        "CWE-1088": "a call has no timeout, rather than unbounded retries"
+      }
+    },
+    "REL-306": {
+      "function_checkable": true,
+      "question": "Does this function compare text case-insensitively by converting case with a method that is locale-dependent or does not fold all Unicode characters?",
+      "present_when": {
+        "python": [
+          "a.lower() == b.lower() or upper() comparisons on user names, e-mail addresses or other text that can be non-ASCII"
+        ],
+        "javascript": [
+          "a.toLowerCase() === b.toLowerCase() or toLocaleUpperCase() on identifiers that may be compared across locales"
+        ],
+        "c": [
+          "tolower or toupper applied byte by byte to UTF-8 text before strcmp",
+          "strcasecmp on non-ASCII text under a user locale"
+        ],
+        "cpp": [
+          "std::tolower in a transform over a UTF-8 std::string before comparing"
+        ],
+        "rust": [
+          "to_lowercase() == on both sides for non-ASCII text that needs case folding"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "casefold() is used",
+          "the strings are ASCII-only protocol tokens"
+        ],
+        "javascript": [
+          "localeCompare(b, undefined, { sensitivity: 'accent' or 'base' }) or Intl.Collator is used"
+        ],
+        "c": [
+          "the comparison is on ASCII-only tokens in the C locale",
+          "ICU case folding is used"
+        ],
+        "rust": [
+          "eq_ignore_ascii_case on ASCII tokens, or a Unicode case-folding crate"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-178": "a security decision mishandles case differences, rather than an ordinary comparison"
       }
     },
     "PERF-001": {
@@ -23646,6 +25292,131 @@
           "the loop only writes, or only reads",
           "the code does not run in a browser, for example a Node script"
         ]
+      }
+    },
+    "PERF-025": {
+      "function_checkable": true,
+      "question": "Does this function walk a large row-major array or matrix with its innermost loop moving across rows, or multiply large matrices with the naive loop order and no transposition, tiling or library call?",
+      "present_when": {
+        "c": [
+          "for (i...) for (j...) sum += a[j][i] or a[j * n + i] over runtime-sized n",
+          "for (i) for (j) for (k) c[i][j] += a[i][k] * b[k][j] over large runtime sizes with no transposed copy of b and no blocking"
+        ],
+        "cpp": [
+          "nested loops over std::vector<std::vector<T>> or a flat buffer indexed [col][row] in the inner loop"
+        ],
+        "rust": [
+          "nested loops indexing grid[j][i] or data[j * width + i] with j in the inner loop over runtime-sized dimensions"
+        ],
+        "python": [
+          "pure Python or Numba loops over a NumPy C-ordered array indexing arr[j, i] with j innermost, or a hand-written triple-loop matrix product"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the innermost loop walks contiguous memory",
+          "the array is small or of fixed tiny size, such as 3 by 3 or 4 by 4",
+          "the matrix product transposes one operand, uses blocking or calls BLAS or another library"
+        ],
+        "rust": [
+          "the inner loop walks a row, iterators over rows or chunks are used, or ndarray or nalgebra performs the product"
+        ],
+        "python": [
+          "vectorised NumPy operations or @ are used",
+          "the array is Fortran-ordered and the loop follows that order"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1176": "the work itself is avoidable, rather than its memory access order being cache-hostile"
+      }
+    },
+    "PERF-026": {
+      "function_checkable": true,
+      "question": "Does this function have several threads write repeatedly to neighbouring slots or fields of one shared array or struct inside their loops?",
+      "present_when": {
+        "c": [
+          "counts[tid]++ or results[tid] += x inside each thread's main loop, on a plain array of small elements"
+        ],
+        "cpp": [
+          "std::vector<long> or std::array of per-thread counters updated in each thread's loop, or std::atomic<int> slots packed next to each other"
+        ],
+        "rust": [
+          "a Vec<AtomicUsize> or array of per-worker counters updated in each worker's loop, or adjacent fields each written by a different thread"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each thread accumulates in a local variable and writes its slot once at the end",
+          "slots are padded or aligned to the cache line, for example alignas(64) or a padding member",
+          "the writes are rare compared with the loop's other work"
+        ],
+        "rust": [
+          "slots use crossbeam CachePadded or #[repr(align(64))]",
+          "each worker returns a local total that is combined afterwards"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-027": "all threads write one shared variable, rather than separate variables on one line"
+      }
+    },
+    "PERF-027": {
+      "function_checkable": true,
+      "question": "Does each worker thread in this function update one shared atomic or lock-protected counter on every iteration of its main loop?",
+      "present_when": {
+        "c": [
+          "atomic_fetch_add(&total, 1) or __sync_fetch_and_add on a shared variable for every item processed by each thread",
+          "pthread_mutex_lock around a shared counter increment per item"
+        ],
+        "cpp": [
+          "std::atomic<long> total; total++ or fetch_add per element inside a parallel loop or each std::thread's loop"
+        ],
+        "rust": [
+          "counter.fetch_add(1, ...) on an Arc<AtomicUsize> per item in each thread, or a Mutex<u64> locked per item in a rayon closure"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each thread sums locally and updates the shared value once",
+          "the shared update happens once per batch or rarely"
+        ],
+        "rust": [
+          "rayon sum, fold and reduce, or per-thread totals combined at the end",
+          "the counter is updated once per batch"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-020": "a lock is held across slow I/O rather than taken briefly for each item"
+      }
+    },
+    "PERF-028": {
+      "function_checkable": true,
+      "question": "Does this function build a linked list only to append to it and then scan or index it sequentially, with no insertion or removal in the middle?",
+      "present_when": {
+        "c": [
+          "a malloc'd node chain built by appending and then walked in full, where an array of the same items would do"
+        ],
+        "cpp": [
+          "std::list or std::forward_list filled with push_back and then only iterated, or advanced with std::next to reach an index"
+        ],
+        "rust": [
+          "std::collections::LinkedList filled with push_back and then only iterated"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "items are inserted or removed in the middle while iterating, or splicing is used",
+          "the code needs stable addresses for elements while the collection changes",
+          "the list is short or built once and rarely traversed"
+        ],
+        "cpp": [
+          "std::vector or std::deque is used"
+        ],
+        "rust": [
+          "Vec or VecDeque is used"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-011": "an array is used as a queue and shifted on each removal, the opposite trade-off"
       }
     }
   }
