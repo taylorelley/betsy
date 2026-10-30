@@ -8,6 +8,10 @@ pub struct Jev {
     pub model: String,
     pub max_questions: usize,
     pub long_context: bool,
+    /// Send the text rendering as a single string state instead of the JSON object.
+    pub text_state: bool,
+    /// Leave out the true/false criteria; the instructions alone carry the question.
+    pub omit_criteria: bool,
     client: Client,
 }
 impl Jev {
@@ -25,21 +29,43 @@ impl Jev {
             model,
             max_questions,
             long_context,
+            text_state: false,
+            omit_criteria: false,
             client: Client::new(api_key, timeout, max_retries),
         }
     }
+    pub fn with_text_state(mut self, text_state: bool) -> Self {
+        self.text_state = text_state;
+        self
+    }
+    pub fn with_omit_criteria(mut self, omit_criteria: bool) -> Self {
+        self.omit_criteria = omit_criteria;
+        self
+    }
 }
-pub fn request(model: &str, state: &State, questions: &[&Question]) -> Value {
+pub fn request(
+    model: &str,
+    state: &State,
+    questions: &[&Question],
+    text_state: bool,
+    omit_criteria: bool,
+) -> Value {
     let qs: Map<String, Value> = questions
         .iter()
         .map(|q| {
-            (
-                q.key.clone(),
-                json!({"type":"noul","instructions":q.instructions,"criteria":{"true":q.criteria_true,"false":q.criteria_false}}),
-            )
+            let mut v = json!({"type":"noul","instructions":q.instructions});
+            if !omit_criteria {
+                v["criteria"] = json!({"true":q.criteria_true,"false":q.criteria_false});
+            }
+            (q.key.clone(), v)
         })
         .collect();
-    json!({"model":model,"state":state.json(),"questions":qs})
+    let state = if text_state {
+        Value::String(state.text())
+    } else {
+        state.json()
+    };
+    json!({"model":model,"state":state,"questions":qs})
 }
 pub fn parse(resp: &Value, questions: &[&Question]) -> Result<(Vec<Answer>, Usage), ProviderError> {
     let answers = questions
@@ -53,7 +79,15 @@ pub fn parse(resp: &Value, questions: &[&Question]) -> Result<(Vec<Answer>, Usag
 }
 impl Provider for Jev {
     fn config(&self) -> Value {
-        json!({"provider":"jev","model":self.model,"api":"v1/systemone","question_type":"noul","state":super::STATE_VERSION})
+        let mut c = json!({"provider":"jev","model":self.model,"api":"v1/systemone","question_type":"noul","state":super::STATE_VERSION});
+        // Only non-default options are recorded, so existing runs keep their identity.
+        if self.text_state {
+            c["state_format"] = json!("text");
+        }
+        if self.omit_criteria {
+            c["criteria"] = json!(false);
+        }
+        c
     }
     fn max_questions(&self) -> usize {
         self.max_questions
@@ -71,7 +105,13 @@ impl Provider for Jev {
         let resp = self.client.post(
             &format!("{}/v1/systemone", self.base_url),
             headers,
-            &request(&self.model, state, questions),
+            &request(
+                &self.model,
+                state,
+                questions,
+                self.text_state,
+                self.omit_criteria,
+            ),
         )?;
         parse(&resp, questions)
     }

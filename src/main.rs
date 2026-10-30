@@ -91,6 +91,14 @@ struct ProviderArgs {
     /// Send TypeSafe's long-context header for large functions.
     #[arg(long)]
     long_context: bool,
+    /// Send the Jev state as one text string, for models that accept only string states
+    /// (such as DECISION SERVER's gliner2-decide).
+    #[arg(long)]
+    text_state: bool,
+    /// Leave out the Jev true/false criteria, for models that cap option length (such as
+    /// DECISION SERVER's julia, at 48 tokens per option).
+    #[arg(long)]
+    omit_criteria: bool,
     #[arg(long, default_value_t = 120)]
     timeout_secs: u64,
     #[arg(long, default_value_t = 5)]
@@ -109,17 +117,21 @@ impl ProviderArgs {
             })?))
         };
         Ok(match self.provider {
-            ProviderKind::Jev => Arc::new(decide::jev::Jev::new(
-                self.base_url
-                    .clone()
-                    .unwrap_or_else(|| "https://api.typesafe.ai".into()),
-                self.model.clone().unwrap_or_else(|| "jev-latest".into()),
-                key("JEV_API_KEY")?,
-                self.max_questions.unwrap_or(100),
-                self.long_context,
-                timeout,
-                self.max_retries,
-            )),
+            ProviderKind::Jev => Arc::new(
+                decide::jev::Jev::new(
+                    self.base_url
+                        .clone()
+                        .unwrap_or_else(|| "https://api.typesafe.ai".into()),
+                    self.model.clone().unwrap_or_else(|| "jev-latest".into()),
+                    key("JEV_API_KEY")?,
+                    self.max_questions.unwrap_or(100),
+                    self.long_context,
+                    timeout,
+                    self.max_retries,
+                )
+                .with_text_state(self.text_state)
+                .with_omit_criteria(self.omit_criteria),
+            ),
             ProviderKind::Openai => Arc::new(decide::openai::OpenAi::new(
                 self.base_url
                     .clone()
@@ -225,8 +237,9 @@ enum Command {
         provider: ProviderArgs,
         #[command(flatten)]
         selection: SelectionArgs,
-        /// Probability at or above which a weakness is reported.
-        #[arg(long, default_value_t = 0.5)]
+        /// Probability at or above which a weakness is reported (0.7 was tuned on labelled
+        /// code; lower it for a recall-heavy pass).
+        #[arg(long, default_value_t = 0.7)]
         threshold: f64,
         /// Children of a weakness are asked only when its probability reaches this value.
         #[arg(long, default_value_t = 0.15)]

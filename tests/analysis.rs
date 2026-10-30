@@ -505,10 +505,19 @@ fn jev_and_openai_wire_shapes() {
     };
     let qs = questions();
     let refs: Vec<&weakness::Question> = qs.iter().collect();
-    let r = decide::jev::request("jev-latest", &state, &refs);
+    let r = decide::jev::request("jev-latest", &state, &refs, false, false);
     assert_eq!(r["model"], "jev-latest");
     assert_eq!(r["state"]["source"], json!(f.source));
     assert_eq!(r["state"]["features"], json!(x));
+    let t = decide::jev::request("gliner2-decide", &state, &refs, true, false);
+    assert_eq!(t["state"], json!(state.text()));
+    assert_eq!(t["questions"], r["questions"]);
+    let t = decide::jev::request("julia", &state, &refs, true, true);
+    assert!(t["questions"]["CWE_89"].get("criteria").is_none());
+    assert_eq!(
+        t["questions"]["CWE_89"]["instructions"],
+        r["questions"]["CWE_89"]["instructions"]
+    );
     assert_eq!(r["questions"]["CWE_89"]["type"], "noul");
     assert!(r["questions"]["REL_001"]["criteria"]["true"].is_string());
     let resp = json!({"model":"jev-1.13.0","answers":{"CWE_89":{"type":"noul","noul":0.93},"REL_001":{"type":"noul","noul":0.01}},"usage":{"input_tokens":360,"output_tokens":39}});

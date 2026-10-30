@@ -2,36 +2,36 @@
   "c": {
     "questions": 928,
     "findings": 886,
-    "roots": 61
+    "roots": 63
   },
   "cpp": {
     "questions": 939,
     "findings": 897,
-    "roots": 61
+    "roots": 63
   },
   "javascript": {
     "questions": 709,
     "findings": 676,
-    "roots": 27
+    "roots": 28
   },
   "typescript": {
     "questions": 706,
     "findings": 673,
-    "roots": 30
+    "roots": 31
   },
   "tsx": {
     "questions": 706,
     "findings": 673,
-    "roots": 30
+    "roots": 31
   },
   "python": {
     "questions": 709,
     "findings": 676,
-    "roots": 27
+    "roots": 28
   },
   "rust": {
     "questions": 746,
     "findings": 709,
-    "roots": 53
+    "roots": 54
   }
 }

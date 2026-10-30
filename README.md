@@ -211,9 +211,23 @@ record (language, path, kind, name, exact stored source) and its
 a fresh decision cache and refuses to resume older runs. `--provider mock --mock-file
 script.json` is a deterministic offline provider for tests.
 
+Findings are reported at `--threshold` (default 0.7). On a labelled benchmark of 53
+vulnerable/fixed function pairs (C, Python, JavaScript, Rust), Jev at 0.7 flagged 58% of the
+vulnerable versions, no fixed versions and 0.2% of unrelated weaknesses; at 0.5 the figures
+were 72%, 11% and 1.9%. On 26 SQLite functions, about 60% of findings at 0.7 were judged
+genuine, against 50% at 0.5, and most of those were low-risk patterns rather than defects.
+Both judgements were made by AI reviewers, so treat the figures as a ballpark. Every
+probability is stored, so `--threshold 0.5` gives a recall-heavy pass, and findings are
+leads to verify, not proof.
+
+For DECISION SERVER and other Jev-compatible servers whose models accept only a string state
+or short answer options, `--text-state` sends the function's text rendering as the state and
+`--omit-criteria` leaves out the true/false criteria. Both are recorded in the provider
+configuration when set.
+
 To keep this fast and cheap, BETSY layers six measures:
 
-1. **Deterministic prefilter** (profile `function-v2`). Entries are skipped, each with a
+1. **Deterministic prefilter** (profile `function-v3`). Entries are skipped, each with a
    recorded reason, when:
    - their explicit language platforms don't match the function's language;
    - they are hardware-only;
@@ -224,7 +238,8 @@ To keep this fast and cheap, BETSY layers six measures:
    the language.
 2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
    CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;
-   the rest are roots. Round 1 asks the roots. Children are asked only when the parent's
+   the rest are roots. Entries in `weakness::DETACHED` (CWE-617 and REL-026) are roots too,
+   since a low answer for their catalog parent says little about them. Round 1 asks the roots. Children are asked only when the parent's
    probability reaches `--gate-threshold` (default 0.15, set low for recall); a refusal also
    descends. Unasked subtrees are recorded as `gated` with the parent's probability.
    - An only child is *spliced*: it is asked in its parent's round, since gating it alone

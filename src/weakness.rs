@@ -25,7 +25,7 @@ const CATALOG_FILES: [(&str, &str, &[u8]); 3] = [
     ),
 ];
 /// Bumped whenever plan shape or question wording changes, so cached run identities differ.
-pub const PROFILE: &str = "function-v2";
+pub const PROFILE: &str = "function-v3";
 const HIERARCHY_VIEW: &str = "CWE-1000";
 const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
 
@@ -75,7 +75,11 @@ impl Weakness {
     }
     /// Primary CWE-1000 parent; non-MITRE entries hang under their `PeerOf` CWEs instead,
     /// tried in catalog order, so reliability and performance entries are gated too.
+    /// Entries in [`DETACHED`] have no parent and are asked as roots.
     fn parent_candidates(&self) -> Vec<&str> {
+        if DETACHED.iter().any(|(id, _)| *id == self.id) {
+            return vec![];
+        }
         if !self.is_mitre_cwe() {
             return self
                 .related_weaknesses
@@ -98,6 +102,19 @@ impl Weakness {
             .collect()
     }
 }
+
+/// Entries planned as roots because a low answer for their catalog parent says little about
+/// them; measured with `betsy run recall` against exhaustive runs on SQLite functions.
+pub const DETACHED: &[(&str, &str)] = &[
+    (
+        "CWE-617",
+        "assertions are common in C, while its parent CWE-705 (control flow scoping) rarely applies",
+    ),
+    (
+        "REL-026",
+        "missing guards before any hazardous operation is broader than its PeerOf CWE-369 (divide by zero)",
+    ),
+];
 
 pub struct Catalog {
     pub entries: Vec<Weakness>,
@@ -767,6 +784,21 @@ mod tests {
         assert_eq!(w.parent_candidates(), ["CWE-2"]);
         w.id = "REL-5".into();
         assert_eq!(w.parent_candidates(), ["CWE-4"]);
+        w.id = "REL-026".into();
+        assert!(w.parent_candidates().is_empty());
+    }
+
+    #[test]
+    fn detached_entries_are_planned_as_roots() {
+        let plan = plan("c", &Selection::default()).unwrap();
+        for (id, _) in DETACHED {
+            let node = plan
+                .nodes
+                .iter()
+                .find(|n| n.id == *id)
+                .expect("planned for C");
+            assert!(node.parent.is_none(), "{id} has a parent");
+        }
     }
 
     #[test]
