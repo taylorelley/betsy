@@ -9,6 +9,9 @@
         ],
         "c": [
           "memset, bzero or a hand-written zeroing loop on a local or soon-freed secret buffer, with no volatile access, barrier or secure-clear API"
+        ],
+        "cpp": [
+          "std::fill, memset, clear() or assigning an empty value is applied to a std::string or std::vector secret just before it is destroyed; clear() overwrites nothing"
         ]
       },
       "not_present_when": {
@@ -63,12 +66,20 @@
           "parsed data such as JSON, XML or a binary record is used without checking its type, required fields, consistency or syntax",
           "floating-point input or output is used without checking that it is finite",
           "a validation framework or schema is present but bypassed or applied only to some fields"
+        ],
+        "typescript": [
+          "a request body, DTO or JSON.parse result is used under its declared interface or class type with no runtime check, as the type is erased when the code runs",
+          "a NestJS DTO carries class-validator decorators but no ValidationPipe applies to the route, so the decorators never execute"
         ]
       },
       "not_present_when": {
         "any": [
           "the function receives no external input, only values already validated or produced internally",
           "all input is checked against explicit limits, types and formats before use on every path"
+        ],
+        "typescript": [
+          "the input goes through a zod, valibot, io-ts or ajv schema and only the parsed result is used",
+          "a ValidationPipe, global or on the route, validates a DTO whose class-validator decorators cover every field the function uses"
         ]
       }
     },
@@ -81,6 +92,9 @@
         ],
         "c": [
           "snprintf or strcat builds base + input and the result goes to fopen, open or unlink with no realpath prefix check"
+        ],
+        "cpp": [
+          "std::filesystem::path base / input, where an absolute input replaces the base or .. escapes it, is opened with std::ifstream or std::ofstream"
         ],
         "python": [
           "os.path.join(base, input) or base / input is opened, sent with send_file, or extracted from an archive member name"
@@ -97,6 +111,9 @@
           "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
           "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
           "the path is a constant or derived only from server-generated identifiers"
+        ],
+        "cpp": [
+          "std::filesystem::canonical or weakly_canonical of the joined path is checked, component by component, to lie under the canonical base"
         ],
         "python": [
           "os.path.join with an absolute input would discard the base, so a check of the resolved path is present"
@@ -860,6 +877,9 @@
         "c": [
           "open() or fopen() on such a path without O_NOFOLLOW, O_EXCL or an lstat comparison of the opened descriptor"
         ],
+        "cpp": [
+          "std::ofstream or std::filesystem::permissions on a path in a shared directory, as both follow symbolic links by default"
+        ],
         "python": [
           "open(), os.chmod() or shutil calls on such a path without follow_symlinks=False or an os.lstat / is_symlink() check"
         ]
@@ -1045,6 +1065,10 @@
         "c": [
           "fopen, open, unlink, rename, stat or access receives a path built from input"
         ],
+        "cpp": [
+          "std::ifstream, std::ofstream or std::filesystem::remove, rename or copy receives a path built from input",
+          "base / input with std::filesystem::path, where an absolute input replaces the base or ../ climbs out of it"
+        ],
         "python": [
           "open(), os.remove, shutil functions or pathlib operations use a path built from input"
         ],
@@ -1060,6 +1084,9 @@
           "the path is a constant or is chosen from a fixed allow-list by key",
           "the input is mapped to a server-generated name such as a database id or UUID",
           "the resolved path is canonicalised and confirmed to stay inside an allowed base directory"
+        ],
+        "cpp": [
+          "std::filesystem::weakly_canonical of the joined path is confirmed to begin with the canonical base directory"
         ]
       },
       "distinguish_from": {
@@ -1154,6 +1181,9 @@
         "c": [
           "system, popen or execl of /bin/sh -c is called with a string assembled using sprintf, strcat or similar from input"
         ],
+        "cpp": [
+          "std::system or popen is called with a std::string assembled with +, std::format or std::ostringstream from input, passed as .c_str()"
+        ],
         "python": [
           "os.system, os.popen, or subprocess with shell=True is called with an f-string, format or concatenation including input"
         ],
@@ -1169,6 +1199,9 @@
           "the program and arguments are passed as an array to an API that does not invoke a shell, such as execve, subprocess without shell, spawn or Command with separate args",
           "the command string is a constant, or input is mapped to one of a fixed set of values",
           "input is escaped with a correct shell quoting function, such as shlex.quote, before inclusion"
+        ],
+        "cpp": [
+          "execvp or posix_spawn receives an argv array built from separate std::string arguments"
         ]
       },
       "distinguish_from": {
@@ -1188,6 +1221,13 @@
           "innerHTML, outerHTML, insertAdjacentHTML, document.write or res.send of an HTML string receives input",
           "dangerouslySetInnerHTML, v-html or a template's unescaped output syntax renders input"
         ],
+        "typescript": [
+          "a DTO field typed string is treated as safe and interpolated into an HTML template literal or res.send; the type does not limit which characters it holds"
+        ],
+        "tsx": [
+          "dangerouslySetInnerHTML={{ __html: value }} where value comes from props, state, a URL or fetched data with no sanitiser",
+          "a ref's current.innerHTML or insertAdjacentHTML is written with such data inside an effect or handler"
+        ],
         "python": [
           "a Response, HttpResponse or f-string HTML body includes input, or mark_safe, Markup or |safe wraps input"
         ],
@@ -1203,6 +1243,10 @@
           "the value passes through an HTML escaping function, or an auto-escaping template, right before output",
           "the input is set with textContent, createTextNode or a framework's normal text binding",
           "the response content type is not HTML, such as JSON or plain text"
+        ],
+        "tsx": [
+          "the value is rendered as a JSX child such as <p>{value}</p>, which React escapes",
+          "the __html value passes through DOMPurify.sanitize or another maintained sanitiser first"
         ]
       },
       "distinguish_from": {
@@ -1221,12 +1265,18 @@
         ],
         "javascript": [
           "innerHTML, document.write or an HTML string response includes input unescaped"
+        ],
+        "tsx": [
+          "props or state text reaches dangerouslySetInnerHTML or ref.current.innerHTML without escaping"
         ]
       },
       "not_present_when": {
         "any": [
           "the value is HTML-escaped, or rendered via an auto-escaping template or text-node API",
           "the output is not HTML, such as JSON or plain text with a matching content type"
+        ],
+        "tsx": [
+          "the text is rendered as a JSX expression child {text} or assigned to textContent, both of which escape markup"
         ]
       },
       "distinguish_from": {
@@ -1264,12 +1314,18 @@
         ],
         "javascript": [
           "img.src, setAttribute('src', ...) or an image JSX/template binding uses input with no scheme check"
+        ],
+        "tsx": [
+          "an <img src={value}> or <img {...props}> where value or props come from input, with no scheme or host check"
         ]
       },
       "not_present_when": {
         "any": [
           "the image URL is validated against an allowed scheme or host before use",
           "the src value is attribute-escaped in a quoted attribute, or is a constant or server-generated path"
+        ],
+        "tsx": [
+          "the src is a bundled import, a fixed path or a URL limited to https: on a known image host"
         ]
       },
       "distinguish_from": {
@@ -1287,6 +1343,10 @@
         ],
         "javascript": [
           "setAttribute or a JSX/template binding assigns input to an on* attribute or to href/src without a scheme check"
+        ],
+        "tsx": [
+          "a JSX href, src, action or formAction is bound to a prop, state or URL parameter with no scheme check, so a javascript: URL can run (React before 19 only warns)",
+          "an object from input is spread onto an element ({...attrs}), letting it set href, style or dangerouslySetInnerHTML"
         ]
       },
       "not_present_when": {
@@ -1294,6 +1354,10 @@
           "the URL is parsed and its scheme checked against an allow-list such as http and https before use",
           "input is attribute-escaped and placed in a quoted attribute that is not an event handler or style",
           "the attribute values are constants"
+        ],
+        "tsx": [
+          "the URL is parsed with new URL() and only http: or https: is accepted before it reaches the attribute",
+          "input reaches only plain text attributes such as title, alt or aria-label, whose values React escapes"
         ]
       },
       "distinguish_from": {
@@ -1308,12 +1372,18 @@
         "any": [
           "a check for 'javascript:' or similar runs on the raw string, before HTML entity, percent or Unicode decoding happens downstream",
           "the scheme check is case-sensitive or does not strip embedded whitespace and control characters"
+        ],
+        "tsx": [
+          "an href prop is screened with a raw string test such as url.startsWith('javascript:'), missing upper-case, whitespace, tab or entity variants"
         ]
       },
       "not_present_when": {
         "any": [
           "the URL is fully decoded and parsed with a URL parser, then its scheme compared against an allow-list",
           "the function does not filter or emit URIs taken from input"
+        ],
+        "tsx": [
+          "the href is parsed with new URL(value, base) and its protocol compared with an allow-list of http: and https:"
         ]
       },
       "distinguish_from": {
@@ -1425,11 +1495,17 @@
         "c": [
           "sprintf or strcat builds the SQL passed to sqlite3_exec, sqlite3_prepare or mysql_query"
         ],
+        "cpp": [
+          "SQL is assembled with std::string +, std::ostringstream << or std::format from input and run through sqlite3_exec or a C++ client's exec()"
+        ],
         "python": [
           "cursor.execute(f\"...{x}\"), execute('...' % x) or execute('...'.format(x)), or text()/raw() with input"
         ],
         "javascript": [
           "query or raw called with a template literal or + concatenation containing input"
+        ],
+        "typescript": [
+          "a Prisma $queryRawUnsafe or $executeRawUnsafe, or a TypeORM where() or query() string, built with a template literal or + containing input"
         ],
         "rust": [
           "format! builds SQL passed to execute or query instead of using bind parameters"
@@ -1440,6 +1516,12 @@
           "the statement uses placeholders such as ?, $1 or :name with input passed as separate parameters",
           "an ORM or query builder adds the values as bound parameters",
           "dynamic identifiers come only from a fixed allow-list, and the rest of the SQL is constant"
+        ],
+        "typescript": [
+          "a Prisma $queryRaw used as a tagged template, which binds each interpolation, or TypeORM where('id = :id', { id }) with named parameters"
+        ],
+        "cpp": [
+          "values are bound through the C++ client, for example SOCI use() or libpqxx parameterised exec, and the SQL text is constant"
         ]
       },
       "distinguish_from": {
@@ -1768,6 +1850,10 @@
           "memcpy, strcpy, sprintf, memset, array subscripts or pointer increments appear on buffers whose size the function must respect",
           "free is called, or a pointer is returned into a buffer"
         ],
+        "cpp": [
+          "operator[], data() or iterator arithmetic on a std::vector, std::string or std::array uses an index or offset not checked against size()",
+          "an iterator, reference or std::string_view into a container is used after insert, erase, resize or the container's destruction"
+        ],
         "rust": [
           "unsafe blocks use raw pointers, from_raw_parts, get_unchecked, copy_nonoverlapping or FFI buffers"
         ]
@@ -1775,6 +1861,9 @@
       "not_present_when": {
         "any": [
           "the function performs no buffer indexing, pointer use or memory copying"
+        ],
+        "cpp": [
+          "access goes through at(), a range-based for or standard algorithms over the container's own begin() and end()"
         ],
         "rust": [
           "only safe Rust with bounds-checked indexing, slices, iterators or owned types is used"
@@ -1790,6 +1879,9 @@
           "memcpy or a copy loop uses the source's length with no comparison against the destination's capacity",
           "scanf or sscanf reads %s or %[ into a buffer without a width"
         ],
+        "cpp": [
+          "std::copy, std::memcpy or a loop writes a source's elements into a std::array or char array without comparing the source size() with its capacity"
+        ],
         "rust": [
           "unsafe copy_nonoverlapping or ptr::copy uses the source length into a destination of unverified size"
         ]
@@ -1801,6 +1893,9 @@
         ],
         "c": [
           "snprintf, strlcpy or a width-limited format receive the destination's real size"
+        ],
+        "cpp": [
+          "the destination is a std::string or std::vector that grows, or is resized to the source size, before the copy"
         ],
         "rust": [
           "safe copy_from_slice, clone_from_slice, extend or to_vec are used, which check or grow"
@@ -1820,6 +1915,9 @@
           "a loop writes into a local array using an index or count from input or a calculation without checking the array's size",
           "alloca or a variable-length array is sized from unchecked input and then written"
         ],
+        "cpp": [
+          "a local std::array or C array is written through operator[] or std::copy with an index or count not checked against its size()"
+        ],
         "rust": [
           "unsafe code writes into a local array or MaybeUninit buffer through a raw pointer with an unvalidated length"
         ]
@@ -1830,6 +1928,9 @@
         ],
         "c": [
           "snprintf, strlcpy or width-limited formats are given the local buffer's size"
+        ],
+        "cpp": [
+          "the local storage is a std::string or std::vector, or each write uses std::array::at()"
         ],
         "rust": [
           "the local array is written only through safe indexing or slices"
@@ -1848,6 +1949,10 @@
           "a buffer from malloc, calloc, realloc or new is written by strcpy, sprintf, memcpy or a loop with a length larger than the allocation",
           "the allocation size is computed with arithmetic that can overflow or omits space for a terminator, then the full data is written",
           "a buffer is reallocated smaller, or its recorded capacity is stale, and writes continue at the old size"
+        ],
+        "cpp": [
+          "memcpy into new T[n] or vector::data(), or operator[] writes, cover more elements than were allocated or resized",
+          "reserve() is called and elements are then assigned through operator[] past size() instead of being added with push_back"
         ],
         "rust": [
           "unsafe code calls set_len beyond initialised capacity, or writes through a Vec or Box raw pointer past its capacity"
@@ -1904,6 +2009,9 @@
           "a write uses buf[i] where i can be negative, such as a strlen-1 index on an empty string or a -1 error result",
           "a pointer moved backwards, for example while trimming trailing characters, is written through without a check that it is still at or after the start"
         ],
+        "cpp": [
+          "--it applied to begin(), or a decrementing iterator loop that can step before begin(), is followed by a write through the iterator"
+        ],
         "rust": [
           "unsafe code writes through a pointer from offset or sub that may precede the allocation"
         ]
@@ -1912,6 +2020,9 @@
         "any": [
           "the write index is checked to be non-negative and within range on every path",
           "backward write loops terminate at the buffer's start"
+        ],
+        "cpp": [
+          "back() or pop_back() run only after an empty() check, and reverse loops use rbegin() and rend()"
         ],
         "rust": [
           "writes go through safe indexing, which is bounds-checked"
@@ -1934,6 +2045,10 @@
           "memcpy, memcmp, strncpy, strlen or pointer arithmetic reads a length that is not tied to the source buffer's real size",
           "a string is read with strlen or a %s format when it may not be NUL-terminated"
         ],
+        "cpp": [
+          "operator[] or *(begin() + n) on a std::vector, std::string or std::array with an index not checked against size(), as operator[] is unchecked",
+          "a std::string_view or std::span is built with a length larger than the underlying data and then read"
+        ],
         "rust": [
           "get_unchecked, slice::from_raw_parts or raw pointer reads inside unsafe use a length or index that is not validated"
         ]
@@ -1946,6 +2061,9 @@
         ],
         "c": [
           "the length passed to a copy is sizeof the source, or the minimum of both sizes"
+        ],
+        "cpp": [
+          "reads use at(), which throws std::out_of_range, or a range-based for over the container"
         ],
         "python": [
           "the access is ordinary Python indexing or slicing, which raises or clamps rather than reading outside memory"
@@ -1971,6 +2089,9 @@
           "strlen, strcpy or a %s format reads a buffer that may lack a NUL terminator",
           "a loop reads with i <= len or advances a pointer without checking against the end"
         ],
+        "cpp": [
+          "std::string(buf) or strlen is applied to std::string_view::data() or a received byte array that need not end in a NUL"
+        ],
         "rust": [
           "unsafe from_raw_parts, get_unchecked or pointer reads use a length not validated against the source"
         ]
@@ -1981,6 +2102,9 @@
         ],
         "c": [
           "strnlen or memchr bounded by the buffer size are used before string functions"
+        ],
+        "cpp": [
+          "the string is built with an explicit length, such as std::string(buf, n) or std::string_view(buf, n), using the received count"
         ],
         "rust": [
           "reads use safe slicing, get() or iterators, which are bounds-checked"
@@ -1999,6 +2123,9 @@
           "a read uses buf[i] where i can be negative, such as buf[len - 1] with len possibly 0, or an index from a failed search",
           "a pointer walked backwards, for example while scanning for a delimiter, is read without checking it has not passed the start"
         ],
+        "cpp": [
+          "*(it - 1) or s[pos - 1] where it may equal begin() or pos may be 0, such as straight after a find that matched at the start"
+        ],
         "rust": [
           "unsafe code reads through a pointer from offset or sub that may precede the allocation"
         ]
@@ -2007,6 +2134,9 @@
         "any": [
           "the read index is checked to be non-negative on every path before use",
           "backward scanning stops at the buffer's start"
+        ],
+        "cpp": [
+          "the iterator is compared with begin(), or pos is checked to be above 0, before stepping back"
         ],
         "rust": [
           "reads go through safe indexing or iterators, which are bounds-checked"
@@ -2053,12 +2183,18 @@
         ],
         "javascript": [
           "an index from input is used to read or write an array or object property, including __proto__ through bracket access"
+        ],
+        "typescript": [
+          "arr[i] with i from input is used as T, since without noUncheckedIndexedAccess the compiler types an out-of-range read as T rather than undefined"
         ]
       },
       "not_present_when": {
         "any": [
           "the index is tested with 0 <= index < length before every access",
           "the index is a constant or comes from iterating over the array itself"
+        ],
+        "typescript": [
+          "the element is read with .at(i) or under noUncheckedIndexedAccess and its T | undefined result is checked before use"
         ],
         "rust": [
           "safe indexing or get(), which is bounds-checked, unless the panic itself is the concern"
@@ -2079,6 +2215,9 @@
         ],
         "c": [
           "memcpy(dst, src, hdr->len) or a read loop driven by a length field with no check against the buffer or bytes received"
+        ],
+        "cpp": [
+          "a length field from the header drives std::copy_n, std::string::assign(ptr, len) or memcpy into data() without comparing it with the received size()"
         ],
         "rust": [
           "a length field drives slice::from_raw_parts, get_unchecked or a raw copy inside unsafe without validation"
@@ -2113,6 +2252,9 @@
           "a size is computed as count * sizeof(T) or a sum of lengths without checking for overflow",
           "the allocation uses the size of a different type, or the input length before escaping or encoding expands it"
         ],
+        "cpp": [
+          "new char[s.size()] without + 1 before copying c_str() into it, or new T[n * m] where n * m is not checked for overflow"
+        ],
         "rust": [
           "Layout::from_size_align, alloc or Vec::with_capacity followed by set_len or raw writes uses a size computed with unchecked arithmetic or the wrong element size"
         ]
@@ -2145,6 +2287,9 @@
         "c": [
           "printf(buf), fprintf(f, msg), sprintf(out, s), syslog(prio, s) or snprintf with a non-literal format and no \"%s\" in front"
         ],
+        "cpp": [
+          "std::vformat, fmt::runtime or boost::format is given a format string taken from input"
+        ],
         "javascript": [
           "util.format or a logger's format method receives a user-supplied string as its first argument"
         ],
@@ -2159,6 +2304,9 @@
         ],
         "c": [
           "the non-literal format comes from a fixed internal table of constant strings"
+        ],
+        "cpp": [
+          "std::format or fmt::format receives a literal format string, which is checked at compile time"
         ],
         "rust": [
           "Rust format macros require a literal format string, so input cannot become the format"
@@ -2177,6 +2325,9 @@
           "strlen is used on UTF-8 or other multi-byte text where a character count is needed, or a character count is used where bytes are needed",
           "wcslen or a wchar_t count is passed to malloc, memcpy or a byte length without multiplying by sizeof(wchar_t)",
           "MultiByteToWideChar, mbstowcs or similar conversion is given a buffer size in the wrong unit"
+        ],
+        "cpp": [
+          "std::string size() of UTF-8 text is treated as a character count, or std::wstring size() is passed where a byte length is needed"
         ]
       },
       "not_present_when": {
@@ -2184,6 +2335,9 @@
           "byte lengths and character counts are kept separate and each is used with APIs expecting that unit",
           "the text is guaranteed to be single-byte ASCII",
           "sizes are computed as count * sizeof(wchar_t) or obtained from the conversion function's size query"
+        ],
+        "cpp": [
+          "byte sizes are computed as wstr.size() * sizeof(wchar_t), and character counts come from a Unicode library"
         ]
       },
       "distinguish_from": {
@@ -2587,12 +2741,18 @@
         ],
         "c": [
           "data read with a length, such as from recv or fread, is used with strcmp, strlen, strcpy or fopen without checking for an embedded NUL"
+        ],
+        "cpp": [
+          "a std::string of received bytes, which can hold '\\0', is checked with ends_with or find and then passed by c_str() to fopen, open or a C API"
         ]
       },
       "not_present_when": {
         "any": [
           "input containing a NUL byte is rejected before use",
           "every step treats the data as length-counted bytes, with no NUL-terminated API in the path"
+        ],
+        "cpp": [
+          "s.find('\\0') != std::string::npos is rejected before c_str() is passed on"
         ],
         "python": [
           "the value goes to open or os functions, which raise ValueError on embedded NUL"
@@ -2756,12 +2916,19 @@
         ],
         "c": [
           "a pointer returned by strchr, strstr or memchr is dereferenced or subtracted without a NULL check"
+        ],
+        "cpp": [
+          "the result of std::string::find or find_first_of is used in substr, erase or arithmetic without comparing it with std::string::npos",
+          "an iterator from std::find or map::find is dereferenced without comparing it with end()"
         ]
       },
       "not_present_when": {
         "any": [
           "every search result is checked for not-found, and the missing case returns an error",
           "the scan is bounded by the input length"
+        ],
+        "cpp": [
+          "every find result is compared with npos or end() before use"
         ],
         "rust": [
           "find or split_once returns Option and the None case is handled, not unwrapped"
@@ -2821,6 +2988,9 @@
           "strncpy, memcpy, read, recv or fread fills a buffer to its full size and no '\\0' is written afterwards",
           "the terminator is written at buf[len] where len may equal the buffer size, or at an index from an unchecked count",
           "the filled buffer is then used with strlen, strcpy, printf %s or another function that expects termination"
+        ],
+        "cpp": [
+          "istream::read or readsome fills a char array that is then used as a C string without a terminator written at gcount()"
         ]
       },
       "not_present_when": {
@@ -2935,6 +3105,9 @@
         ],
         "c": [
           "a wide or multi-byte string is converted with fixed byte-per-character assumptions, or buffer sizes use character counts instead of bytes"
+        ],
+        "cpp": [
+          "length, substr or indexing on a std::string of UTF-8 text splits multi-byte characters, or std::tolower is applied byte by byte to UTF-8"
         ],
         "javascript": [
           "length or substring is used on text with surrogate pairs where code points matter"
@@ -3181,6 +3354,9 @@
         ],
         "c": [
           "strncmp or memcmp is called with strlen of the user input or a fixed small length rather than the full expected length"
+        ],
+        "cpp": [
+          "expected.compare(0, input.size(), input) == 0 or expected.starts_with(input), so a shorter input matches"
         ]
       },
       "not_present_when": {
@@ -3190,6 +3366,9 @@
         ],
         "c": [
           "strcmp is used, or strncmp with the length of the expected constant plus a check that the input ends there"
+        ],
+        "cpp": [
+          "the full std::string values are compared with operator=="
         ]
       },
       "distinguish_from": {
@@ -3241,6 +3420,9 @@
           "count * size, len + header or a << n is computed in int, size_t or a narrower type and passed to malloc, memcpy or a comparison",
           "an overflow test is written after the operation, such as if (a + b < a) on signed values"
         ],
+        "cpp": [
+          "a.size() * b.size(), count * sizeof(T) or n + 1 on input sizes is passed to new[], resize, reserve or memcpy with no range check"
+        ],
         "javascript": [
           "integer arithmetic exceeds Number.MAX_SAFE_INTEGER or uses |0, >>> or typed arrays, which truncate to 32 bits"
         ],
@@ -3255,6 +3437,9 @@
         "any": [
           "operands are range-checked against limits that make overflow impossible before the calculation",
           "overflow-checked APIs are used, such as __builtin_mul_overflow, checked_mul, BigInt or SafeInt"
+        ],
+        "cpp": [
+          "the operands are tested against std::numeric_limits<T>::max() divided by the other operand before multiplying"
         ],
         "python": [
           "the arithmetic uses plain Python int, which has arbitrary precision"
@@ -3277,6 +3462,9 @@
           "len - n, end - offset or size - header on unsigned values with no prior test that the first is at least the second, and the result sizes a copy, allocation or loop",
           "an unsigned counter is decremented in a loop condition such as i-- >= 0 or while (n - 1 > x) where n can be 0",
           "a signed value is reduced below INT_MIN, such as negating or subtracting from a value taken from input"
+        ],
+        "cpp": [
+          "v.size() - 1, s.length() - n or end - start on size_t without a check that the container is large enough, used as a count, substr length or loop bound"
         ]
       },
       "not_present_when": {
@@ -3284,6 +3472,9 @@
           "the code checks that the minuend is at least the subtrahend on every path before subtracting",
           "the values are bounded so the result cannot fall below the minimum",
           "the result is only compared, never used as a size or index, and wrapping is harmless"
+        ],
+        "cpp": [
+          "an empty() or size() >= n test guards the subtraction on every path"
         ]
       },
       "distinguish_from": {
@@ -3298,12 +3489,18 @@
         "c": [
           "an integer is cast or assigned between types of different width or signedness and then used as a size, index or length",
           "a function returning int or long is stored into a short, char or unsigned variable"
+        ],
+        "cpp": [
+          "static_cast or implicit conversion between size_type, int and narrower types such as std::uint16_t, then used as a size or index"
         ]
       },
       "not_present_when": {
         "c": [
           "the value's range is checked to fit the target type before the conversion",
           "the conversion is widening between types of the same signedness"
+        ],
+        "cpp": [
+          "brace initialisation, which rejects narrowing, or a std::in_range check before the static_cast"
         ]
       },
       "distinguish_from": {
@@ -3346,12 +3543,18 @@
         "c": [
           "a plain or signed char byte is assigned to an int, size_t or unsigned long and used as an index, length or table lookup",
           "a signed short or int read from data is cast to a wider unsigned type, so a negative value becomes a huge number"
+        ],
+        "cpp": [
+          "a char from a std::string or std::istream indexes a table or is widened to size_t without static_cast<unsigned char>"
         ]
       },
       "not_present_when": {
         "c": [
           "the value is first cast to unsigned char or masked with & 0xFF before widening",
           "the source type is unsigned, or the value is checked to be non-negative first"
+        ],
+        "cpp": [
+          "the value is first converted with static_cast<unsigned char>, or stored as std::byte or std::uint8_t"
         ]
       },
       "distinguish_from": {
@@ -3366,12 +3569,18 @@
         "c": [
           "a signed int that can be negative (an error return such as -1, a difference, input) is passed to a size_t parameter of malloc, memcpy, read or similar",
           "a signed value is cast or assigned to unsigned and then used as a size, count or index"
+        ],
+        "cpp": [
+          "an int that may be negative is passed to resize, reserve, a std::vector size constructor, std::string(n, c) or new[]"
         ]
       },
       "not_present_when": {
         "c": [
           "the value is checked to be non-negative on every path before the conversion",
           "the value can never be negative, such as a sizeof result or a loop counter starting at zero"
+        ],
+        "cpp": [
+          "std::in_range<std::size_t>(x) or x >= 0 is checked before the conversion"
         ]
       },
       "distinguish_from": {
@@ -3386,12 +3595,18 @@
         "c": [
           "a size_t, unsigned int or uint32_t is assigned or cast to int, ssize_t or long and then used as a length, offset or loop bound",
           "an unsigned value read from input is cast to signed and checked with a < limit comparison that a negative result passes"
+        ],
+        "cpp": [
+          "a size(), std::uint32_t or std::size_t is converted with static_cast<int> or assigned to a signed type used as a length or offset"
         ]
       },
       "not_present_when": {
         "c": [
           "the value is checked to be no larger than the signed type's maximum before conversion",
           "the target signed type is wide enough for every value of the source"
+        ],
+        "cpp": [
+          "std::in_range<int>(value) or a comparison with std::numeric_limits<int>::max() comes before the cast"
         ]
       },
       "distinguish_from": {
@@ -3406,12 +3621,18 @@
         "c": [
           "a long, size_t, int64_t or double is cast or assigned to int, short, char or uint8_t without a range check",
           "a length or count is stored into a narrower field before it is used for allocation or copying"
+        ],
+        "cpp": [
+          "static_cast<int> or static_cast<short> of a std::int64_t, size_t or double without a range check; an out-of-range double to int is undefined"
         ]
       },
       "not_present_when": {
         "c": [
           "the value is checked against the target type's limits before narrowing",
           "the value is known to fit, such as a masked value or a small constant"
+        ],
+        "cpp": [
+          "std::in_range or gsl::narrow, which throws when the value changes, checks the narrowing"
         ]
       },
       "distinguish_from": {
@@ -3430,6 +3651,9 @@
         "c": [
           "a port, length or address field from a socket buffer is used without ntohs, ntohl or a be/le conversion helper, or a value is sent without htons/htonl"
         ],
+        "cpp": [
+          "reinterpret_cast<std::uint32_t*> or istream::read into an integer from network or file bytes, with no byte-order conversion"
+        ],
         "python": [
           "int.from_bytes or struct.unpack is called with the wrong byte order or with native '@' order for wire data"
         ],
@@ -3445,6 +3669,9 @@
           "every multi-byte field is converted with an explicit big- or little-endian decode that matches the format",
           "the data is single bytes or text, so byte order does not apply",
           "a parsing or serialisation library with a defined wire format does the decoding"
+        ],
+        "cpp": [
+          "std::byteswap with a std::endian check, or explicit shifts in the format's byte order"
         ]
       },
       "distinguish_from": {
@@ -3480,6 +3707,13 @@
         "javascript": [
           "res.json(user) or res.send(record) returns a full model object without picking or omitting sensitive fields"
         ],
+        "typescript": [
+          "the declared return type is Omit<User, 'password'> or a narrower interface but the full object is returned; the type removes no fields at run time",
+          "a NestJS handler returns an entity whose password or token columns have no @Exclude() and no ClassSerializerInterceptor or DTO mapping"
+        ],
+        "tsx": [
+          "getServerSideProps, getStaticProps or a server component passes a full record with secrets to a client component, which serialises the props into the page"
+        ],
         "python": [
           "return jsonify(obj.__dict__) or a serializer with all fields sends a full model including secrets"
         ]
@@ -3488,6 +3722,9 @@
         "any": [
           "only an explicit allow-list of non-sensitive fields is sent, or sensitive fields are removed first",
           "the recipient is authorised for all the data sent, such as a user receiving their own non-secret profile"
+        ],
+        "typescript": [
+          "the entity is mapped field by field to a response DTO, or @Exclude() plus ClassSerializerInterceptor strips the sensitive fields"
         ]
       },
       "distinguish_from": {
@@ -3629,6 +3866,9 @@
         "c": [
           "memcmp or strcmp compares a computed MAC or secret with an attacker-supplied value"
         ],
+        "cpp": [
+          "std::string or std::vector operator==, compare() or std::equal on a MAC, token or password"
+        ],
         "javascript": [
           "a token or signature is compared with === instead of crypto.timingSafeEqual"
         ],
@@ -3661,6 +3901,9 @@
         "javascript": [
           "res.status(500).send(err.stack) or res.json({error: err}) passes raw error objects to the client"
         ],
+        "typescript": [
+          "a catch (e: any) or catch (e) block casts e as Error and returns e.message or e.stack to the client"
+        ],
         "python": [
           "return str(e) or traceback.format_exc() is placed in an HTTP response"
         ]
@@ -3669,6 +3912,9 @@
         "any": [
           "external callers receive a generic message or error code, with details only logged internally",
           "the error is shown only to a trusted operator, internal log or developer tool"
+        ],
+        "typescript": [
+          "an HttpException with a fixed message is thrown, and unknown errors reach the NestJS default filter, which replies with a generic 500"
         ]
       },
       "distinguish_from": {
@@ -3961,6 +4207,9 @@
           "free() on a secret buffer with no preceding explicit_bzero, memset_s or similar wipe",
           "memset to clear a secret right before free, which the compiler may remove as a dead store"
         ],
+        "cpp": [
+          "a std::string or std::vector holding a key or password is destroyed, cleared or reassigned without wiping data(); growth can also leave old copies"
+        ],
         "rust": [
           "secret bytes held in a Vec or String that is dropped without zeroize or a similar wipe"
         ]
@@ -3969,6 +4218,9 @@
         "any": [
           "the secret is wiped with a call that cannot be optimised away before release or reuse",
           "the buffer never held sensitive data"
+        ],
+        "cpp": [
+          "the secret type uses an allocator or wrapper that wipes memory on deallocation"
         ],
         "python": [
           "the data is an immutable str or bytes object, which Python code cannot wipe; report only if a mutable bytearray holding a secret is reused unwiped"
@@ -4044,17 +4296,30 @@
         "javascript": [
           "req.query.x, req.body.x or obj[key] used in a call or property access with no undefined check"
         ],
+        "typescript": [
+          "a non-null assertion such as req.body.name!, params.id! or query.page! is applied to input that the client may leave out",
+          "an interface or DTO marks a field required although the request can omit it, and the field is used with no runtime presence check"
+        ],
         "python": [
           "dict['key'] on request data inside no try block, or .get() results used without a None check"
         ],
         "c": [
           "strtok or getenv results used without a NULL test, or argv[n] read without checking argc"
+        ],
+        "cpp": [
+          "std::map operator[] or json[\"key\"] reads a field that may be absent, or front(), back(), s[0] or *opt is used on a possibly empty value"
         ]
       },
       "not_present_when": {
         "any": [
           "presence and non-emptiness are tested on every path before use, with an error or default otherwise",
           "a documented default is substituted when the value is missing"
+        ],
+        "typescript": [
+          "the field is typed optional and narrowed with an undefined check, ?. or ?? default before use, with no ! assertion or any cast"
+        ],
+        "cpp": [
+          "find() or contains() is checked, and empty() or has_value() is tested before front(), [0] or *"
         ],
         "rust": [
           "the value is an Option handled with match, if let, ok_or or unwrap_or rather than unwrap"
@@ -4146,6 +4411,9 @@
         "javascript": [
           "req.query.x used as a string when duplicate keys make it an array"
         ],
+        "typescript": [
+          "req.query.x is cast as string or declared string in a typed query, though Express can supply string[] or a nested object for repeated keys"
+        ],
         "python": [
           "request.args.get('x') used for a check while request.args.getlist('x') or another lookup is used for the action"
         ]
@@ -4155,6 +4423,9 @@
           "duplicate or surplus parameters cause rejection",
           "the same single parsed value is used consistently for both checking and acting",
           "a validator fixes the parameter set and types before use"
+        ],
+        "typescript": [
+          "a schema that rejects arrays parses the query, or Array.isArray or typeof narrows the value before use"
         ]
       },
       "distinguish_from": {
@@ -4172,6 +4443,9 @@
         "javascript": [
           "Object.assign(target, req.body) or spread of request data into a model"
         ],
+        "typescript": [
+          "a body typed as a DTO or Partial<Entity> is spread or Object.assign-ed into a model, trusting the type to limit which keys arrive"
+        ],
         "python": [
           "Model(**request.json), setattr(obj, key, value) or update(**data) with keys from input"
         ]
@@ -4181,6 +4455,9 @@
           "keys are filtered against an explicit allow-list before use",
           "unknown keys raise an error or are dropped",
           "a typed schema or struct deserialiser rejects unknown fields"
+        ],
+        "typescript": [
+          "a ValidationPipe with whitelist: true or forbidNonWhitelisted, or a zod object schema that strips or rejects unknown keys, runs before the copy"
         ]
       },
       "distinguish_from": {
@@ -4293,12 +4570,18 @@
         ],
         "c": [
           "atoi or strtol result used without checking endptr or errno, so non-numeric text becomes 0"
+        ],
+        "cpp": [
+          "std::atoi, or >> extraction into a number, is used without checking the stream's fail state"
         ]
       },
       "not_present_when": {
         "any": [
           "the type is checked and wrong types are rejected before use",
           "a schema validator or typed deserialiser has already enforced the type"
+        ],
+        "cpp": [
+          "the std::from_chars result's ec and ptr are checked, or std::stoi runs in a try that catches invalid_argument and out_of_range"
         ],
         "rust": [
           "serde or parse::<T>() is used and the Err case is handled"
@@ -4358,6 +4641,9 @@
           "realloc is called on a buffer containing a password, key or token",
           "a secret buffer is grown by copying to a new allocation and freeing the old one without clearing it first"
         ],
+        "cpp": [
+          "a std::string or std::vector holding a secret grows through append, push_back, reserve or resize, freeing its old buffer without wiping it"
+        ],
         "rust": [
           "a Vec or String holding secret bytes is pushed to or reserved so it may reallocate, with no zeroising allocator or wrapper"
         ]
@@ -4366,6 +4652,9 @@
         "c": [
           "a new block is allocated, the data copied, the old block wiped with a non-elidable function and then freed",
           "the reallocated buffer never holds sensitive data"
+        ],
+        "cpp": [
+          "capacity is reserved for the full secret before it is written and it never grows past that, or a wiping allocator is used"
         ],
         "rust": [
           "the secret buffer has a fixed capacity reserved up front, or uses a zeroising container"
@@ -4432,11 +4721,17 @@
         "c": [
           "calls such as read, write, fread, fwrite, malloc, setuid, snprintf or close are made without examining what they return"
         ],
+        "cpp": [
+          "std::filesystem calls taking a std::error_code& leave the code unchecked, or a stream is opened or written without testing is_open() or its fail state"
+        ],
         "python": [
           "a call that returns a status or success flag rather than raising, such as os.system or subprocess.call, has its result discarded"
         ],
         "javascript": [
           "a promise returned by an async call is neither awaited nor given a rejection handler, or a callback's error argument is never examined"
+        ],
+        "typescript": [
+          "a call returning a Result type or an { ok: false, error } discriminated union has its result discarded, or its value read without checking the discriminant"
         ],
         "rust": [
           "a Result is discarded with let _ = or .ok() where the failure matters"
@@ -4447,8 +4742,14 @@
           "every return value that can signal failure is stored and tested",
           "the discarded value carries no error information, such as a builder returning itself or a count that is not needed"
         ],
+        "typescript": [
+          "the result is narrowed on its discriminant, such as if (!r.ok) return r.error, before the value is used"
+        ],
         "c": [
           "the call is explicitly cast to (void) where failure is genuinely harmless"
+        ],
+        "cpp": [
+          "stream exceptions are enabled, or the throwing overload of the std::filesystem call is used"
         ],
         "python": [
           "the call raises an exception on failure, which is the language's normal error reporting"
@@ -4470,6 +4771,9 @@
           "malloc or fopen tested < 0, read or recv tested only == 0, or strcmp used directly as a true/false equality test",
           "a size_t or unsigned return compared < 0, so an error value of -1 is never seen"
         ],
+        "cpp": [
+          "if (s.find(x)) or s.find(x) >= 0 used to test for a match, where std::string::npos is the failure value and 0 a valid position"
+        ],
         "javascript": [
           "if (s.indexOf(x)) or if (!s.indexOf(x)), treating index 0 and -1 the wrong way round"
         ],
@@ -4484,6 +4788,9 @@
         "any": [
           "the test matches the documented failure value of that exact function",
           "an exception or Result is used and handled instead of a sentinel"
+        ],
+        "cpp": [
+          "find results are compared with npos, and a std::error_code is tested through its bool conversion"
         ],
         "javascript": [
           "indexOf compared explicitly with -1, or includes() used"
@@ -4832,6 +5139,9 @@
         ],
         "c": [
           "umask(0), or mkdir or open with 0777 or 0666 during set-up"
+        ],
+        "cpp": [
+          "std::filesystem::permissions sets perms::all or others_write on installed files or directories"
         ],
         "python": [
           "os.umask(0), or os.makedirs or os.chmod with 0o777 during set-up"
@@ -5195,6 +5505,9 @@
         "c": [
           "SSL_CTX_set_verify with SSL_VERIFY_NONE, curl CURLOPT_SSL_VERIFYPEER or CURLOPT_SSL_VERIFYHOST set to 0"
         ],
+        "cpp": [
+          "boost::asio::ssl::context::set_verify_mode(verify_none), or a set_verify_callback lambda that always returns true"
+        ],
         "python": [
           "verify=False in requests, ssl._create_unverified_context, CERT_NONE or check_hostname = False"
         ],
@@ -5209,6 +5522,9 @@
         "any": [
           "the default verifying TLS configuration is used with host name checking on",
           "pinning or a custom verifier still checks chain, host name and validity"
+        ],
+        "cpp": [
+          "verify_peer is set with ssl::host_name_verification or rfc2818_verification on the stream"
         ]
       },
       "distinguish_from": {
@@ -5248,6 +5564,9 @@
         "c": [
           "OpenSSL code verifies the chain but never sets the expected host (for example with SSL_set1_host or X509_check_host)",
           "a custom check compares only part of the subject name or accepts any wildcard"
+        ],
+        "cpp": [
+          "an Asio ssl::stream uses verify_peer but no host_name_verification, rfc2818_verification or SSL_set1_host for the target"
         ],
         "javascript": [
           "checkServerIdentity is overridden to return undefined, or rejectUnauthorized is false"
@@ -5342,6 +5661,9 @@
         ],
         "javascript": [
           "jwt.decode used instead of jwt.verify before trusting claims"
+        ],
+        "typescript": [
+          "a JWT payload from jwt.decode or a cookie value is cast as a typed claims interface and its role or user id trusted without signature verification"
         ]
       },
       "not_present_when": {
@@ -5521,6 +5843,9 @@
         ],
         "javascript": [
           "a token or password is placed in localStorage, sessionStorage or a non-encrypted cookie"
+        ],
+        "tsx": [
+          "a token, password or personal data is saved to localStorage or sessionStorage in a useEffect, a custom storage hook or a store persister such as redux-persist"
         ]
       },
       "not_present_when": {
@@ -5528,6 +5853,9 @@
           "the value is encrypted, or for passwords hashed with a slow salted hash, before storage",
           "the stored value is not sensitive (an ID, a public setting)",
           "storage goes through an OS keychain, secret manager or encrypted store API"
+        ],
+        "tsx": [
+          "the session lives in an httpOnly cookie set by the server, and any token is held only in memory state"
         ]
       },
       "distinguish_from": {
@@ -5640,6 +5968,9 @@
           "a buffer holding a password or key is freed or goes out of scope without memset_s, explicit_bzero or SecureZeroMemory first",
           "a plain memset clears the secret just before free, which the compiler may remove"
         ],
+        "cpp": [
+          "a password or key is kept in a std::string member or static after use; clearing or destroying the string does not wipe its buffer"
+        ],
         "javascript": [
           "a password or key is kept in an immutable string or a module-level variable for the life of the process"
         ],
@@ -5671,6 +6002,9 @@
         ],
         "javascript": [
           "an input of type text (not password) is used for a password, or a secret is placed in innerHTML, value or a hidden field"
+        ],
+        "tsx": [
+          "a password, key or token from props or state is rendered as JSX text or as the value of an input whose type is not password"
         ]
       },
       "not_present_when": {
@@ -5678,6 +6012,9 @@
           "secrets are masked (password input type, asterisks, last four digits only)",
           "the displayed value is not sensitive",
           "an explicit user-initiated 'show password' toggle controls display"
+        ],
+        "tsx": [
+          "the secret is masked before rendering, or shown only in an <input type=\"password\"> with no reveal by default"
         ]
       }
     },
@@ -5712,6 +6049,9 @@
         ],
         "c": [
           "send or write on a raw socket carries a password or key with no SSL_write or TLS layer"
+        ],
+        "cpp": [
+          "a boost::asio::ip::tcp::socket write carries credentials with no ssl::stream wrapping the socket"
         ]
       },
       "not_present_when": {
@@ -5883,6 +6223,9 @@
         "c": [
           "EVP_des_*, EVP_rc4, EVP_*_ecb or MD5()/SHA1() calls used for security"
         ],
+        "cpp": [
+          "Crypto++ or Botan classes such as DES, MD5, SHA1 or ECB_Mode used for security"
+        ],
         "javascript": [
           "crypto.createCipheriv with 'des', 'rc4' or an ecb mode, or createHash('md5') for security"
         ],
@@ -5935,6 +6278,9 @@
         ],
         "c": [
           "EVP_EncryptInit_ex with an EVP_*_cbc cipher and a static or zero iv buffer"
+        ],
+        "cpp": [
+          "Crypto++ CBC_Mode<...>::Encryption SetKeyWithIV with a constant or zero IV array"
         ],
         "javascript": [
           "createCipheriv('aes-*-cbc', key, iv) where iv is a constant Buffer or Buffer.alloc(16)"
@@ -6006,6 +6352,9 @@
         ],
         "c": [
           "RAND_seed or RAND_add given a short or constant buffer, or RAND_status/RAND_bytes failure ignored before generating keys"
+        ],
+        "cpp": [
+          "a std::seed_seq built from one or two std::random_device values seeds an engine that then generates secrets"
         ]
       },
       "not_present_when": {
@@ -6084,6 +6433,9 @@
         "c": [
           "srand(time(NULL)), srand(getpid()) or srand(constant) followed by rand() for security values"
         ],
+        "cpp": [
+          "std::mt19937 or std::default_random_engine seeded with the time or a constant, or default-constructed, then used for security values"
+        ],
         "python": [
           "random.seed(...) with a constant or time before producing tokens"
         ]
@@ -6092,6 +6444,9 @@
         "any": [
           "a CSPRNG that seeds itself from the OS is used and no seed is supplied",
           "fixed seeds appear only in tests or simulations where reproducibility is the aim"
+        ],
+        "cpp": [
+          "secrets come from an OS CSPRNG such as RAND_bytes or getrandom, not from a <random> engine"
         ]
       },
       "distinguish_from": {
@@ -6109,6 +6464,9 @@
         ],
         "c": [
           "srand(1234) or a constant seed followed by rand() for secrets"
+        ],
+        "cpp": [
+          "std::mt19937 gen(42), or a default-constructed engine, which always starts from the same seed, generates tokens or keys"
         ],
         "javascript": [
           "a seeded PRNG library initialised with a constant for security values"
@@ -6139,6 +6497,9 @@
         ],
         "c": [
           "srand(time(NULL)) or srand(getpid()) before generating secrets"
+        ],
+        "cpp": [
+          "std::mt19937 seeded from std::chrono clock now().time_since_epoch().count() or a std::thread::id hash"
         ],
         "javascript": [
           "a seeded PRNG initialised with Date.now() or performance.now()"
@@ -6171,6 +6532,9 @@
         "c": [
           "rand(), random(), drand48() or std::mt19937 used for keys, tokens or IVs"
         ],
+        "cpp": [
+          "a <random> distribution or std::shuffle driven by std::mt19937_64, std::minstd_rand or std::default_random_engine produces a password, token or salt"
+        ],
         "javascript": [
           "Math.random() used for a token, ID, key or nonce"
         ],
@@ -6202,6 +6566,9 @@
         ],
         "c": [
           "srand() with an unsigned int seed, used for security values"
+        ],
+        "cpp": [
+          "std::mt19937 seeded with a single 32-bit std::random_device{}() value and used for security output"
         ],
         "rust": [
           "seed_from_u64 with a value from a small range for secrets"
@@ -6679,6 +7046,9 @@
         "c": [
           "stat, lstat or access on a path followed by open, fopen, chown, chmod or unlink on that same path"
         ],
+        "cpp": [
+          "std::filesystem::exists, is_regular_file, is_symlink or status on a path, then std::ofstream, permissions or remove on the same path"
+        ],
         "python": [
           "os.path.exists, os.path.islink, os.stat or os.access followed by open, os.chmod or shutil calls on the path"
         ],
@@ -6708,6 +7078,9 @@
           "a function registered with signal or sigaction modifies global data that the main code also changes, without blocking the signal",
           "a handler frees memory, closes files or changes data structures that other code may be using when the signal arrives",
           "a handler calls longjmp or exit while the interrupted code may be part-way through an update"
+        ],
+        "cpp": [
+          "a signal handler changes a std::vector, std::string or other object, or locks a std::mutex, that normal code also uses"
         ]
       },
       "not_present_when": {
@@ -6715,6 +7088,9 @@
           "the handler only sets a volatile sig_atomic_t flag that the main loop polls",
           "signals are blocked with sigprocmask or sa_mask around the shared-state updates",
           "the function neither defines nor installs a signal handler"
+        ],
+        "cpp": [
+          "the handler only stores to a lock-free std::atomic or a volatile std::sig_atomic_t flag"
         ]
       },
       "distinguish_from": {
@@ -6756,6 +7132,9 @@
         ],
         "c": [
           "access() or stat() is followed by open() or fopen() on the same path"
+        ],
+        "cpp": [
+          "std::filesystem::exists or status on a path, then std::ifstream, std::ofstream or std::filesystem::rename on that path"
         ],
         "python": [
           "os.path.exists, os.access or os.path.isfile is followed by open, os.remove or os.rename on the same path"
@@ -6861,6 +7240,9 @@
           "an internal array, list, map, buffer or object field is passed directly to a callback, plugin, listener or external library that could change it",
           "the function relies on the passed data being unchanged after the call but did not copy it or pass a read-only view"
         ],
+        "typescript": [
+          "an internal array or object is passed to a callback or plugin whose parameter is typed ReadonlyArray<T> or Readonly<T>; the callee can still mutate it at run time"
+        ],
         "c": [
           "a pointer to an internal buffer or struct, not const-qualified, is handed to a caller-supplied function pointer"
         ]
@@ -6893,6 +7275,9 @@
           "a getter or method returns an internal list, array, map, set or mutable object field directly rather than a copy",
           "the returned object is security-relevant, such as a permission list, key buffer or configuration, that the class trusts afterwards"
         ],
+        "typescript": [
+          "a method returns a private readonly array, Set or Map field itself, assuming the readonly modifier stops callers changing its contents"
+        ],
         "c": [
           "a function returns a non-const pointer to an internal static or struct buffer"
         ],
@@ -6911,6 +7296,9 @@
         ],
         "javascript": [
           "a slice(), spread copy, structuredClone or Object.freeze result is returned"
+        ],
+        "typescript": [
+          "the method returns a copy, or wraps a copy in a ReadonlyArray<T> or ReadonlyMap return type"
         ],
         "python": [
           "a copy, tuple, frozenset or MappingProxyType is returned"
@@ -6932,6 +7320,9 @@
         "c": [
           "tmpnam, tempnam or mktemp is used, or fopen opens a fixed path under /tmp"
         ],
+        "cpp": [
+          "std::tmpnam, or std::filesystem::temp_directory_path() / a fixed name, opened with std::ofstream"
+        ],
         "javascript": [
           "fs.writeFile or fs.open writes to path.join(os.tmpdir(), fixedOrPredictableName)"
         ],
@@ -6946,6 +7337,9 @@
         "any": [
           "the file is created atomically with a random name and exclusive creation, such as mkstemp, tmpfile, tempfile.mkstemp or the tempfile crate",
           "the temp file lives in a private directory created with owner-only permissions"
+        ],
+        "cpp": [
+          "the file comes from mkstemp and the stream is attached to that descriptor, or it sits in a private directory"
         ]
       },
       "distinguish_from": {
@@ -6963,6 +7357,9 @@
         ],
         "c": [
           "open(path, O_CREAT, 0666) or fopen is used for a temp file without first setting a restrictive umask"
+        ],
+        "cpp": [
+          "std::ofstream creates the temp file, so it gets the default 0666 mode reduced only by the umask"
         ],
         "javascript": [
           "fs.writeFileSync or fs.openSync creates a temp file with mode 0o666 or no mode option"
@@ -7584,6 +7981,10 @@
           "a pointer is freed in a loop or callback without being set to NULL, so a later free hits it again",
           "two pointers alias the same block and both are freed"
         ],
+        "cpp": [
+          "delete or delete[] reached twice on a raw pointer, or a pointer owned by a smart pointer is also deleted by hand or given to a second smart pointer",
+          "an object with a raw owning pointer is copied by its implicit copy constructor, so both copies delete the same block"
+        ],
         "rust": [
           "unsafe code calls Box::from_raw, drop_in_place or a C free twice on the same pointer, or after ptr::read duplicated ownership"
         ]
@@ -7614,6 +8015,10 @@
           "an object is freed on an error path and then used by later cleanup or logging code",
           "a container element or callback target is freed while another pointer to it is still used"
         ],
+        "cpp": [
+          "a reference, iterator, std::string_view or c_str() pointer into a container or string is used after push_back, insert, erase, reassignment or destruction",
+          "a lambda captures a local or this by reference and runs after that scope or object ends, such as in a detached std::thread"
+        ],
         "rust": [
           "unsafe code dereferences a raw pointer after the owning Box, Vec or value has been dropped"
         ]
@@ -7625,6 +8030,9 @@
         "c": [
           "the pointer is set to NULL after free and each later use is NULL-checked",
           "ownership is held by smart pointers"
+        ],
+        "cpp": [
+          "iterators are refreshed from the return of erase or insert, or a std::shared_ptr copy keeps the object alive for the callback"
         ],
         "rust": [
           "only safe references are used, so the borrow checker forbids use after drop"
@@ -7906,6 +8314,9 @@
         "c": [
           "a call whose failure must be handled (an error code, a signal) has no branch dealing with the failure case"
         ],
+        "cpp": [
+          "a std::future from std::async is discarded or never get() is called, so a stored exception is never observed"
+        ],
         "javascript": [
           "a promise chain or async call has no catch and is not awaited inside a try, or an emitter's 'error' event has no listener"
         ],
@@ -7993,6 +8404,9 @@
         "javascript": [
           "multer, formidable or req.files output is moved to a public folder with its original name"
         ],
+        "typescript": [
+          "a NestJS FileInterceptor handler stores an Express.Multer.File under file.originalname or trusts file.mimetype, both of which the client controls"
+        ],
         "python": [
           "request.files[...].save() or a FileField is stored with its original filename in a served folder"
         ]
@@ -8002,6 +8416,9 @@
           "an allow-list of extensions and verified content types is enforced before saving",
           "the stored name is generated by the server and files go to storage that is never executed or served directly",
           "the function does not receive uploads"
+        ],
+        "typescript": [
+          "the upload is checked by its content bytes and size and saved under a server-generated name outside served folders"
         ]
       },
       "distinguish_from": {
@@ -8322,6 +8739,9 @@
         "javascript": [
           "req.body, req.query or req.cookies populate fields such as isAdmin, role or userId on a session or user object"
         ],
+        "typescript": [
+          "a body typed Partial<User> or a DTO with role, isAdmin or permissions fields is assigned onto a user, session or account object"
+        ],
         "python": [
           "request.args, request.form or os.environ populate permission, role or config attributes that are later trusted"
         ]
@@ -8331,6 +8751,9 @@
           "the value is validated against a server-side source of truth or an allow-list before it is trusted",
           "the trusted state comes from server-side storage, a verified signed token, or constants",
           "the input only selects among options that are all safe for any caller"
+        ],
+        "typescript": [
+          "the DTO class leaves out privileged fields and a ValidationPipe with whitelist: true strips unknown properties"
         ]
       },
       "distinguish_from": {
@@ -8348,6 +8771,9 @@
         ],
         "c": [
           "the return value of an init call such as SSL_CTX_use_certificate_file or a crypto library init is ignored or only printed"
+        ],
+        "cpp": [
+          "a constructor or init method catches the exception from loading a key, certificate or config and carries on with defaults"
         ]
       },
       "not_present_when": {
@@ -8372,6 +8798,9 @@
           "a local result or error code is declared without initialisation and returned on a path that never set it",
           "a struct member such as a length or permission field is left unset after allocation"
         ],
+        "cpp": [
+          "a constructor leaves a scalar or pointer member out of its initialiser list and the class gives it no default member initialiser"
+        ],
         "javascript": [
           "a counter or accumulator is declared with let and incremented or concatenated without first being set, producing NaN or 'undefined' text"
         ],
@@ -8386,6 +8815,9 @@
         "any": [
           "the variable gets an explicit starting value at declaration",
           "every path assigns it before it is read"
+        ],
+        "cpp": [
+          "members have default member initialisers, or locals use value initialisation such as int x{}"
         ],
         "rust": [
           "the code is safe Rust, where the compiler enforces assignment before use"
@@ -8409,6 +8841,10 @@
         "javascript": [
           "a let or var declared without a value is used on a path where it is still undefined"
         ],
+        "typescript": [
+          "a let declared with a definite assignment assertion (let x!: T) is read on a path where no value was set",
+          "an any-typed let or a cast hides a read before assignment that the compiler would otherwise reject"
+        ],
         "python": [
           "a local assigned inside if, for or try is used afterwards where that block may not have run, risking UnboundLocalError"
         ],
@@ -8420,6 +8856,9 @@
         "any": [
           "the variable is initialised at its declaration or on every path before its first read",
           "every branch that skips the assignment returns or throws before the read"
+        ],
+        "typescript": [
+          "the let has a declared non-any type and no ! assertion, so strict checking rejects any read before definite assignment"
         ],
         "rust": [
           "only safe Rust is used; the compiler refuses reads of possibly-unassigned locals"
@@ -8489,6 +8928,10 @@
         "c": [
           "a key-value pair is appended to a linked list or array of pairs with no prior search for the same key",
           "a lookup scans the list and returns the first match, so a later duplicate is silently ignored or masks the intended entry"
+        ],
+        "cpp": [
+          "std::map::insert or emplace is called and its returned bool ignored, so a duplicate key's new value is silently dropped",
+          "key-value pairs go into a std::vector<std::pair> or std::multimap without a check for the key, and lookups take the first match"
         ]
       },
       "not_present_when": {
@@ -8553,6 +8996,9 @@
           "a search or parse routine returns a pointer one or more past the end, or before the start, when no match is found or input is malformed",
           "an error path returns a computed pointer instead of NULL or a sentinel"
         ],
+        "cpp": [
+          "the function returns begin() + n, data() + n or &v[n] with n not checked against size()"
+        ],
         "rust": [
           "an unsafe function returns a raw pointer from add or offset with an unchecked count"
         ]
@@ -8561,6 +9007,9 @@
         "any": [
           "every returned pointer is checked to lie within the buffer, or NULL is returned on failure",
           "the function returns an index or length rather than a pointer"
+        ],
+        "cpp": [
+          "end() or std::nullopt is returned on failure and the offset is checked first"
         ],
         "rust": [
           "the function returns a reference or slice from safe code, which the borrow checker ties to valid data"
@@ -8578,12 +9027,18 @@
           "sizeof(p) or sizeof p is used where p is a pointer, in malloc, memcpy, memset, strncpy, snprintf or a loop bound, and the intended size is that of the pointed-to buffer or struct",
           "sizeof is applied to an array parameter, which has decayed to a pointer",
           "a pointer is passed where an array was used before, so sizeof(buf) no longer gives the buffer length"
+        ],
+        "cpp": [
+          "sizeof is applied to a std::string, std::vector or pointer member where size() or the element count times sizeof(T) was meant"
         ]
       },
       "not_present_when": {
         "c": [
           "sizeof is applied to an actual array declared in the same scope, or to *p, or to the type itself",
           "the code genuinely needs the size of a pointer, such as allocating an array of pointers with n * sizeof(char *)"
+        ],
+        "cpp": [
+          "std::size(arr) or the container's size() supplies the length"
         ]
       },
       "distinguish_from": {
@@ -8598,6 +9053,9 @@
           "p + n * sizeof(*p) or ptr + offset where offset is already in bytes and ptr is not a char or byte pointer",
           "an int or struct pointer is advanced by a byte count from a header or length field",
           "a char * offset is computed with an element count where a byte count was needed"
+        ],
+        "cpp": [
+          "reinterpret_cast<T*>(base) + offset where offset counts bytes, or a std::uint32_t* from vector::data() advanced by a byte count"
         ]
       },
       "not_present_when": {
@@ -8620,12 +9078,18 @@
           "a length or count is computed as end - start where the pointers come from different allocations, different calls or different arrays",
           "pointer difference is used as a size for memcpy, malloc or a loop when one pointer may be NULL or reset to another buffer on some path",
           "a search result pointer is subtracted from the buffer start without checking that the search succeeded"
+        ],
+        "cpp": [
+          "std::distance or iterator subtraction between iterators taken from different containers or different copies of one"
         ]
       },
       "not_present_when": {
         "c": [
           "both pointers are derived in the function from the same array or allocation, such as p and p + n or a strchr result within that buffer that was checked for NULL",
           "the size is taken from a stored length rather than pointer difference"
+        ],
+        "cpp": [
+          "both iterators come from the same container object, and any find result is checked against end() first"
         ]
       },
       "distinguish_from": {
@@ -8740,6 +9204,10 @@
           "a NULL pointer passed to strlen, strcmp, printf %s or memcpy with a non-zero size",
           "isalpha, toupper and other ctype functions given a plain char that may be negative"
         ],
+        "cpp": [
+          "std::copy into a destination that starts inside the source range, or std::memcpy on objects that are not trivially copyable",
+          "std::sort or std::set given a comparator that is not a strict weak ordering, such as <="
+        ],
         "javascript": [
           "sort given a comparator that is inconsistent or returns a boolean, giving engine-dependent results"
         ],
@@ -8756,6 +9224,9 @@
         ],
         "c": [
           "memmove is used for possibly overlapping regions, and ctype arguments are cast to unsigned char"
+        ],
+        "cpp": [
+          "std::copy_backward or std::memmove handles overlapping ranges, and class types are copied by assignment or std::copy"
         ],
         "python": [
           "Python library calls given bad input raise an exception rather than behaving unpredictably"
@@ -8780,6 +9251,9 @@
           "the result of malloc, calloc, realloc, fopen, getenv, strchr or a similar call that can return NULL is dereferenced without a NULL test",
           "a pointer is tested for NULL after it has already been dereferenced"
         ],
+        "cpp": [
+          "a dynamic_cast<T*> result, weak_ptr::lock() result or moved-from std::unique_ptr is dereferenced without a null test"
+        ],
         "javascript": [
           "a property is read from a value that can be null or undefined, such as a find() or getElementById() result, without a check or optional chaining"
         ],
@@ -8798,6 +9272,9 @@
         ],
         "c": [
           "the allocation goes through a wrapper that aborts on failure"
+        ],
+        "cpp": [
+          "the pointer comes from new without std::nothrow, which throws std::bad_alloc rather than returning null, or a dynamic_cast to a reference, which throws"
         ],
         "javascript": [
           "optional chaining (?.) or a nullish default (??) guards the access"
@@ -8818,6 +9295,9 @@
         "c": [
           "gets, tmpnam, mktemp, asctime, ctime, or other functions removed or deprecated by the C standard or POSIX"
         ],
+        "cpp": [
+          "std::auto_ptr, std::random_shuffle, std::bind1st, std::ptr_fun or std::strstream is used"
+        ],
         "javascript": [
           "new Buffer(...), escape/unescape, String.prototype.substr, document.write, or synchronous XMLHttpRequest"
         ],
@@ -8835,6 +9315,9 @@
         ],
         "c": [
           "the modern replacement is used, such as fgets, mkstemp or strftime"
+        ],
+        "cpp": [
+          "the modern replacement is used, such as std::unique_ptr, std::shuffle, a lambda or std::stringstream"
         ]
       },
       "distinguish_from": {
@@ -8875,6 +9358,9 @@
         "c": [
           "a function registered with signal or sigaction calls malloc, free, realloc, printf, fprintf, syslog, strtok, localtime or exit",
           "a handler calls a helper that itself uses stdio or the heap"
+        ],
+        "cpp": [
+          "a signal handler uses std::cout, new or delete, throws, or locks a std::mutex"
         ]
       },
       "not_present_when": {
@@ -8882,6 +9368,9 @@
           "the handler calls only async-signal-safe functions such as write, _exit or signal",
           "the handler only sets a volatile sig_atomic_t flag",
           "the function is not used as a signal handler"
+        ],
+        "cpp": [
+          "the handler only stores to a lock-free std::atomic or a volatile std::sig_atomic_t flag"
         ]
       },
       "distinguish_from": {
@@ -8937,6 +9426,9 @@
           "the assignment captures a call result and is explicitly compared, such as if ((p = malloc(n)) != NULL) or while ((c = getc(f)) != EOF)",
           "the condition uses == or another comparison operator",
           "the idiom is clearly intentional, wrapped in double parentheses to capture a value that is then used"
+        ],
+        "cpp": [
+          "a C++17 if (auto p = lookup()) or if (auto x = f(); x == y) declaration, which deliberately tests the new variable"
         ]
       },
       "distinguish_from": {
@@ -9073,6 +9565,9 @@
         "javascript": [
           "this.isAdmin, this.role or a config value is assigned as a plain writable property instead of a private #field, getter or frozen object"
         ],
+        "typescript": [
+          "a security-relevant field such as role, isAdmin or a limit is public, or private only by the TypeScript keyword, which bracket access or an any cast bypasses at run time"
+        ],
         "python": [
           "self.role, self.permissions or a config value is set as a plain public attribute, with no property or underscore-private name"
         ]
@@ -9127,6 +9622,9 @@
         "javascript": [
           "a public method or getter returns a private (#field or underscore) array, map or object itself rather than a copy"
         ],
+        "typescript": [
+          "a getter returns a private or readonly array, Map or object field; both modifiers are compile-time only, and readonly stops reassignment, not mutation"
+        ],
         "python": [
           "a public method or property returns a list, dict or set held in a leading-underscore attribute without copying"
         ],
@@ -9159,6 +9657,9 @@
         ],
         "javascript": [
           "a constructor or setter assigns an array or object argument directly to a private (#field or underscore) property"
+        ],
+        "typescript": [
+          "a constructor parameter property such as constructor(private readonly items: T[]) keeps the caller's array or object without copying it"
         ],
         "python": [
           "__init__ or a setter assigns a list, dict or set argument straight to a leading-underscore attribute"
@@ -9920,6 +10421,9 @@
         "javascript": [
           "an Express error handler sends err.stack, or the error middleware is left at its development default"
         ],
+        "typescript": [
+          "a NestJS @Catch() exception filter sends exception.stack, the raw exception or its internal response to the client"
+        ],
         "python": [
           "app.run(debug=True), DEBUG = True set in code, or a handler returning traceback text"
         ]
@@ -9928,6 +10432,9 @@
         "any": [
           "a custom error handler returns a generic page or code and logs details server-side",
           "debug output is enabled only under an explicit development-only condition"
+        ],
+        "typescript": [
+          "the filter returns only a status code and a generic message, logging the details on the server"
         ]
       },
       "distinguish_from": {
@@ -10291,6 +10798,9 @@
         "c": [
           "a pointer to an int, char array or other scalar is cast to struct T * and a field is read or written",
           "a void * whose source is a primitive variable is cast to a struct pointer and dereferenced with ->"
+        ],
+        "cpp": [
+          "reinterpret_cast<T*>, or static_cast through void*, turns an int or char buffer pointer into a class or struct pointer, then a member is accessed"
         ]
       },
       "not_present_when": {
@@ -10298,6 +10808,9 @@
           "the pointer genuinely came from an object of that struct type",
           "bytes are copied into a real struct with memcpy before member access",
           "the cast target is not a struct or union"
+        ],
+        "cpp": [
+          "std::memcpy or std::bit_cast copies the bytes into a real object of that type first"
         ]
       },
       "distinguish_from": {
@@ -10405,6 +10918,9 @@
         "c": [
           "SSL_CTX_set_verify, SSL_CTX_use_certificate, SSL_CTX_set_cipher_list or similar SSL_CTX_* calls follow SSL_new on the same SSL_CTX"
         ],
+        "cpp": [
+          "an Asio ssl::context's set_verify_mode, use_certificate_file or set_options is called after ssl::stream objects were built from it"
+        ],
         "javascript": [
           "a tls.SecureContext or https.Agent options are altered after sockets have been created from it"
         ],
@@ -10471,6 +10987,9 @@
         "c": [
           "char pointers or string literals are compared with == or != rather than strcmp or strncmp"
         ],
+        "cpp": [
+          "two c_str() or data() results, or a const char* and a string literal, are compared with == so addresses are compared"
+        ],
         "python": [
           "strings are compared with is or is not, which depends on interning"
         ],
@@ -10504,6 +11023,9 @@
         ],
         "javascript": [
           "fetch or axios is called with a URL embedding a token or password, or a handler reads req.query.password"
+        ],
+        "tsx": [
+          "a token, password or session id is put into a <Link to>, href, router.push or navigate() URL as a query parameter"
         ],
         "python": [
           "requests.get(url, params={'password': ...}) or request.args.get('token') supplies a secret"
@@ -10561,6 +11083,12 @@
         "javascript": [
           "res.redirect(req.query.x) or window.location set from URL parameters"
         ],
+        "typescript": [
+          "res.redirect(req.query.next as string), or a NestJS @Redirect() handler returning { url } taken from a query or body field"
+        ],
+        "tsx": [
+          "router.push, navigate(), redirect() or window.location.href is given a value from useSearchParams, searchParams.get or router.query with no allow-list"
+        ],
         "python": [
           "redirect(request.args['next']) or HttpResponseRedirect with an unchecked parameter"
         ]
@@ -10570,6 +11098,9 @@
           "the target is parsed and its host compared with an allow-list, or only relative paths are accepted after normalisation",
           "the redirect target is a constant or chosen from a server-side map by key",
           "a framework helper such as a safe-URL check is applied before redirecting"
+        ],
+        "tsx": [
+          "the target is required to start with a single / and not // or /\\, or new URL(target, origin).origin is compared with the app origin"
         ]
       },
       "distinguish_from": {
@@ -10608,12 +11139,18 @@
         ],
         "javascript": [
           "browser or app code checks credentials against a hard-coded or downloaded value and sets a logged-in state"
+        ],
+        "tsx": [
+          "a route guard or conditional render decides access from a client-held role, flag or password comparison, and that is the only check before the action runs"
         ]
       },
       "not_present_when": {
         "any": [
           "the client only collects credentials and the server verifies them and issues a session or token",
           "the local check is a convenience and the server enforces the same rule"
+        ],
+        "tsx": [
+          "the client check only hides UI, and the action is a request whose server handler checks authorisation itself"
         ]
       },
       "distinguish_from": {
@@ -10699,6 +11236,9 @@
         ],
         "c": [
           "libxml2 parsing with XML_PARSE_NOENT or XML_PARSE_DTDLOAD, or xmlSubstituteEntitiesDefault(1)"
+        ],
+        "cpp": [
+          "a Xerces-C++ parser reads untrusted XML without setDisableDefaultEntityResolution(true), or with setLoadExternalDTD left on"
         ],
         "javascript": [
           "libxmljs parseXml with noent: true, or another parser with entity expansion enabled"
@@ -11056,6 +11596,9 @@
         "any": [
           "a record, file or account is looked up by an ID from the URL, query, body or cookie and returned or changed with no owner or permission check",
           "the query filters only by the supplied ID, not also by the current user or tenant"
+        ],
+        "typescript": [
+          "a @Param('id') or @Body() id is passed straight to findOne, update or delete on a repository or Prisma model, with no filter on the current user"
         ]
       },
       "not_present_when": {
@@ -11063,6 +11606,9 @@
           "the lookup also filters by the authenticated user, tenant or allowed set",
           "the record's owner or access list is compared with the caller before use",
           "the ID is taken from the server-side session, not from the request"
+        ],
+        "typescript": [
+          "the where clause also matches the owner or tenant id taken from the authenticated request user"
         ]
       },
       "distinguish_from": {
@@ -11437,6 +11983,9 @@
           "strtok, localtime, gmtime, asctime, ctime, rand, getenv-and-modify, readdir or gethostbyname used in thread or handler code",
           "a helper with function-local static buffers is called from several threads"
         ],
+        "cpp": [
+          "std::strtok, std::localtime, std::rand or a function-local static that is modified after initialisation, reached from std::thread code"
+        ],
         "python": [
           "a function with module-level mutable state is called from several threads without a lock"
         ],
@@ -11451,6 +12000,9 @@
         "c": [
           "reentrant variants such as strtok_r, localtime_r or gmtime_r are used",
           "calls are serialised by a lock, or the program is single-threaded"
+        ],
+        "cpp": [
+          "only the static's initialisation is shared, which C++11 makes thread-safe, and later access is read-only or under a std::mutex"
         ],
         "python": [
           "the shared state is protected by a lock or is per-thread"
@@ -11649,6 +12201,9 @@
         "c": [
           "a pointer, descriptor or FILE* is used after free, close or fclose without being reset"
         ],
+        "cpp": [
+          "a moved-from object, a closed std::fstream or an iterator invalidated by erase is used afterwards"
+        ],
         "rust": [
           "a raw pointer or descriptor number is used inside unsafe after the owning value was dropped or closed"
         ]
@@ -11768,6 +12323,9 @@
           "a long, size_t or double is assigned or cast to int, short, char or an unsigned type without a range check",
           "a negative signed value is converted to unsigned for use as a size or index"
         ],
+        "cpp": [
+          "static_cast<int> of a double, size() or std::int64_t without a range check, or a negative int passed where size_type is expected"
+        ],
         "javascript": [
           "a value beyond 2^53 is held in a Number, or bitwise operators force a value to 32 bits"
         ],
@@ -11782,6 +12340,9 @@
         "any": [
           "the value is checked against the target type's range before converting",
           "the conversion widens and preserves every value"
+        ],
+        "cpp": [
+          "std::in_range, gsl::narrow or a std::numeric_limits comparison checks the value first"
         ],
         "rust": [
           "try_from or try_into with handling of the error is used"
@@ -11824,8 +12385,14 @@
         "c": [
           "memset(buf, len, 0) instead of memset(buf, 0, len), or calloc and fwrite with size and count swapped in a way that changes behaviour"
         ],
+        "cpp": [
+          "std::string(ch, count) written for std::string(count, ch), or std::copy with the destination range given first and the source last"
+        ],
         "javascript": [
           "setTimeout(delay, fn), or arguments to a project helper whose parameter names show the order is reversed"
+        ],
+        "typescript": [
+          "two parameters of the same type, such as (userId: string, orgId: string), receive their arguments in the opposite order"
         ],
         "python": [
           "positional arguments in an order that contradicts the callee's parameter names, such as re.sub(text, pattern, repl)"
@@ -11836,6 +12403,9 @@
           "arguments are passed by name or keyword",
           "the order matches the callee's signature",
           "the swapped pair is commutative for the call, such as calloc's count and size"
+        ],
+        "typescript": [
+          "the parameters have distinct types, such as branded ids, or the call passes a named options object, so the compiler rejects a swap"
         ]
       },
       "distinguish_from": {
@@ -11894,6 +12464,9 @@
           "a printf or scanf specifier mismatches its argument, such as %d with a long or size_t, or scanf %d with a non-pointer",
           "a pointer is passed where an integer is expected, or a struct pointer is cast to an unrelated type for a call"
         ],
+        "cpp": [
+          "a std::string is passed to a printf-style %s without c_str(), or an argument is reinterpret_cast to fit a parameter type"
+        ],
         "javascript": [
           "a string from input passed where a number or array is required, so the callee coerces it unexpectedly"
         ],
@@ -11910,6 +12483,9 @@
         ],
         "c": [
           "format specifiers correspond to the argument types, such as %zu for size_t"
+        ],
+        "cpp": [
+          "type-safe std::format or stream << output is used"
         ],
         "typescript": [
           "the parameters are typed and the compiler would reject a mismatch, with no any or as casts involved"
@@ -11978,6 +12554,9 @@
         "c": [
           "a file is created with open or fopen using default or broad permissions, filled, and only then chmod-ed or chown-ed",
           "a directory tree is copied and permissions are applied in a final pass after all content is written"
+        ],
+        "cpp": [
+          "std::ofstream writes the content and std::filesystem::permissions restricts the file only afterwards"
         ]
       },
       "not_present_when": {
@@ -12327,6 +12906,9 @@
         "c": [
           "open, creat, mkdir, chmod or umask with permissive mode bits for sensitive data"
         ],
+        "cpp": [
+          "std::filesystem::permissions grants perms::all, others_read or others_write on a file or directory holding sensitive data"
+        ],
         "python": [
           "os.chmod, os.open, os.mkdir or os.umask with permissive modes, or files with secrets written without restricting mode"
         ],
@@ -12341,6 +12923,9 @@
         "any": [
           "the mode restricts access to the owner (such as 0600 or 0700) or the resource is not sensitive",
           "the resource is intentionally public, such as static web content"
+        ],
+        "cpp": [
+          "std::filesystem::permissions limits the file to perms::owner_read | perms::owner_write"
         ]
       },
       "distinguish_from": {
@@ -12379,12 +12964,18 @@
           "the result of a call that can fail is used directly without testing for an error value, null, None or a short count",
           "a lookup, parse or search that can find nothing is assumed to have succeeded",
           "the code tests for the common error value but not another documented failure value of the same call"
+        ],
+        "typescript": [
+          "the result of map.get(), array.find(), a nullable lookup or a findOne returning T | null is used with a ! assertion or an as T cast instead of a check"
         ]
       },
       "not_present_when": {
         "any": [
           "every call that can fail has its outcome tested before the result is used, with failure handled on every path",
           "the failure is reported through an exception that the language propagates automatically and the function has nothing to clean up"
+        ],
+        "typescript": [
+          "strict null checks force a T | undefined or T | null result to be narrowed before use, and no ! or any is involved"
         ],
         "rust": [
           "fallible calls return Result or Option that is handled with match, ? or an explicit check rather than unwrap on untrusted outcomes"
@@ -12444,6 +13035,10 @@
           "returning or keeping the address of a local, comparing pointers to unrelated objects, or a non-void function that can fall off its end",
           "assuming sizeof(int), endianness, char signedness or struct layout"
         ],
+        "cpp": [
+          "reinterpret_cast used to read an object as an unrelated type, or reading a union member other than the one last written",
+          "dereferencing end(), calling front() or back() on an empty container, or using an iterator after the container changed"
+        ],
         "javascript": [
           "new Date() or Date.parse on non-ISO date strings, or sort with an inconsistent comparator"
         ],
@@ -12458,6 +13053,9 @@
         "any": [
           "the function uses only behaviour the language and its libraries define precisely",
           "implementation-specific choices are isolated behind checks such as static_assert, sizeof tests or platform guards"
+        ],
+        "cpp": [
+          "bytes are reinterpreted with std::bit_cast or std::memcpy into a properly typed object"
         ],
         "rust": [
           "only safe Rust is used and no result depends on hash iteration order"
@@ -12518,6 +13116,10 @@
           "a pointer returned by malloc is incremented, or advanced through parsing, and that same pointer is later passed to free",
           "free is called on an address computed as base + offset or on a pointer into the middle of a struct or array"
         ],
+        "cpp": [
+          "a pointer from new[] is advanced while parsing and that moved pointer is later passed to delete[]",
+          "a std::unique_ptr is constructed from, or reset() with, an address into the middle of an allocated array"
+        ],
         "rust": [
           "dealloc or Box::from_raw is called on a pointer obtained with add or offset from the original allocation"
         ]
@@ -12526,6 +13128,9 @@
         "c": [
           "the original pointer is saved and that saved copy is what is freed",
           "the moving pointer is a separate cursor variable and the base pointer is freed"
+        ],
+        "cpp": [
+          "the buffer is owned by std::vector or std::unique_ptr<T[]> and traversal uses an index or a separate iterator"
         ],
         "rust": [
           "memory is freed only through owned types such as Box, Vec or String"
@@ -12610,6 +13215,9 @@
         "c": [
           "pthread_mutex_lock called twice on a default (non-recursive) mutex on one path"
         ],
+        "cpp": [
+          "a std::lock_guard or m.lock() on a std::mutex the function already holds, such as a member that locks calling another member that locks the same mutex"
+        ],
         "python": [
           "a threading.Lock (not RLock) is acquired while already held by the same thread"
         ],
@@ -12621,6 +13229,9 @@
         "any": [
           "each acquire is matched by a release before the next acquire on every path",
           "the lock is explicitly recursive and each acquire has a matching release"
+        ],
+        "cpp": [
+          "the mutex is a std::recursive_mutex with balanced locking, or each scope takes one std::scoped_lock and calls only unlocked helpers"
         ],
         "javascript": [
           "the code uses no explicit lock objects, as ordinary single-threaded JS has none"
@@ -12642,6 +13253,9 @@
         "c": [
           "pthread_mutex_unlock or a semaphore post is called twice for one lock"
         ],
+        "cpp": [
+          "m.unlock() called manually while a std::lock_guard or std::unique_lock still owns m, so the guard releases it a second time at scope exit"
+        ],
         "python": [
           "release() is called both in a branch and in finally after a single acquire()"
         ]
@@ -12650,6 +13264,9 @@
         "any": [
           "each acquire has exactly one release on every path",
           "locking uses a scope-based guard or with statement that releases once"
+        ],
+        "cpp": [
+          "the lock is held by std::lock_guard or std::scoped_lock with no manual unlock, or owns_lock() is checked before a std::unique_lock is unlocked"
         ],
         "javascript": [
           "the code uses no explicit lock objects, as ordinary single-threaded JS has none"
@@ -12741,12 +13358,18 @@
         ],
         "c": [
           "p = realloc(p, n) where a NULL result overwrites the only pointer to the original block"
+        ],
+        "cpp": [
+          "a raw pointer from new is reassigned or leaves scope without delete, or the pointer returned by unique_ptr::release() is discarded"
         ]
       },
       "not_present_when": {
         "any": [
           "the reference is released, returned or stored in a longer-lived structure on every path",
           "the old value is released before the variable is reassigned"
+        ],
+        "cpp": [
+          "the resource is owned from creation by std::unique_ptr, std::shared_ptr or another RAII class, for example via std::make_unique"
         ],
         "python": [
           "the object is ordinary memory reclaimed by garbage collection once unreferenced"
@@ -12889,6 +13512,9 @@
         "any": [
           "the handle is closed on every path, or returned or stored for the caller to close"
         ],
+        "typescript": [
+          "the handle is held in a using or await using declaration, which disposes it on every exit from the block"
+        ],
         "python": [
           "the handle is opened in a with statement"
         ],
@@ -12978,6 +13604,9 @@
         "c": [
           "RSA_public_encrypt or EVP_PKEY_encrypt with RSA_NO_PADDING or RSA_PKCS1_PADDING"
         ],
+        "cpp": [
+          "Crypto++ RSAES_PKCS1v15_Encryptor, or Botan encryption with an EME-PKCS1-v1_5 or raw padding string"
+        ],
         "javascript": [
           "crypto.publicEncrypt with padding set to RSA_PKCS1_PADDING or RSA_NO_PADDING, or a library's raw RSA"
         ],
@@ -12992,6 +13621,9 @@
         "any": [
           "OAEP padding is specified, such as RSA_PKCS1_OAEP_PADDING, PKCS1_OAEP or padding.OAEP",
           "RSA is used only for signing (where PSS or PKCS#1 v1.5 signature padding applies), not encryption"
+        ],
+        "cpp": [
+          "Crypto++ RSAES_OAEP_SHA_Encryptor or a Botan OAEP padding such as \"OAEP(SHA-256)\" is used"
         ],
         "javascript": [
           "publicEncrypt called with default padding, which is OAEP in Node.js"
@@ -13055,6 +13687,9 @@
         "c": [
           "*p++ or *p.x used where (*p)++ or (*p).x was intended"
         ],
+        "cpp": [
+          "std::cout << x & mask or std::cout << ok ? a : b, where << binds before & and ?: so the stream, not the value, is tested"
+        ],
         "javascript": [
           "a ternary or ?? combined with + or || without parentheses, such as 'a' + x ? y : z",
           "!a instanceof B or !key in obj"
@@ -13112,6 +13747,9 @@
           "the output buffer is declared or allocated with at least PATH_MAX or MAX_PATH elements",
           "realpath is called with NULL so the library allocates the result",
           "a size-taking API is used and passed the buffer's real size, with the return value checked"
+        ],
+        "cpp": [
+          "std::filesystem::canonical or read_symlink is used, which returns a std::filesystem::path without a caller-sized buffer"
         ]
       },
       "distinguish_from": {
@@ -13153,6 +13791,10 @@
           "memcpy, memset or strncpy write a length that is not tied to the destination buffer's real size",
           "an allocation size is computed with arithmetic that can overflow before the buffer is filled"
         ],
+        "cpp": [
+          "std::vector, std::array or std::string written with operator[] at an index not checked against size(); operator[] performs no bounds check",
+          "std::copy or memcpy into v.data() or v.begin() after reserve() but not resize(), so size() is smaller than the bytes written"
+        ],
         "rust": [
           "ptr::write, copy_nonoverlapping or set_len inside unsafe use a length or index that is not validated"
         ]
@@ -13165,6 +13807,9 @@
         "c": [
           "bounded functions such as snprintf or strlcpy receive the destination's real size",
           "the copy length is sizeof the destination, or the minimum of both sizes"
+        ],
+        "cpp": [
+          "writes use at(), push_back, emplace_back or insert, or the container is resize()d to the needed length first"
         ],
         "python": [
           "the write is ordinary Python indexing or slice assignment, which raises or grows the list rather than writing outside memory"
@@ -13192,6 +13837,9 @@
         "c": [
           "unbounded string or memory functions such as strcpy, sprintf, memcpy or strlen operate on buffers of fixed or unverified size"
         ],
+        "cpp": [
+          "operator[], begin() + n or a hand-advanced iterator on std::vector, std::string or std::array with n not checked against size()"
+        ],
         "rust": [
           "unsafe code uses get_unchecked, from_raw_parts, add or set_len with unvalidated lengths"
         ]
@@ -13199,6 +13847,9 @@
       "not_present_when": {
         "any": [
           "every access is checked against the buffer's size, or the length is derived from the buffer itself"
+        ],
+        "cpp": [
+          "access uses at(), a range-based for loop, or an index compared with size() first"
         ],
         "rust": [
           "only safe indexing and iterators are used, which are bounds-checked"
@@ -13216,6 +13867,9 @@
         "c": [
           "malloc, calloc, realloc or new[] given a size parsed from input with no maximum"
         ],
+        "cpp": [
+          "std::vector or std::string constructed with, resize()d or reserve()d to a count read from input with no upper limit"
+        ],
         "python": [
           "bytearray(n), [0] * n or f.read(n) where n comes from untrusted data with no cap"
         ],
@@ -13231,6 +13885,9 @@
           "the size is compared against a fixed maximum or the remaining input length before allocating",
           "the size is a constant, or derived from data already held in memory",
           "the allocation is a growable container filled incrementally from data actually received"
+        ],
+        "typescript": [
+          "the size passes a schema or class-validator bound such as z.number().int().max(n) or @Max(n) before allocation"
         ]
       },
       "distinguish_from": {
@@ -13311,6 +13968,9 @@
         "c": [
           "strstr or strchr finds and removes one occurrence with no loop over the rest"
         ],
+        "cpp": [
+          "std::string::find followed by a single replace or erase, with no loop that continues searching after the result"
+        ],
         "rust": [
           "replacen(.., 1) or a single find and replace_range removes only the first match"
         ]
@@ -13319,6 +13979,9 @@
         "any": [
           "all occurrences are replaced, for example replaceAll, a global regex, str.replace without a count or a loop",
           "input containing the element is rejected rather than filtered"
+        ],
+        "cpp": [
+          "std::regex_replace, which replaces every match by default, or a loop that repeats find until npos"
         ]
       },
       "distinguish_from": {
@@ -13476,6 +14139,9 @@
           "strncat is given the total buffer size instead of the space remaining",
           "a length computed by subtraction can underflow and then be used as a size"
         ],
+        "cpp": [
+          "sizeof applied to a std::vector or std::string object instead of size(), or memcpy or std::copy_n into v.data() with a count larger than v.size()"
+        ],
         "rust": [
           "unsafe copy_nonoverlapping, from_raw_parts or set_len receive a count that is not tied to the buffer's capacity"
         ]
@@ -13486,6 +14152,9 @@
         ],
         "c": [
           "element counts are multiplied by sizeof the element and checked for overflow"
+        ],
+        "cpp": [
+          "the length is dst.size() * sizeof(dst[0]) of the destination, or copying goes through std::back_inserter or assignment"
         ],
         "rust": [
           "only safe slice methods are used, which check lengths"
@@ -13504,6 +14173,9 @@
           "memcpy(dst, src, sizeof src), strncpy(dst, src, strlen(src)) or similar where the length describes the source",
           "a loop copying into dst is bounded by the source's length or element count"
         ],
+        "cpp": [
+          "std::copy(src.begin(), src.end(), dst.begin()) or memcpy(dst.data(), src.data(), src.size()) where dst may be shorter than src"
+        ],
         "rust": [
           "unsafe copy_nonoverlapping uses src.len() for a destination whose capacity is not checked"
         ]
@@ -13512,6 +14184,9 @@
         "any": [
           "the length is the destination's size, or the minimum of source and destination sizes",
           "the destination was allocated from the same source length just before the copy"
+        ],
+        "cpp": [
+          "dst is resized to src.size() before the copy, or the copy uses dst = src, dst.assign or std::back_inserter"
         ],
         "rust": [
           "safe copy_from_slice is used, which panics if lengths differ"
@@ -13554,6 +14229,9 @@
         "c": [
           "a static or global is read-modify-written (count++, list insert) in a thread routine or signal handler with no mutex, atomic or volatile sig_atomic_t"
         ],
+        "cpp": [
+          "a std::thread, std::async or std::jthread lambda captures by reference and writes a shared counter or container with no std::mutex or std::atomic"
+        ],
         "javascript": [
           "a SharedArrayBuffer is read and written by workers with plain indexing instead of Atomics",
           "module-level state is read before an await and written back after it with no guard against interleaved calls"
@@ -13570,6 +14248,9 @@
           "every access to the shared state is inside a lock, atomic operation or other synchronisation primitive",
           "the state is local to the function or owned by a single thread or task",
           "the function is not run concurrently, and nothing in it starts threads, workers or concurrent tasks"
+        ],
+        "cpp": [
+          "the shared value is a std::atomic, or every access holds a std::lock_guard on the same mutex"
         ],
         "rust": [
           "the sharing goes through safe Rust types such as Arc<Mutex>, RwLock, atomics or channels, which the compiler checks"
@@ -13593,6 +14274,9 @@
         "c": [
           "a volatile qualifier is relied on as if it made a read-modify-write atomic"
         ],
+        "cpp": [
+          "a std::atomic updated as x.store(x.load() + 1) or x = x + 1, or a std::lock_guard scoped in an inner block that closes before the dependent write"
+        ],
         "python": [
           "threading.Lock() is created inside the function on every call, so callers never share it"
         ],
@@ -13605,6 +14289,9 @@
           "every access to the shared state is covered by the same lock held for the whole read-modify-write sequence",
           "the shared state is accessed only through atomic operations that do the full update in one step",
           "there is no shared state; everything is local or owned by one thread"
+        ],
+        "cpp": [
+          "fetch_add, compare_exchange or one std::lock_guard spanning the whole read-modify-write is used"
         ],
         "rust": [
           "sharing uses safe Rust types and the guard spans the whole update"
@@ -13624,6 +14311,9 @@
           "an integer or address from a network message, file, IPC, ioctl argument or user-mode caller is cast to a pointer and read or written",
           "a pointer field inside a structure received from outside is followed without validation",
           "a kernel or privileged routine dereferences a user-supplied pointer directly instead of copying through a checked accessor"
+        ],
+        "cpp": [
+          "reinterpret_cast<T*> applied to an integer or uintptr_t taken from a message, file or IPC payload, then dereferenced"
         ],
         "rust": [
           "unsafe code casts an externally supplied usize or address to a raw pointer and dereferences it"
@@ -13651,6 +14341,9 @@
           "ptr + n, ptr[n] or ptr += n where n comes from input, a header field or a calculation with no check against the object's size",
           "an offset read from file or packet data is added to a base pointer to locate a structure, then dereferenced"
         ],
+        "cpp": [
+          "begin() + n, std::next(it, n), std::advance or data() + n with n from input or a header field, not checked against size()"
+        ],
         "rust": [
           "unsafe add, offset or byte_add with a count derived from untrusted data"
         ]
@@ -13659,6 +14352,9 @@
         "any": [
           "the offset plus the size accessed is checked against the object's length before use, without overflow",
           "the offset is a constant or a loop counter bounded by the object's size"
+        ],
+        "cpp": [
+          "n, plus the length accessed, is compared with size() before the iterator or pointer is formed"
         ],
         "rust": [
           "only safe slicing or get() is used"
@@ -13678,6 +14374,9 @@
           "a pointer is assigned only inside some branches, or in a loop that may run zero times, then used after",
           "a structure from malloc has pointer fields that are used before being set"
         ],
+        "cpp": [
+          "a raw pointer member left out of a constructor's initialiser list and without a default member initialiser is later dereferenced"
+        ],
         "rust": [
           "MaybeUninit::assume_init or mem::uninitialized is used on a value containing pointers before writing it"
         ]
@@ -13688,6 +14387,9 @@
         ],
         "c": [
           "the structure is allocated with calloc or zero-initialised and its pointers are NULL-checked"
+        ],
+        "cpp": [
+          "pointers are declared with = nullptr or a default member initialiser, or held in std::unique_ptr, which starts empty"
         ],
         "rust": [
           "only safe Rust is used, where the compiler rejects reading uninitialised variables"
@@ -13706,6 +14408,10 @@
           "the address of a local variable is returned or stored somewhere that outlives the function",
           "an iterator, reference or pointer into a container is used after the container is resized or cleared"
         ],
+        "cpp": [
+          "a std::string_view, std::span or c_str() pointer is kept after the owning std::string, container or temporary is destroyed",
+          "a lambda capturing locals by reference is stored, returned or run on another thread after the function's scope ends"
+        ],
         "rust": [
           "unsafe code dereferences a raw pointer to data that has been dropped or moved"
         ]
@@ -13714,6 +14420,9 @@
         "any": [
           "the pointer is set to NULL or reassigned immediately after release and not used again",
           "the memory's owner clearly outlives every use in this function"
+        ],
+        "cpp": [
+          "the data is owned by value, such as a std::string copy or a capture by value or by std::shared_ptr"
         ],
         "rust": [
           "only safe references are used, which the borrow checker keeps valid"
@@ -13736,6 +14445,9 @@
         "c": [
           "free or close is called on memory or a descriptor still linked from a list, global or struct field that is not cleared"
         ],
+        "cpp": [
+          "delete or reset() is applied to an object still reachable through a raw pointer stored elsewhere, or get() of a std::unique_ptr is handed out and the owner then dies"
+        ],
         "rust": [
           "unsafe code calls drop_in_place, Box::from_raw or libc close on something other owners still hold"
         ]
@@ -13744,6 +14456,9 @@
         "any": [
           "the function owns the resource exclusively and nothing else refers to it after release",
           "all references are cleared or the owning container entry is removed as part of the release"
+        ],
+        "cpp": [
+          "ownership is shared through std::shared_ptr, and observers hold std::weak_ptr and call lock() before use"
         ],
         "rust": [
           "ownership is safe Rust, where the compiler stops a value being dropped while borrowed"
@@ -13768,6 +14483,9 @@
         "c": [
           "a handler calls malloc, free, printf, syslog, fopen or a mutex function"
         ],
+        "cpp": [
+          "a signal handler uses std::cout, std::string, new, std::mutex, a non-lock-free std::atomic or throws an exception"
+        ],
         "python": [
           "a signal handler does long work, takes a lock that the main code may hold, or logs through handlers that lock"
         ],
@@ -13784,6 +14502,9 @@
         ],
         "c": [
           "the handler calls only async-signal-safe functions such as write or _exit"
+        ],
+        "cpp": [
+          "the handler only stores to a lock-free std::atomic or a volatile std::sig_atomic_t"
         ],
         "rust": [
           "signals are handled through signal-hook flag or iterator helpers rather than custom raw handlers"
@@ -13836,6 +14557,9 @@
         ],
         "javascript": [
           "document.createElement('script') with a remote src is appended, or innerHTML injects a remote script tag"
+        ],
+        "tsx": [
+          "a useEffect creates a <script> element with a remote src and appends it to the document, or a third-party widget <iframe> is rendered without sandbox"
         ]
       },
       "not_present_when": {
@@ -13843,6 +14567,9 @@
           "the script is self-hosted, or the tag carries a Subresource Integrity attribute",
           "the third-party content is placed in a sandboxed iframe",
           "the function emits no markup or script references"
+        ],
+        "tsx": [
+          "the script URL is fixed and carries integrity and crossorigin attributes, or the widget iframe is sandboxed"
         ]
       },
       "distinguish_from": {
@@ -13894,6 +14621,10 @@
         "c": [
           "pthread_mutex_trylock fails or is skipped, yet pthread_mutex_unlock is called"
         ],
+        "cpp": [
+          "m.unlock() on a std::mutex in cleanup reached when try_lock() returned false or before lock() ran",
+          "a std::unique_lock made with std::defer_lock or std::try_to_lock is unlocked without checking owns_lock()"
+        ],
         "python": [
           "acquire(blocking=False) returns False, yet release() is called"
         ]
@@ -13902,6 +14633,9 @@
         "any": [
           "the release is only reached on paths where the acquire succeeded",
           "a scope-based guard or with statement manages the lock"
+        ],
+        "cpp": [
+          "a std::unique_lock or std::lock_guard releases at scope exit only what it owns"
         ],
         "javascript": [
           "the code uses no explicit lock objects, as ordinary single-threaded JS has none"
@@ -14053,6 +14787,9 @@
           "a signed int index, length or offset is tested only with value < max or value <= max and then used to index, allocate or copy",
           "a size from input is stored in a signed type and only an upper limit is checked, so a negative value passes",
           "the lower bound check is present on some paths but missing on another path that reaches the use"
+        ],
+        "cpp": [
+          "a signed index is checked only as i < static_cast<int>(v.size()) or i < max, then used with operator[] or begin() + i"
         ]
       },
       "not_present_when": {
@@ -14060,6 +14797,9 @@
           "both bounds are checked, for example value >= 0 && value < max",
           "the value has an unsigned type, or is converted to unsigned before a single upper-bound test",
           "the value is a constant or comes from a source that cannot be negative, such as sizeof or strlen"
+        ],
+        "cpp": [
+          "the index is std::size_t, or a >= 0 test precedes the comparison with size()"
         ]
       },
       "distinguish_from": {
@@ -14138,6 +14878,9 @@
         "any": [
           "a handler reads, changes or deletes a resource with no role, ownership or permission check on the path",
           "an admin or management operation runs for any authenticated or anonymous caller"
+        ],
+        "typescript": [
+          "a NestJS controller method that changes or returns protected data has no @UseGuards on it or its class, or is marked with a @Public()-style decorator"
         ]
       },
       "not_present_when": {
@@ -14145,6 +14888,9 @@
           "a permission, role or ownership check guards every path before the action",
           "the route or method is protected by an authorisation decorator, middleware or guard visible in the code",
           "the data or action is public by design"
+        ],
+        "typescript": [
+          "a @UseGuards with an auth or roles guard is applied to the method or its controller class"
         ]
       },
       "distinguish_from": {
@@ -14162,6 +14908,9 @@
           "a permission is taken from a client-supplied field such as a role parameter or header rather than server-side state",
           "the check covers some actions or HTTP methods but the same path performs others unchecked",
           "a check result is computed but not used, or a failure path falls through to the action"
+        ],
+        "typescript": [
+          "a @Roles() or similar metadata decorator names a broader role than the action needs, or the role checked is read from a typed request DTO"
         ]
       },
       "not_present_when": {
@@ -14187,8 +14936,15 @@
           "malloc'd memory, a local array or a struct is read, sent or copied out before all its bytes or fields are written",
           "a struct is only partly filled and then passed to write, send, memcpy or returned whole"
         ],
+        "cpp": [
+          "a local scalar, std::array or trivial struct declared without braces, such as int n; or std::array<int, 4> a;, is read before every element is set",
+          "a constructor omits a scalar member from its initialiser list and that member is read before assignment"
+        ],
         "javascript": [
           "a let variable or object property is used on a path where it was never assigned, so it is undefined"
+        ],
+        "typescript": [
+          "a class property declared with ! (definite assignment) or set to undefined as T is used before an init method or lifecycle hook assigns it"
         ],
         "python": [
           "a name is assigned only inside an if, loop or try block and used afterwards on a path where that block did not run"
@@ -14202,8 +14958,14 @@
           "every path assigns the value before its first use",
           "the storage is zero-initialised at creation, such as calloc, = {0}, memset over its full size, or a constructor"
         ],
+        "cpp": [
+          "value-initialisation such as int n{}; std::array<int, 4> a{}; or default member initialisers set every field"
+        ],
         "javascript": [
           "the value is intentionally checked for undefined before use"
+        ],
+        "typescript": [
+          "the property is initialised at declaration or in the constructor and strictPropertyInitialization applies, with no ! on it"
         ],
         "rust": [
           "only safe Rust is used, where the compiler rejects reads of unassigned variables"
@@ -14226,8 +14988,14 @@
           "malloc'd structs are returned or linked into lists with fields left unset",
           "a mutex, context or library handle is used without its init function being called"
         ],
+        "cpp": [
+          "a constructor returns without setting a member, such as a size, flag or handle, that other member functions rely on"
+        ],
         "javascript": [
           "an object is built and returned without a property that callers check, such as a permission or state flag"
+        ],
+        "typescript": [
+          "an object literal is asserted with as T or <T>, so required fields of T can be missing at run time without a compiler error"
         ],
         "python": [
           "an __init__ or factory leaves attributes unset that other methods read"
@@ -14240,6 +15008,12 @@
         "any": [
           "every field or required setup step is performed before the resource is used or returned",
           "the resource is created with calloc, a zeroing constructor or a default that is valid for every field"
+        ],
+        "typescript": [
+          "the object is built with a type annotation (const o: T = {...}) or satisfies T, so the compiler demands every required field"
+        ],
+        "cpp": [
+          "every member has a default member initialiser or appears in each constructor's initialiser list"
         ],
         "rust": [
           "the struct is built with safe struct literal syntax, which requires every field"
@@ -14262,6 +15036,9 @@
           "close(fd) is followed by use of fd on any path, including a second close in an error path",
           "the descriptor variable is not reset to -1 after close and later code tests or uses it"
         ],
+        "cpp": [
+          "an object holding a raw descriptor is copied with the implicit copy constructor, so both copies close or use the same descriptor"
+        ],
         "javascript": [
           "fs.closeSync(fd) or fs.close is followed by fs.readSync, fs.writeSync or another call with the same fd"
         ],
@@ -14276,6 +15053,9 @@
         "any": [
           "the descriptor is set to -1 or None after close and every later use checks it",
           "the descriptor is closed only once, at the end, with no use after it"
+        ],
+        "cpp": [
+          "the descriptor is owned by a move-only RAII wrapper that closes it once and sets the moved-from value to -1"
         ],
         "rust": [
           "only owned File, OwnedFd or socket types are used, which cannot be used after drop"
@@ -14297,6 +15077,9 @@
         ],
         "c": [
           "Py_INCREF/Py_DECREF, kref_get/kref_put, refcount++/--, AddRef/Release or similar calls are unbalanced across paths"
+        ],
+        "cpp": [
+          "a second std::shared_ptr is constructed from a raw pointer already owned by another shared_ptr, or from this instead of shared_from_this()"
         ],
         "rust": [
           "Rc::from_raw, Arc::from_raw, increment_strong_count or ManuallyDrop inside unsafe leaves the count out of step"
@@ -14377,6 +15160,9 @@
         "javascript": [
           "obj[key] = value or Object.assign with keys from input, allowing __proto__, constructor or privileged fields"
         ],
+        "typescript": [
+          "obj[key as keyof T] = value or obj[key as keyof typeof obj] where key comes from input; the keyof assertion checks nothing at run time"
+        ],
         "python": [
           "setattr, getattr, globals()[name], vars(obj).update or __dict__.update with names from input"
         ],
@@ -14388,6 +15174,9 @@
         "any": [
           "the name is checked against an explicit allow-list of permitted fields before use",
           "the name is a constant or comes from code, not input"
+        ],
+        "typescript": [
+          "the key is matched against an as const array of allowed names with includes before it is used"
         ],
         "rust": [
           "struct fields are accessed statically; dynamic access only goes through a match on known names"
@@ -14411,6 +15200,9 @@
         "javascript": [
           "Object.assign(target, req.body), spread of input into a stored record, or obj[key] = value in a loop over input keys"
         ],
+        "typescript": [
+          "repository.save, merge or Object.assign receives a body typed Partial<Entity> or a DTO, assuming the compile-time type keeps out fields such as role or ownerId"
+        ],
         "c": [
           "a field selector or offset read from input chooses which struct member is written"
         ],
@@ -14423,6 +15215,9 @@
           "only fields on an explicit allowlist are copied, or a schema or DTO that lists permitted fields is applied first",
           "protected fields are set from trusted values after the copy",
           "the input never comes from outside the program"
+        ],
+        "typescript": [
+          "the DTO is validated with whitelist: true and lists no privileged fields, or each allowed field is copied explicitly"
         ]
       },
       "distinguish_from": {
@@ -14466,8 +15261,14 @@
         "javascript": [
           "fetch, axios, http.get or got called with a URL built from request data"
         ],
+        "typescript": [
+          "a DTO field validated only with @IsUrl() or z.string().url() is fetched; those checks confirm URL syntax, not an allowed host"
+        ],
         "c": [
           "libcurl CURLOPT_URL or a socket connect using a host from input"
+        ],
+        "cpp": [
+          "a Boost.Asio resolver, Boost.Beast request or cpr::Get uses a host or URL taken from input"
         ],
         "rust": [
           "reqwest or hyper called with a URL parsed from input"
@@ -14533,8 +15334,14 @@
         "javascript": [
           "localStorage.setItem or sessionStorage.setItem stores a token, password or key"
         ],
+        "tsx": [
+          "an auth token or API key is kept in React state that is persisted to localStorage, IndexedDB or a non-httpOnly cookie"
+        ],
         "c": [
           "fopen, open or creat writes sensitive data with mode 0644 or 0666, or without first setting a restrictive umask"
+        ],
+        "cpp": [
+          "std::ofstream writes secrets to a new file, which is created with default permissions (typically 0644 under a common umask)"
         ]
       },
       "not_present_when": {
@@ -14542,6 +15349,12 @@
           "the data is not sensitive, or is stored encrypted or hashed",
           "the file is created with owner-only permissions (for example 0600) in a private directory",
           "the data goes to a platform secret store such as a keychain or credential manager"
+        ],
+        "tsx": [
+          "the component never stores the secret, relying on an httpOnly cookie the browser sends automatically"
+        ],
+        "cpp": [
+          "the file is restricted with std::filesystem::permissions to owner read and write before any secret is written"
         ]
       },
       "distinguish_from": {
@@ -14675,6 +15488,9 @@
         "javascript": [
           "a message event listener uses event.data without checking event.origin against an expected value"
         ],
+        "typescript": [
+          "a handler typed (event: MessageEvent<Command>) acts on event.data; the generic asserts a shape but checks neither origin nor content"
+        ],
         "python": [
           "a webhook view processes the body without comparing an HMAC signature header"
         ]
@@ -14684,6 +15500,9 @@
           "the message signature, HMAC or mutual-TLS identity is verified before the content is used",
           "the origin is compared exactly against a fixed allow-list, and the action is low risk",
           "the handler only accepts public, unauthenticated data and grants nothing based on origin"
+        ],
+        "typescript": [
+          "event.origin is compared with an expected origin and event.data is parsed by a schema before it is acted on"
         ]
       },
       "distinguish_from": {
@@ -14723,6 +15542,9 @@
         ],
         "javascript": [
           "cors({ origin: true, credentials: true }) or a CORS origin callback that accepts any origin"
+        ],
+        "typescript": [
+          "a NestJS app.enableCors({ origin: true, credentials: true }) or an origin callback that accepts every origin"
         ]
       },
       "not_present_when": {
@@ -14803,6 +15625,9 @@
           "a handler returns HTML for a login, settings, payment or confirmation page and sets no frame-protection header",
           "the function explicitly sets X-Frame-Options to ALLOWALL or frame-ancestors to * for a sensitive page",
           "client code embeds another origin's content in an iframe or overlay that captures the user's clicks"
+        ],
+        "tsx": [
+          "a component renders an <iframe> of another origin, or an overlay with opacity 0 or pointer-events tricks, positioned over controls the user clicks"
         ]
       },
       "not_present_when": {
@@ -14810,6 +15635,9 @@
           "the response sets X-Frame-Options DENY or SAMEORIGIN, or a CSP frame-ancestors with specific origins",
           "the response is not HTML, such as JSON, images or an API result",
           "the function does not produce web responses or UI"
+        ],
+        "tsx": [
+          "any <iframe> has a fixed same-origin src and a sandbox attribute, and no transparent layer covers interactive controls"
         ]
       },
       "distinguish_from": {
@@ -14849,12 +15677,18 @@
           "a comparison considers only part of the relevant data, for example a prefix, one field of a composite key or the first n bytes",
           "a range check tests only the upper bound of a signed value, or only the lower bound",
           "a switch or if chain handles some values and has no branch for the rest"
+        ],
+        "typescript": [
+          "an if chain or switch over a union, enum or discriminant covers only some members, with no default and no never exhaustiveness check"
         ]
       },
       "not_present_when": {
         "any": [
           "every field and the full length are compared, and both range bounds are tested",
           "every possible value is handled, including a default or final else"
+        ],
+        "typescript": [
+          "the final branch assigns the value to a variable of type never or calls an assertNever helper, so the compiler reports any missed member"
         ]
       },
       "distinguish_from": {
@@ -14874,8 +15708,14 @@
           "a signed value is compared with an unsigned one, such as int with size_t, so a negative value converts to a large positive number",
           "a pointer is compared with an integer, or char with a value outside its range such as EOF stored in a char"
         ],
+        "cpp": [
+          "a signed int that may be negative is compared with size(), std::string::npos or another unsigned size_type value"
+        ],
         "javascript": [
           "loose == or != between different types, such as a string from input against a number or a boolean"
+        ],
+        "typescript": [
+          "an operand typed any, or one produced by an as cast, is compared with == or === against a number, string or boolean of another type"
         ],
         "python": [
           "a str read from input is compared with == to an int, or bytes with str, so the test is always false"
@@ -14885,8 +15725,14 @@
         "any": [
           "both operands are converted explicitly to the same type with validation before comparison"
         ],
+        "cpp": [
+          "the comparison uses std::cmp_less, std::ssize or operands that are both the container's size_type"
+        ],
         "javascript": [
           "strict === or !== is used and both sides have the same type"
+        ],
+        "typescript": [
+          "both operands have declared non-any types and the comparison compiles, as the compiler rejects comparisons between types with no overlap"
         ],
         "rust": [
           "ordinary comparisons, which the compiler rejects across different types unless cast explicitly"
@@ -14907,6 +15753,10 @@
         ],
         "c": [
           "sizeof a pointer is used where the size of the pointed-to buffer was meant"
+        ],
+        "cpp": [
+          "sizeof is applied to a std::string, std::vector or std::span object where its size() was meant",
+          "smart pointers, iterators or c_str() pointers are compared with == where the pointed-to contents were meant"
         ]
       },
       "not_present_when": {
@@ -14931,6 +15781,9 @@
         ],
         "c": [
           "memory ordering for a security flag shared between threads relies on plain variables without volatile, atomics or barriers"
+        ],
+        "cpp": [
+          "a secret in a std::string, std::vector or std::array is cleared with std::fill or memset just before it is destroyed"
         ]
       },
       "not_present_when": {
@@ -14938,6 +15791,9 @@
           "secrets are cleared with an API guaranteed not to be elided, such as explicit_bzero, memset_s, SecureZeroMemory or a zeroize crate",
           "comparisons use a library constant-time function",
           "the function has no security-relevant step that depends on code surviving optimisation"
+        ],
+        "cpp": [
+          "a flag shared between threads is a std::atomic, and secrets are wiped with a non-elidable call such as OPENSSL_cleanse on data()"
         ],
         "python": [
           "ordinary Python code, where no ahead-of-time optimiser removes stores; clearing may still be ineffective for other reasons"
@@ -15108,6 +15964,9 @@
         "javascript": [
           "a worker or request handler mutates module-level or class static state that concurrent requests share"
         ],
+        "typescript": [
+          "an instance field of a NestJS @Injectable() provider, a singleton by default, is written with per-request data"
+        ],
         "python": [
           "a method of a shared object called from threads assigns to a class attribute or self attribute used as scratch storage"
         ],
@@ -15120,6 +15979,9 @@
           "the static or member is const, final or never written after initialisation",
           "writes are protected by a lock or use atomics",
           "the state written is local, thread-local or per-request"
+        ],
+        "typescript": [
+          "the provider is declared with scope: Scope.REQUEST, or per-request data stays in local variables or the request object"
         ],
         "rust": [
           "only safe Rust is used, so shared statics can be mutated only through Mutex, atomics or other Sync types"
@@ -15146,6 +16008,9 @@
         ],
         "javascript": [
           "a getter or method returns an internal array or object directly, or code outside a class touches its private-by-convention fields"
+        ],
+        "typescript": [
+          "code reaches another class's private or protected member through obj['field'] bracket access, an as any cast or a @ts-ignore"
         ],
         "rust": [
           "a pub function returns &mut to an internal field, letting callers break the type's invariants"
@@ -15190,6 +16055,9 @@
       "present_when": {
         "any": [
           "a catch or except block with no statements, or only a comment, so errors are silently ignored"
+        ],
+        "cpp": [
+          "catch (...) {} or catch (const std::exception&) {} with an empty body or only a comment"
         ],
         "python": [
           "except: pass or except Exception: pass"
@@ -15350,6 +16218,9 @@
           "connect, recv, read or SSL_read on a blocking socket with no SO_RCVTIMEO, poll or select deadline",
           "curl_easy_perform with no CURLOPT_TIMEOUT or CURLOPT_CONNECTTIMEOUT set"
         ],
+        "cpp": [
+          "a synchronous Boost.Asio connect, read or read_until on a socket with no deadline timer or socket timeout option set"
+        ],
         "javascript": [
           "a synchronous child_process.execSync or spawnSync to a remote command with no timeout option, or a request client configured with timeout 0"
         ],
@@ -15365,6 +16236,9 @@
           "a finite timeout or deadline is passed to the call or set on the client or socket before it",
           "the call is to a local in-process function or local file, not a remote resource",
           "the call is asynchronous and the function wraps it in a timeout or cancellation"
+        ],
+        "cpp": [
+          "asynchronous Asio operations are paired with a steady_timer that cancels them when the deadline passes"
         ],
         "javascript": [
           "the call uses fetch or another promise-based API in non-blocking code with an AbortSignal timeout"
@@ -15399,6 +16273,9 @@
         ],
         "javascript": [
           "the release call happens in finally or the object is returned or stored for later disposal"
+        ],
+        "typescript": [
+          "the object is bound with a using or await using declaration and implements Symbol.dispose or Symbol.asyncDispose"
         ],
         "python": [
           "the object is used in a with statement or closed in finally",
@@ -15544,6 +16421,9 @@
           "code assumes a particular type width or signedness, for example storing a pointer or long in a 32-bit field or relying on plain char being signed",
           "floating-point values are compared or serialised bit for bit as if their encoding were fixed"
         ],
+        "cpp": [
+          "reinterpret_cast<char*> of an integer or struct is passed to ostream::write or istream::read for a file or socket format"
+        ],
         "python": [
           "struct.pack or struct.unpack uses native mode ('@' or no prefix) for data written to files or the network, or array/ctypes buffers are shared across machines"
         ],
@@ -15561,6 +16441,9 @@
         ],
         "c": [
           "fixed-width types from stdint.h and sizeof are used wherever width matters, with hton/ntoh style conversions at boundaries"
+        ],
+        "cpp": [
+          "std::endian is checked and std::byteswap or explicit shifts convert std::uint32_t style fixed-width fields at boundaries"
         ],
         "python": [
           "struct formats use an explicit '<', '>' or '!' prefix, or int.to_bytes/from_bytes give the byte order"
@@ -16138,6 +17021,9 @@
         ],
         "c": [
           "memcmp, strcmp or strncmp is used on secrets, as they may stop at the first differing byte"
+        ],
+        "cpp": [
+          "std::string or std::vector operator==, compare() or std::equal is used on the secret, as these may stop at the first difference"
         ]
       },
       "not_present_when": {
@@ -16185,6 +17071,9 @@
         ],
         "c": [
           "a signal handler, interrupt routine or callback can call a function that uses static buffers, malloc or stdio while it is running"
+        ],
+        "cpp": [
+          "a loop over a std::vector of listeners calls each one while a callback can add or remove entries in that same vector"
         ],
         "javascript": [
           "an event is emitted or a callback invoked inside a loop over internal state that the listener can modify by calling back in"
@@ -16318,12 +17207,18 @@
           "a count or length from a request, file header or message decides how much memory to allocate, how many items to process or how many bytes to read",
           "a quantity such as an order amount or number of retries is accepted without checking it is positive and below a maximum",
           "a size field from a parsed structure is trusted instead of comparing it with the data actually received"
+        ],
+        "typescript": [
+          "a quantity typed number in a DTO or interface has no @Min/@Max or schema bound; the number type accepts negatives and any size"
         ]
       },
       "not_present_when": {
         "any": [
           "the quantity is checked against both a minimum and an explicit maximum before use",
           "the quantity is computed internally from data the function already holds, such as len of a received buffer"
+        ],
+        "typescript": [
+          "a schema such as z.number().int().min(1).max(100), or class-validator @Min and @Max under a ValidationPipe, bounds the value"
         ]
       },
       "distinguish_from": {
@@ -16383,17 +17278,31 @@
         "javascript": [
           "a request field is used with string methods, arithmetic or as an object key when it could be an array or object, for example from qs parsing"
         ],
+        "typescript": [
+          "a request field declared string or number in a DTO or interface is used as that type with no typeof check, though at run time it may be an array or object",
+          "a value typed any or unknown is cast with as string, as number or as T and then used"
+        ],
         "python": [
           "a value from json.loads or request data is used assuming str or int without isinstance or conversion with error handling"
         ],
         "c": [
           "a tagged message or union member is read without checking the type tag"
+        ],
+        "cpp": [
+          "a JSON value (for example nlohmann::json) is read with get<T>(), operator[] or implicit conversion without is_number(), is_string() or contains() checks",
+          "a std::variant is read with std::get, or a union member is read, without checking holds_alternative or index()"
         ]
       },
       "not_present_when": {
         "any": [
           "the value's type is checked, or it is converted with failure handling, before use",
           "a strict schema or typed deserialiser has already enforced the type in this function"
+        ],
+        "typescript": [
+          "a schema parse or a typeof, Array.isArray or instanceof type guard confirms the type before the value is used"
+        ],
+        "cpp": [
+          "std::holds_alternative or the JSON type predicates are tested, or a typed from_json runs inside a try that handles type errors"
         ],
         "rust": [
           "the value comes from a typed deserialiser such as serde into a concrete struct"
@@ -16534,6 +17443,9 @@
         "javascript": [
           "a recursive merge, deep copy or path setter such as obj[a][b] = v walks keys from parsed input without rejecting __proto__, constructor and prototype",
           "a key path string from input is split on '.' or '[' and used to assign into an ordinary object"
+        ],
+        "typescript": [
+          "a merge or path setter typed with Record<string, any> or an index signature walks keys from input; the type does not exclude __proto__ or constructor"
         ]
       },
       "not_present_when": {
@@ -16541,6 +17453,9 @@
           "the keys __proto__, constructor and prototype are rejected or skipped before assignment",
           "the target is created with Object.create(null) or is a Map, and keys are checked with hasOwnProperty",
           "the keys come only from the program's own constants, not input"
+        ],
+        "typescript": [
+          "the target is a Map<string, T>, or keys are checked against a literal union of allowed names at run time"
         ]
       },
       "distinguish_from": {
@@ -16557,6 +17472,9 @@
         "c": [
           "a libuv, libevent or epoll callback calls blocking read, write, sleep, connect or DNS lookup on a blocking descriptor"
         ],
+        "cpp": [
+          "an Asio, Qt or coroutine handler calls std::this_thread::sleep_for, a blocking future get() or a synchronous socket read"
+        ],
         "javascript": [
           "a request handler or async function uses fs.readFileSync, execSync, child_process sync calls, or a synchronous crypto such as pbkdf2Sync"
         ],
@@ -16572,6 +17490,9 @@
           "only non-blocking or awaited async equivalents are used",
           "blocking work is moved to a worker thread or pool, such as run_in_executor, spawn_blocking or a worker thread",
           "the function is not called from an event loop, such as a start-up script or a CLI tool"
+        ],
+        "cpp": [
+          "the blocking work is posted to a thread pool, for example with asio::post or std::async, and the handler does not wait on it"
         ]
       },
       "distinguish_from": {
@@ -16654,6 +17575,9 @@
           "the shift count is a constant in range, or is checked or masked so it stays below the bit width",
           "the shift is on a type wide enough for every possible count"
         ],
+        "cpp": [
+          "the count is checked against std::numeric_limits<T>::digits, or std::rotl and std::rotr are used, which accept any count"
+        ],
         "javascript": [
           "BigInt shifts, which have no 32-bit width limit"
         ]
@@ -16724,6 +17648,10 @@
         "c": [
           "free, fclose, close or a destroy call on a pointer or descriptor that an earlier path already released and did not reset"
         ],
+        "cpp": [
+          "delete or delete[] is applied to a raw member pointer in two places, such as a destructor and a release method, without nulling it",
+          "two std::unique_ptr or std::shared_ptr objects are constructed from the same raw pointer"
+        ],
         "javascript": [
           "fs.closeSync or fs.close on the same fd twice, or a lock release called in both a catch and a finally block"
         ],
@@ -16741,6 +17669,9 @@
         "any": [
           "the handle is set to NULL, -1 or None right after release and checked before any further release",
           "each path releases the resource exactly once"
+        ],
+        "cpp": [
+          "a single std::unique_ptr, std::fstream or other RAII owner releases the resource once in its destructor"
         ],
         "python": [
           "closing a Python file or socket object twice, which is a harmless no-op"
@@ -16827,6 +17758,9 @@
         "c": [
           "strtol, strtoul or sscanf %i is called with base 0 on input expected to be decimal, or inet_aton/inet_addr parses user addresses"
         ],
+        "cpp": [
+          "std::stoi, std::stol or std::stoul is called with base 0 on input meant to be decimal"
+        ],
         "javascript": [
           "parseInt is called without a radix, or Number() parses input where leading zeros or 0x would change meaning"
         ],
@@ -16842,6 +17776,9 @@
           "an explicit base of 10 is passed and leading zeros or prefixes are rejected",
           "a strict address parser that refuses non-decimal octets is used",
           "the input is a fixed constant rather than external data"
+        ],
+        "cpp": [
+          "std::from_chars or std::stoi is called with base 10, which accepts no 0x prefix"
         ]
       }
     },
@@ -17541,12 +18478,18 @@
         "c": [
           "buf[i] or ptr + n uses an index from a message, length field or parameter without a range test",
           "a pointer returned by a lookup or allocation is dereferenced without a NULL test"
+        ],
+        "cpp": [
+          "operator[] on a std::vector or std::array with an index from input, or *opt or -> on a std::optional or smart pointer with no prior check"
         ]
       },
       "not_present_when": {
         "any": [
           "the operand range is proven in the function: a non-zero constant divisor, an index masked to the array size, or a test with an early return on every path",
           "the operation cannot fail in this language, such as Python division, which raises a clean exception"
+        ],
+        "cpp": [
+          "at() is used or the index is compared with size(), and optionals and smart pointers are tested before access"
         ],
         "rust": [
           "checked_div, checked_shl, get() or safe indexing, which report failure rather than corrupting results"
@@ -17663,6 +18606,9 @@
           "library or system calls such as fopen, fread, fwrite, fclose, malloc, read, write or strtol are used without testing their result",
           "a status out-parameter is passed but never read after the call",
           "errno is not cleared before, or not examined after, a call that reports errors only through errno"
+        ],
+        "cpp": [
+          "std::from_chars whose ec is never read, stream extraction with no fail() test, or a std::filesystem call whose std::error_code argument is never examined"
         ]
       },
       "not_present_when": {
@@ -17670,6 +18616,9 @@
           "each fallible call's return value or status argument is tested and failure is handled before results are used",
           "the result is cast to (void) with a clear reason that failure does not matter",
           "the called function cannot fail, such as memcpy or strlen"
+        ],
+        "cpp": [
+          "the stream state or error_code is tested, or the throwing overload is used and its exception is allowed to propagate"
         ]
       },
       "distinguish_from": {
@@ -17688,6 +18637,9 @@
           "a #define NAME(args) inside or used by the function computes a value, such as MAX, MIN, ABS, SQUARE or CLAMP",
           "a call site passes x++, an assignment or a call into a macro that mentions that parameter more than once",
           "a macro body uses a parameter without parentheses so precedence can change the result"
+        ],
+        "cpp": [
+          "#define SQUARE(x) or MAX(a, b) in C++ code, where std::max, a constexpr function or a template would do the same job"
         ]
       },
       "not_present_when": {
@@ -17806,12 +18758,18 @@
           "GCC or Clang extensions such as __attribute__, typeof, statement expressions ({ ... }), case ranges 1 ... 5, nested functions or the a ?: b form",
           "MSVC extensions such as __declspec, __int64 or __try/__except",
           "inline assembly or compiler-specific #pragma directives in the body"
+        ],
+        "cpp": [
+          "variable-length arrays in C++, __PRETTY_FUNCTION__, __FUNCSIG__ or __builtin_expect used directly in the body"
         ]
       },
       "not_present_when": {
         "c": [
           "only standard language features are used, including standard attributes such as [[nodiscard]] and _Static_assert",
           "the extension is hidden behind a macro selected by compiler detection with a portable fallback"
+        ],
+        "cpp": [
+          "standard alternatives are used, such as [[likely]], std::source_location or std::vector for run-time sizes"
         ]
       },
       "distinguish_from": {
@@ -17827,12 +18785,18 @@
           "a shift by a negative amount or by at least the width of the type, or a left shift of a negative signed value",
           "reading an uninitialised local, using a pointer after the object's lifetime ends, or modifying a const object through a cast",
           "violating strict aliasing by reading an object through a pointer to an unrelated type"
+        ],
+        "cpp": [
+          "reinterpret_cast type punning, writing through const_cast to an object defined const, or dereferencing end() or an invalidated iterator"
         ]
       },
       "not_present_when": {
         "c": [
           "arithmetic is unsigned or range-checked before it can overflow, and shift counts are constants within the type's width",
           "every object is initialised before it is read and accessed only through compatible types"
+        ],
+        "cpp": [
+          "std::bit_cast or memcpy is used for punning, and iterators are refreshed after every container change"
         ]
       },
       "distinguish_from": {
@@ -17849,6 +18813,9 @@
           "statements follow return, break, continue or goto in the same block, such as cleanup after a return",
           "code follows a call to a function that never returns, such as exit, abort or a fatal-error handler",
           "a branch condition is always false given the code, such as an unsigned compared below zero or a value just set"
+        ],
+        "cpp": [
+          "statements after a throw in the same block, or after a call to a [[noreturn]] function such as std::terminate"
         ]
       },
       "not_present_when": {
@@ -17871,6 +18838,10 @@
           "an expression statement with no side effect, such as x == 0; where x = 0; was meant, or a + b; or *p;",
           "a value is computed, such as a mask or shifted result, and then neither stored nor returned",
           "a call to a pure function, such as strlen or abs, is made with its result ignored"
+        ],
+        "cpp": [
+          "v.empty(); written where v.clear() was meant, or std::move(x); standing alone as a statement",
+          "an unnamed guard temporary such as std::lock_guard<std::mutex>{m}; that unlocks at the end of the same statement, leaving the following code unprotected"
         ]
       },
       "not_present_when": {
@@ -17892,6 +18863,9 @@
         "c": [
           "a typedef declared inside the function body is never used for a variable, cast, parameter or sizeof in that body",
           "a local alias such as typedef uint16_t sample_t; exists while the code uses the raw type instead"
+        ],
+        "cpp": [
+          "a local alias such as using Index = std::size_t; that nothing later in the body refers to"
         ]
       },
       "not_present_when": {
@@ -18074,6 +19048,9 @@
           "a block or for-loop initialiser declares a name already used by a parameter or an outer local, such as a second int i or status",
           "a local is named the same as a file-scope variable or function used in the same function",
           "after the inner block the outer variable is used as if the inner assignment had updated it"
+        ],
+        "cpp": [
+          "a member function or constructor parameter or local has the same name as a data member, and the member is then used unqualified, as in size = size;"
         ]
       },
       "not_present_when": {
@@ -18365,6 +19342,9 @@
         "c": [
           "a pointer parameter such as char *buf or struct s *p is only read from in the function body",
           "a local pointer to non-const data is used only for reading"
+        ],
+        "cpp": [
+          "a parameter taken by non-const reference, such as std::string& or std::vector<T>&, that the body only reads"
         ]
       },
       "not_present_when": {
@@ -18372,6 +19352,9 @@
           "the function writes through the pointer, or passes it to a function that takes a non-const pointer",
           "the pointed-to type is already const-qualified",
           "the signature is fixed by a callback type or external API that requires a non-const pointer"
+        ],
+        "cpp": [
+          "the parameter is const T&, std::string_view or std::span<const T>"
         ]
       }
     },
@@ -18547,6 +19530,9 @@
           "a wider integer expression is assigned, returned or passed to a narrower type without a cast",
           "a floating value is assigned to an integer, or a signed value to an unsigned object, implicitly",
           "an integer is stored into a bool or enum variable without a cast"
+        ],
+        "cpp": [
+          "v.size() or s.length() assigned to int or unsigned, or a double assigned to an int member, without static_cast"
         ]
       },
       "not_present_when": {
@@ -18554,6 +19540,9 @@
           "source and destination types have the same kind and the destination is at least as wide",
           "an explicit cast states the intended conversion",
           "the value is a constant that fits the destination type"
+        ],
+        "cpp": [
+          "brace initialisation such as int n{x}, which rejects narrowing at compile time, or static_cast states the conversion"
         ]
       },
       "distinguish_from": {
@@ -18569,6 +19558,9 @@
           "a signed int is compared with a size_t, unsigned or sizeof value, such as if (n < sizeof buf) where n may be negative",
           "signed and unsigned values are added, subtracted or shifted together and the result is used as a size or index",
           "the two branches of ?: have different signedness or one is floating"
+        ],
+        "cpp": [
+          "a signed int loop counter compared with v.size() or s.length(), as in for (int i = 0; i < v.size(); ++i)"
         ]
       },
       "not_present_when": {
@@ -18576,6 +19568,9 @@
           "both operands have the same signedness and kind",
           "one operand is explicitly cast after its sign or range has been checked",
           "the signed operand is a non-negative constant"
+        ],
+        "cpp": [
+          "the counter is std::size_t, or std::ssize or std::cmp_less from C++20 makes the comparison safe"
         ]
       },
       "distinguish_from": {
@@ -18590,6 +19585,9 @@
           "an arbitrary integer is cast to an enum type without checking it is a valid enumerator",
           "a value is cast to bool or _Bool, or a bool is cast to an arithmetic type for calculation",
           "a float or double is cast to char or to an enum"
+        ],
+        "cpp": [
+          "static_cast<SomeEnum>(n) or a C-style cast on an integer from input without checking it names a valid enumerator"
         ]
       },
       "not_present_when": {
@@ -18673,12 +19671,18 @@
           "a function pointer is cast to another function signature and called through",
           "a function pointer is converted to void * or an integer, or such a value is cast back to a function pointer",
           "dlsym or GetProcAddress results are cast to a function type that may not match"
+        ],
+        "cpp": [
+          "reinterpret_cast between function pointer types or to void*, such as on a dlsym result, followed by a call through it"
         ]
       },
       "not_present_when": {
         "c": [
           "function pointers are assigned only between identical types",
           "the cast is part of a documented platform idiom and the target type exactly matches the real function"
+        ],
+        "cpp": [
+          "the callable is stored with its real type in std::function or a template parameter"
         ]
       },
       "distinguish_from": {
@@ -18712,6 +19716,9 @@
           "a char or uint8_t buffer pointer is cast to int *, uint32_t *, double * or a struct pointer and dereferenced, risking misalignment",
           "a pointer to one struct type is cast to an unrelated struct type and its fields accessed",
           "a float * is cast to int * (or the reverse) to reinterpret bits"
+        ],
+        "cpp": [
+          "reinterpret_cast<uint32_t*>(buf.data()) or reinterpret_cast between unrelated class pointers, then dereferenced"
         ]
       },
       "not_present_when": {
@@ -18719,6 +19726,9 @@
           "memcpy into a properly typed object is used to reinterpret bytes",
           "the cast is to char *, unsigned char * or void *, which may alias anything",
           "the target is the first member of the struct or a compatible type per the standard layout"
+        ],
+        "cpp": [
+          "std::bit_cast or std::memcpy into a typed object, or dynamic_cast within one class hierarchy, is used"
         ]
       },
       "distinguish_from": {
@@ -18842,6 +19852,9 @@
           "null pointers are always written as NULL in C or nullptr in C++",
           "the 0 is assigned to or compared with an integer, size or character variable",
           "the pointer is tested implicitly, as in if (p) or if (!p)"
+        ],
+        "cpp": [
+          "nullptr is used for every null pointer, and smart pointers are emptied with reset() or = nullptr"
         ]
       },
       "distinguish_from": {
@@ -18856,6 +19869,9 @@
           "bitwise &, | or ^ combined with comparison, arithmetic or shift operators without parentheses",
           "&& and || mixed in one condition without parentheses",
           "shifts combined with + or - without parentheses, or a ternary nested inside another expression unparenthesised"
+        ],
+        "cpp": [
+          "<< or >> used for stream insertion or extraction alongside &, |, ^ or ?: without parentheses, such as std::cout << flags & MASK"
         ]
       },
       "not_present_when": {
@@ -18899,12 +19915,18 @@
           "a for header updates or initialises several variables with commas, as in i++, j--",
           "a condition, return or assignment evaluates two expressions joined by a comma, as in while (c = get(), c != EOF)",
           "a macro expands to expressions joined by commas"
+        ],
+        "cpp": [
+          "a[i, j] written as if indexing two dimensions, which before C++23 evaluates i and discards it"
         ]
       },
       "not_present_when": {
         "c": [
           "commas only separate function arguments, initialiser elements, declarators or template parameters",
           "multiple actions are written as separate statements"
+        ],
+        "cpp": [
+          "commas only separate template arguments, lambda captures or constructor initialiser list entries"
         ]
       },
       "distinguish_from": {
@@ -18941,6 +19963,9 @@
           "an array or struct initialiser lists calls that change shared state, such as { next(), next(), next() } or { read_fifo(), read_fifo() }",
           "an initialiser uses increments or assignments, such as { i++, i++ } or { x = 1, x + 1 }",
           "an initialiser element reads a volatile object or a variable that another element of the same list modifies"
+        ],
+        "cpp": [
+          "a parenthesised constructor call such as T(next(), next()), whose argument order is unspecified, unlike the braced form T{next(), next()}"
         ]
       },
       "not_present_when": {
@@ -18962,6 +19987,9 @@
           "an object is changed twice, or changed and read, in one expression, as in a[i] = i++, x = x++ + 1 or i = ++i + i",
           "function arguments depend on each other's side effects, as in f(i++, i) or g(read_reg(), read_reg())",
           "two calls in one expression change and read the same global, static or volatile object, such as x = get() - get()"
+        ],
+        "cpp": [
+          "f(std::move(s), s.size()) where one argument reads an object another by-value parameter moves from"
         ]
       },
       "not_present_when": {
@@ -18969,6 +19997,9 @@
           "each variable is modified at most once per expression and not read elsewhere in it",
           "the side effects are separated by &&, ||, ?:, the comma operator or separate statements",
           "the calls in the expression do not share or change state"
+        ],
+        "cpp": [
+          "the code targets C++17 or later and the only ordering is between operands of <<, >>, = or [], which that revision sequences"
         ]
       },
       "distinguish_from": {
@@ -19044,6 +20075,9 @@
           "sizeof is applied to an expression containing ++, --, = or a compound assignment",
           "sizeof is applied to a function call or dereferenced call result, such as sizeof(*next())",
           "a macro passes an argument with a side effect into sizeof"
+        ],
+        "cpp": [
+          "an increment, assignment or call expected to run placed inside decltype(...) or noexcept(...), whose operands are never evaluated"
         ]
       },
       "not_present_when": {
@@ -19083,12 +20117,18 @@
           "the loop counter is assigned, incremented or decremented inside the body, such as i++ to skip an element or i = n to exit",
           "the condition tests an object that the body changes, such as a length, pointer or flag",
           "the loop has several counters, a floating-point counter, or a header clause that does unrelated work"
+        ],
+        "cpp": [
+          "an iterator for loop that calls c.erase(it) in the body and also advances ++it in the header"
         ]
       },
       "not_present_when": {
         "c": [
           "each for loop sets one counter in the first clause, tests it against an unchanged bound and changes it only in the third clause",
           "early exit is done with break rather than by modifying the counter"
+        ],
+        "cpp": [
+          "it = c.erase(it) is the only advance on the erase path, or std::erase_if is used"
         ]
       }
     },
@@ -19122,12 +20162,18 @@
           "a condition is a bare scalar or pointer, such as if (count), if (ptr) or while (n--)",
           "a condition tests a call returning a status code or comparison result, such as if (strcmp(a, b)) or if (!memcmp(...))",
           "a condition is a bitmask or assignment, such as if (flags & MASK) or while ((c = getc(f)))"
+        ],
+        "cpp": [
+          "a smart pointer, std::optional or stream object tested directly, as in if (opt), if (p) or while (std::getline(in, line))"
         ]
       },
       "not_present_when": {
         "c": [
           "every condition is a relational, equality or logical expression, or a bool variable or bool-returning call",
           "pointers are compared explicitly with NULL or nullptr and counts with 0"
+        ],
+        "cpp": [
+          "the condition calls has_value(), compares with nullptr, or uses a bool member such as empty() or fail()"
         ]
       },
       "distinguish_from": {
@@ -19421,6 +20467,9 @@
           "the function is declared with ... and reads arguments with va_start and va_arg",
           "a va_list is declared, received as a parameter or passed on to vprintf-style functions",
           "va_arg reads a type that default promotion changes, such as float, char or short, or va_end is missing on a path"
+        ],
+        "cpp": [
+          "a C-style ... parameter in C++ code, or a class object such as std::string passed through ... to printf-style functions"
         ]
       },
       "not_present_when": {
@@ -19441,6 +20490,9 @@
           "the function body contains a call to the function's own name",
           "the function calls a helper that is visibly part of a cycle calling back into this function",
           "a function pointer or callback that refers back to this function is invoked"
+        ],
+        "cpp": [
+          "a lambda that calls itself through a captured std::function, or a member function that calls itself on another object of its own class"
         ]
       },
       "not_present_when": {
@@ -19523,6 +20575,9 @@
         "c": [
           "an expression statement consists only of a call to a function that returns a value, with no assignment, test or (void) cast",
           "the discarded value is a status, count or result from a driver, queue, configuration or library function"
+        ],
+        "cpp": [
+          "std::remove, std::unique or std::remove_if called as a statement without erase, or v.empty() written as a statement"
         ]
       },
       "not_present_when": {
@@ -19530,6 +20585,9 @@
           "every non-void call has its result used or is explicitly cast to (void)",
           "the called function returns void",
           "the call is to a function whose result is conventionally ignored and is exempt by the project rule, such as printf, with a cast or comment"
+        ],
+        "cpp": [
+          "the result is passed to erase, stored, tested, or deliberately discarded with static_cast<void>"
         ]
       },
       "distinguish_from": {
@@ -19562,6 +20620,9 @@
           "a pointer is advanced by a step that can skip past the one-past-the-end position, such as p += 2 in a loop with an odd-length array",
           "a pointer is decremented below the array's first element, for example to begin a reverse loop at p - 1",
           "an end pointer is formed as base + n where n can exceed the array length"
+        ],
+        "cpp": [
+          "an iterator moved past end() with it += 2 or std::next(it, n), or --begin() formed to start a reverse loop"
         ]
       },
       "not_present_when": {
@@ -19569,6 +20630,9 @@
           "every computed pointer stays between the first element and one past the last",
           "the loop compares an index before forming the pointer",
           "offsets are checked against the array length before the arithmetic"
+        ],
+        "cpp": [
+          "reverse traversal uses rbegin() and rend(), or std::distance to end() is checked before advancing"
         ]
       },
       "distinguish_from": {
@@ -19584,6 +20648,9 @@
           "p - q where p and q come from separate allocations, separate variables, two struct instances, or a stack object and a heap block",
           "the distance between two global or static variables is computed by pointer subtraction",
           "a containing struct is located by subtracting pointers rather than using offsetof"
+        ],
+        "cpp": [
+          "iterators from two different containers subtracted or passed together to std::distance, such as std::distance(a.begin(), b.end())"
         ]
       },
       "not_present_when": {
@@ -19731,6 +20798,9 @@
           "memcpy, strcpy, strncpy or strcat where the source and destination point into the same buffer at nearby offsets",
           "sprintf or snprintf whose destination buffer is also one of its %s arguments",
           "assignment between overlapping union members or overlapping structs through pointers"
+        ],
+        "cpp": [
+          "std::copy where the destination start lies inside the source range [first, last), or memcpy between overlapping parts of one std::vector"
         ]
       },
       "not_present_when": {
@@ -19738,6 +20808,9 @@
           "memmove is used for the copy, which handles overlap",
           "source and destination are distinct objects or provably separate ranges",
           "the copy goes through a separate temporary buffer"
+        ],
+        "cpp": [
+          "std::copy_backward shifts elements right, std::copy shifts them left, or std::memmove is used"
         ]
       },
       "distinguish_from": {
@@ -20082,6 +21155,9 @@
         "c": [
           "a call to setjmp, sigsetjmp, longjmp or siglongjmp",
           "a jmp_buf or sigjmp_buf variable is declared, passed or stored"
+        ],
+        "cpp": [
+          "longjmp across frames holding objects with non-trivial destructors, such as std::string or std::lock_guard, whose destructors are skipped"
         ]
       },
       "not_present_when": {
@@ -20098,6 +21174,9 @@
         "c": [
           "a call to signal() or raise() appears in the function",
           "the function is a handler that reads or writes a sig_atomic_t variable"
+        ],
+        "cpp": [
+          "std::signal or std::raise from <csignal>, or a handler that reads or writes a std::sig_atomic_t"
         ]
       },
       "not_present_when": {
@@ -20138,6 +21217,9 @@
           "atoi, atol, atoll or atof is called on a string from input, a file, a protocol field or command-line arguments",
           "a macro or wrapper visibly expands to one of these functions",
           "the result is used directly with no way to tell a zero result from a parse failure"
+        ],
+        "cpp": [
+          "std::atoi(s.c_str()) or std::atof on a std::string, or std::stringstream >> n with no fail() test after it"
         ]
       },
       "not_present_when": {
@@ -20159,6 +21241,9 @@
           "a call to abort(), exit() or _Exit()",
           "a call to getenv() or secure_getenv()",
           "a call to system()"
+        ],
+        "cpp": [
+          "std::exit, std::quick_exit, std::abort, std::getenv or std::system from <cstdlib>"
         ]
       },
       "not_present_when": {
@@ -20176,12 +21261,18 @@
         "c": [
           "a call to qsort, qsort_r or qsort_s",
           "a call to bsearch or bsearch_s"
+        ],
+        "cpp": [
+          "std::qsort or std::bsearch from <cstdlib>, especially on elements that are not trivially copyable"
         ]
       },
       "not_present_when": {
         "c": [
           "no qsort or bsearch call appears; sorting uses std::sort, a hand-written bounded algorithm or a project routine",
           "the name refers to a local function or macro unrelated to the standard library"
+        ],
+        "cpp": [
+          "std::sort, std::stable_sort, std::binary_search or std::lower_bound is used with a comparator"
         ]
       }
     },
@@ -20193,6 +21284,9 @@
           "time, clock, difftime or mktime results are used as if time_t or clock_t had a known unit, width or epoch",
           "localtime, gmtime, ctime or asctime is called and the returned pointer is kept or used after another such call",
           "strftime or wcsftime output is relied on for a fixed format, or time arithmetic is done directly on time_t values"
+        ],
+        "cpp": [
+          "std::localtime, std::gmtime, std::ctime or std::time from <ctime>, with the returned pointer kept across calls"
         ]
       },
       "not_present_when": {
@@ -20200,6 +21294,9 @@
           "time is read through a platform or RTOS timer API, or a project time module, rather than <time.h>",
           "re-entrant forms such as localtime_r or gmtime_r are used and difftime is used for intervals",
           "the function makes no use of time or date facilities"
+        ],
+        "cpp": [
+          "time comes from std::chrono clocks and durations, such as steady_clock for intervals"
         ]
       }
     },
@@ -20259,6 +21356,9 @@
           "free receives a pointer that has been advanced past the start of its allocation",
           "a pointer is freed again after an earlier free or a realloc that already released it",
           "memory from new, a pool or a library allocator is released with free, or malloc memory with delete"
+        ],
+        "cpp": [
+          "delete on memory from new[] or delete[] on memory from new, or a smart pointer given a pointer it does not own, such as &local or another smart pointer's get()"
         ]
       },
       "not_present_when": {
@@ -20266,6 +21366,9 @@
           "every freed pointer is the original value returned by the matching allocator and is freed once",
           "the pointer is set to NULL after release",
           "release goes through the allocator's own matching function or a smart pointer"
+        ],
+        "cpp": [
+          "the allocation is owned by std::vector, std::make_unique or std::make_shared"
         ]
       },
       "distinguish_from": {
@@ -20300,6 +21403,9 @@
           "fprintf, fputs, fputc, fwrite or putc is called on a FILE * that this function opened with mode \"r\" or \"rb\", or on stdin",
           "a FILE * parameter is written to although the function itself only reads from it or reopens it with freopen in a read mode",
           "the mode string passed to fopen is chosen at run time and a write follows regardless of which mode was used"
+        ],
+        "cpp": [
+          "a std::fstream opened with std::ios::in only is written with << or write()"
         ]
       },
       "not_present_when": {
@@ -20307,6 +21413,9 @@
           "the stream was opened with a mode allowing output, such as \"w\", \"a\", \"r+\" or \"w+\"",
           "the FILE * is a parameter whose mode the function cannot see, and nothing shows it was opened read-only",
           "the write goes to a different stream such as stdout or stderr"
+        ],
+        "cpp": [
+          "the std::fstream or std::ofstream was opened with std::ios::out or std::ios::app"
         ]
       }
     },
@@ -20477,6 +21586,9 @@
         "c": [
           "float sum += a[i] * b[i], or double total += (float)(x * y) that narrows each product first"
         ],
+        "cpp": [
+          "std::accumulate(v.begin(), v.end(), 0) or with 0.0f on double data, so the running sum takes the int or float type of the initial value"
+        ],
         "python": [
           "numpy float32 or float16 arrays summed or dotted with a float32 dtype accumulator"
         ],
@@ -20491,6 +21603,9 @@
         "any": [
           "the accumulator is wider than the data, such as double for float data, and products are formed in that wider type",
           "the loop is short or the accuracy needed is low"
+        ],
+        "cpp": [
+          "std::accumulate or std::inner_product starts from a double such as 0.0, or from a wider type than the data"
         ],
         "python": [
           "plain Python floats, which are double precision, with double precision data"
@@ -20579,6 +21694,9 @@
         "c": [
           "DBL_EPSILON or FLT_EPSILON is used directly as the absolute tolerance without scaling by the operands"
         ],
+        "cpp": [
+          "std::abs(a - b) < std::numeric_limits<double>::epsilon() used as an absolute tolerance for values of any magnitude"
+        ],
         "rust": [
           "(a - b).abs() < f64::EPSILON or a similar fixed constant decides equality"
         ]
@@ -20640,6 +21758,9 @@
           "values are checked with isfinite, Number.isFinite, math.isfinite or is_finite at the boundary and rejected otherwise",
           "the function only handles integers or values validated earlier in the same function",
           "the function is internal arithmetic that neither receives external input nor emits results"
+        ],
+        "typescript": [
+          "a schema such as z.number().finite() or class-validator @IsNumber() with its default allowNaN and allowInfinity false checks the value"
         ]
       },
       "distinguish_from": {
@@ -20851,6 +21972,9 @@
         "c": [
           "printf, snprintf or std::ostream with default precision used to save data"
         ],
+        "cpp": [
+          "std::to_string(double), which before C++26 formats like %f with six decimal places, used to save or transmit the value"
+        ],
         "javascript": [
           "toFixed or toPrecision with few digits used for serialisation rather than display"
         ],
@@ -20866,6 +21990,9 @@
           "shortest round-trip formatting is used (for example %.17g, %a, repr(), JSON.stringify, Rust's default Display or ryu)",
           "the text is only for human display and is never parsed back",
           "the value is stored in a binary format that keeps the exact bits"
+        ],
+        "cpp": [
+          "std::to_chars, std::format(\"{}\", x) or a stream with std::setprecision(std::numeric_limits<double>::max_digits10) is used"
         ]
       },
       "distinguish_from": {
@@ -20975,6 +22102,9 @@
         "c": [
           "(double)(a / b), 100 * done / all stored to a double, or 1 / n where n is an int"
         ],
+        "cpp": [
+          "double mean = sum / v.size() where sum is an integer, or an integer std::accumulate result divided by a count"
+        ],
         "rust": [
           "(a / b) as f64 with integer a and b"
         ],
@@ -21008,8 +22138,14 @@
         "c": [
           "an integer id, 64-bit counter or nanosecond timestamp is held in a float or double"
         ],
+        "cpp": [
+          "a std::chrono nanoseconds count() or a 64-bit id converted to double, for example through a JSON number API"
+        ],
         "javascript": [
           "a 64-bit id or large integer from JSON, a database or BigInt is converted to Number, or JSON.parse reads ids above 2^53"
+        ],
+        "typescript": [
+          "an entity or interface types a 64-bit id or bigint column as number, or Number() converts such a value"
         ],
         "python": [
           "an integer id or timestamp is converted with float(), divided with / , or stored in a float numpy array"
@@ -21022,6 +22158,9 @@
         "any": [
           "the values are known to stay well inside the exact range (2^24 for float, 2^53 for double)",
           "integers are kept in an integer type, BigInt, string or Decimal"
+        ],
+        "typescript": [
+          "the value is typed bigint or kept as a string from the database or JSON through to its use"
         ],
         "python": [
           "the value stays a Python int and integer division // is used"
@@ -21113,6 +22252,9 @@
           "fesetround, fesetenv, feenableexcept or _controlfp is called and a return or error path skips restoring the saved value",
           "MXCSR or FPCR is written via intrinsics such as _mm_setcsr and not reset before every return"
         ],
+        "cpp": [
+          "std::fesetround is called and an exception can be thrown before the previous mode is restored"
+        ],
         "python": [
           "decimal.getcontext() precision or rounding is changed in place, or numpy.seterr is called, with no restore in finally or a context manager"
         ],
@@ -21127,6 +22269,9 @@
         "any": [
           "the old state is saved and restored on every return and exception path, for example in a scope guard or finally block",
           "the function does not modify any floating-point control state"
+        ],
+        "cpp": [
+          "an RAII guard object restores the saved rounding mode or environment in its destructor"
         ],
         "python": [
           "the change is made inside decimal.localcontext() or numpy.errstate() as a with block"
@@ -21165,6 +22310,9 @@
         ],
         "c": [
           "a SIGFPE handler is installed to catch float division with no feenableexcept or equivalent trap enabling"
+        ],
+        "cpp": [
+          "a try/catch around floating division or std::sqrt expecting std::domain_error or std::overflow_error, which built-in arithmetic never throws"
         ],
         "javascript": [
           "try/catch around x / y expecting division by zero to throw"
@@ -21506,6 +22654,9 @@
         ],
         "c": [
           "assert(ptr != NULL), assert(len < sizeof buf) or assert on a return value as the only check before using external data"
+        ],
+        "cpp": [
+          "assert(i < v.size()) or assert(ptr) as the only guard before v[i] or *ptr on data from input"
         ]
       },
       "not_present_when": {
@@ -21807,6 +22958,9 @@
         ],
         "javascript": [
           "await inside a for loop calls a repository, fetch or SQL query keyed by each item's id"
+        ],
+        "typescript": [
+          "a TypeORM or Prisma call such as findOne or findUnique is awaited inside a for...of over earlier results, or a lazy relation is awaited per item"
         ]
       },
       "not_present_when": {
@@ -21814,6 +22968,9 @@
           "related data is loaded up front with a join, IN clause, batch request or eager loading",
           "the loop works only on data already in memory",
           "the loop runs over a small fixed set, such as a handful of configuration keys"
+        ],
+        "typescript": [
+          "related rows are loaded in one query with relations or include, or ids are batched with In() or a where id in filter"
         ]
       },
       "distinguish_from": {
@@ -21833,6 +22990,9 @@
         ],
         "javascript": [
           "find({}) or findAll() with no limit, or toArray() on a whole cursor, is used"
+        ],
+        "typescript": [
+          "repository.find() or prisma.model.findMany() is called with no take, cursor or narrowing where clause"
         ]
       },
       "not_present_when": {
@@ -21840,6 +23000,9 @@
           "the query has a limit, page size, cursor, keyset pagination or a bounded filter",
           "results are streamed or iterated in batches without collecting them all",
           "the data source is known to be small and fixed, such as an enum table"
+        ],
+        "typescript": [
+          "the query passes take and skip or a cursor, or rows are streamed in batches"
         ]
       },
       "distinguish_from": {
@@ -22011,6 +23174,9 @@
         ],
         "c": [
           "GMP mpq_t or mpz_t, or MPFR at high precision, updated repeatedly in a loop"
+        ],
+        "cpp": [
+          "boost::multiprecision cpp_int or cpp_rational, or GMP mpq_class or mpz_class, updated repeatedly inside a loop"
         ],
         "rust": [
           "num::BigRational, BigInt or similar arbitrary-precision types accumulated in a loop"
@@ -22234,6 +23400,9 @@
         "c": [
           "read(fd, &c, 1) or write(fd, buf, 1) inside a loop on a raw descriptor"
         ],
+        "cpp": [
+          "std::endl or std::flush on std::cout or a std::ofstream inside a loop, forcing a flush for every line"
+        ],
         "python": [
           "writes per item to a file opened with buffering=0, or os.write per item inside a loop"
         ],
@@ -22251,6 +23420,9 @@
         ],
         "c": [
           "stdio streams such as fwrite, fputc or fprintf, which buffer by default"
+        ],
+        "cpp": [
+          "the loop writes '\\n' to a std::ofstream or std::cout, so the stream buffer collects the output"
         ],
         "rust": [
           "the handle is wrapped in BufWriter or BufReader, or stdout().lock() is taken before the loop"
@@ -22279,6 +23451,9 @@
         ],
         "c": [
           "snprintf of a debug message into a buffer before a call that checks the log level"
+        ],
+        "cpp": [
+          "a debug message built with std::ostringstream, std::to_string or std::format, or an argument calling dump() or a serialiser, before the level is checked"
         ]
       },
       "not_present_when": {
@@ -22286,6 +23461,9 @@
           "the message uses only cheap values such as plain variables or literals",
           "the call is guarded by an explicit level check",
           "the log call runs rarely, such as once at start-up or on an error path"
+        ],
+        "cpp": [
+          "only cheap arguments are passed to a lazy formatting call such as spdlog::debug(\"{}\", x), which formats only when the level is enabled"
         ],
         "python": [
           "logger.debug(\"... %s\", value) with lazy argument formatting"
@@ -22365,6 +23543,9 @@
         "c": [
           "while (!flag) {} or while (!flag); on a volatile or atomic flag with no pause, sched_yield or sleep"
         ],
+        "cpp": [
+          "while (!flag.load()) {} on a std::atomic with no std::this_thread::yield, sleep_for or wait"
+        ],
         "javascript": [
           "a while loop on Date.now() to delay, which also blocks the event loop"
         ],
@@ -22379,6 +23560,9 @@
         "any": [
           "the loop sleeps, blocks on a wait, select, channel or future, or yields between checks",
           "a bounded short spin precedes a blocking fallback, as in a spinlock with backoff"
+        ],
+        "cpp": [
+          "std::condition_variable::wait with a predicate, or std::atomic::wait from C++20, blocks until notified"
         ]
       },
       "distinguish_from": {

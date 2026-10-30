@@ -34,7 +34,7 @@ the question for selected entries; see [docs/DETECTION_CARDS.md](../../docs/DETE
 
 | File | Content | Cards | SHA-256 |
 |---|---|---:|---|
-| `cards.json` | detection cards | 1,014 | `73d1e0e7cddac237d47307188c7d6001797c0d4e01f20eaf341078c1f299ccd9` |
+| `cards.json` | detection cards | 1,014 | `646f9cf53022449b63e3f464356b7088b63a0d2ca525b3dff90ed8b6f1da61e3` |
 
 Sources, per card, are the catalog entry it is keyed by and the entries named in its
 `distinguish_from`, as they appear in the files above (MITRE CWE 4.20 for `CWE-` IDs). The

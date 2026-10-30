@@ -7,7 +7,7 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --locked --offline --all-targets -- -D warnings` | Passed, no warnings |
-| `cargo test --locked --offline` | Passed: 66 tests (23 unit, 16 integration, 21 analysis, 6 external analyzer), 0 failures. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
+| `cargo test --locked --offline` | Passed: 69 tests (26 unit, 16 integration, 21 analysis, 6 external analyzer), 0 failures. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
 | `cargo test --locked --offline --release` | Not re-run for detection cards |
 | `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Not re-run for detection cards |
 | `cargo deny check licenses bans sources` (cargo-deny 0.20.2, all target platforms) | bans ok, licenses ok, sources ok |
