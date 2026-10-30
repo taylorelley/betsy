@@ -220,6 +220,43 @@ Both judgements were made by AI reviewers, so treat the figures as a ballpark. E
 probability is stored, so `--threshold 0.5` gives a recall-heavy pass, and findings are
 leads to verify, not proof.
 
+### Question wording
+
+The catalogs were written for people reading a catalogue, not for a yes/no check on one
+function, so questions are built in two ways:
+
+- **From catalog prose**, when an entry has no usable detection card. Sentences that rule cases out ("... do not count",
+  "... are fine", "... are not this weakness") are moved from the description into the false
+  criterion, ahead of the generic "does not exhibit this weakness, or it would only arise
+  outside this function". Otherwise they usually fell after the 600-character cut: of the 128
+  entries with such sentences, 84 lost them entirely and 39 in part.
+- **From a detection card**, when `data/weaknesses/cards.json` has one for the entry. It
+  replaces the prose; see [detection cards](#detection-cards).
+
+Both change question hashes, so the decision cache never reuses an answer to different wording.
+
+### Detection cards
+
+`data/weaknesses/cards.json` is an overlay keyed by weakness ID; the MITRE and REL source files
+are untouched. Each card has:
+
+- `question`: one question about the function's own code;
+- `present_when`: observable code patterns, under `any` or a language (`c`, `cpp`,
+  `javascript`, `typescript`, `tsx`, `python`, `rust`). C++ also reads `c` patterns, and
+  TypeScript and TSX read `javascript` ones;
+- `not_present_when`: guards, constants and safe APIs that rule the weakness out;
+- `distinguish_from`: sibling weakness IDs, each with what tells it apart. They go into the
+  false criterion, to stop one pattern being reported under several related CWEs;
+- `function_checkable`: when false, a `reason` is required and the prefilter skips the entry
+  unless it is named with `--weakness`.
+
+Cards are validated when loaded: unknown IDs, languages or fields, missing parts and
+self-references are errors. They are part of the catalog hash, so editing a card changes the
+run identity. Every entry that any language plans has a card (971, of which 74 are marked not
+function-checkable); the catalog prose is now used only for entries named explicitly with
+`--weakness` whose card is uncheckable. Status, review notes and the validation plan are in
+[docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
+
 For DECISION SERVER and other Jev-compatible servers whose models accept only a string state
 or short answer options, `--text-state` sends the function's text rendering as the state and
 `--omit-criteria` leaves out the true/false criteria. Both are recorded in the provider
@@ -227,14 +264,15 @@ configuration when set.
 
 To keep this fast and cheap, BETSY layers six measures:
 
-1. **Deterministic prefilter** (profile `function-v3`). Entries are skipped, each with a
+1. **Deterministic prefilter** (profile `function-v4`). Entries are skipped, each with a
    recorded reason, when:
    - their explicit language platforms don't match the function's language;
    - they are hardware-only;
-   - every mode of introduction lies outside source code.
+   - every mode of introduction lies outside source code;
+   - their [detection card](#detection-cards) marks them as not checkable within one function.
 
    MITRE `Prohibited`/`Discouraged` entries and Pillars are asked only as hierarchy gates and
-   are never reported. Fixtures go from 1,192 questions per function to 706–939, depending on
+   are never reported. Fixtures go from 1,192 questions per function to 655–867, depending on
    the language.
 2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
    CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;

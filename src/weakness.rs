@@ -25,9 +25,11 @@ const CATALOG_FILES: [(&str, &str, &[u8]); 3] = [
     ),
 ];
 /// Bumped whenever plan shape or question wording changes, so cached run identities differ.
-pub const PROFILE: &str = "function-v3";
+pub const PROFILE: &str = "function-v4";
 const HIERARCHY_VIEW: &str = "CWE-1000";
 const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
+/// Detection cards: an overlay that rewrites questions without touching the source catalogs.
+const CARDS_FILE: &[u8] = include_bytes!("../data/weaknesses/cards.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Platform {
@@ -134,6 +136,8 @@ impl Catalog {
             entries.extend(list);
             hashes.push((file, hash(bytes)));
         }
+        // Cards change questions and the plan, so they belong to the catalog's identity.
+        hashes.push(("cards.json", hash(CARDS_FILE)));
         let mut index = HashMap::new();
         for (i, w) in entries.iter().enumerate() {
             let key = normalize_id(&w.id).with_context(|| format!("invalid id {}", w.id))?;
@@ -286,6 +290,127 @@ pub fn proven_traits(language: &str, source: &str) -> u64 {
 pub fn traits() -> &'static Traits {
     static TRAITS: OnceLock<Traits> = OnceLock::new();
     TRAITS.get_or_init(|| Traits::load().expect("embedded traits are valid"))
+}
+
+/// Code patterns keyed by `any` or a betsy language; see [`card_languages`].
+pub type Patterns = BTreeMap<String, Vec<String>>;
+/// A detection card: how to decide one weakness from one function's own code. It replaces the
+/// catalog prose in the question, which was written for people reading a catalogue.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Card {
+    /// False when the weakness cannot be seen in a single function; the prefilter skips it.
+    pub function_checkable: bool,
+    /// Why a card is not function-checkable.
+    #[serde(default)]
+    pub reason: String,
+    /// One yes/no question about the function's own code.
+    #[serde(default)]
+    pub question: String,
+    #[serde(default)]
+    pub present_when: Patterns,
+    /// Guards, constants and safe APIs that rule the weakness out.
+    #[serde(default)]
+    pub not_present_when: Patterns,
+    /// Sibling weakness IDs, each with what tells it apart from this one.
+    #[serde(default)]
+    pub distinguish_from: BTreeMap<String, String>,
+}
+#[derive(Deserialize)]
+struct CardFile {
+    cards: BTreeMap<String, Card>,
+}
+/// Card pattern keys a language reads, broadest first: C++ code also shows C patterns, and
+/// TypeScript code JavaScript ones.
+fn card_languages(language: &str) -> &'static [&'static str] {
+    match language {
+        "c" => &["any", "c"],
+        "cpp" => &["any", "c", "cpp"],
+        "javascript" => &["any", "javascript"],
+        "typescript" => &["any", "javascript", "typescript"],
+        "tsx" => &["any", "javascript", "typescript", "tsx"],
+        "python" => &["any", "python"],
+        "rust" => &["any", "rust"],
+        _ => &["any"],
+    }
+}
+fn patterns_for<'a>(p: &'a Patterns, language: &str) -> Vec<&'a str> {
+    card_languages(language)
+        .iter()
+        .filter_map(|k| p.get(*k))
+        .flatten()
+        .map(String::as_str)
+        .collect()
+}
+pub struct Cards {
+    /// Keyed by the catalog's own spelling of the weakness ID.
+    pub cards: HashMap<String, Card>,
+}
+impl Cards {
+    fn load(bytes: &[u8]) -> Result<Self> {
+        const KEYS: [&str; 8] = [
+            "any",
+            "c",
+            "cpp",
+            "javascript",
+            "typescript",
+            "tsx",
+            "python",
+            "rust",
+        ];
+        let file: CardFile = serde_json::from_slice(bytes).context("parsing cards.json")?;
+        let mut cards = HashMap::new();
+        for (raw, mut card) in file.cards {
+            let id = catalog()
+                .get(&raw)
+                .with_context(|| format!("card for unknown weakness {raw}"))?
+                .id
+                .clone();
+            if card.function_checkable {
+                anyhow::ensure!(
+                    !card.question.trim().is_empty()
+                        && !card.present_when.is_empty()
+                        && !card.not_present_when.is_empty(),
+                    "{id}: a checkable card needs a question, present_when and not_present_when"
+                );
+            } else {
+                anyhow::ensure!(
+                    !card.reason.trim().is_empty(),
+                    "{id}: an uncheckable card needs a reason"
+                );
+            }
+            for (k, v) in card.present_when.iter().chain(&card.not_present_when) {
+                anyhow::ensure!(KEYS.contains(&k.as_str()), "{id}: unknown language {k}");
+                anyhow::ensure!(
+                    v.iter().all(|p| !p.trim().is_empty()),
+                    "{id}: empty pattern"
+                );
+            }
+            card.distinguish_from = card
+                .distinguish_from
+                .into_iter()
+                .map(|(other, note)| {
+                    let w = catalog()
+                        .get(&other)
+                        .with_context(|| format!("{id} distinguishes unknown weakness {other}"))?;
+                    anyhow::ensure!(w.id != id, "{id} distinguishes itself");
+                    Ok((w.id.clone(), note))
+                })
+                .collect::<Result<_>>()?;
+            anyhow::ensure!(
+                cards.insert(id.clone(), card).is_none(),
+                "duplicate card {id}"
+            );
+        }
+        Ok(Self { cards })
+    }
+    pub fn get(&self, id: &str) -> Option<&Card> {
+        self.cards.get(id)
+    }
+}
+pub fn cards() -> &'static Cards {
+    static CARDS: OnceLock<Cards> = OnceLock::new();
+    CARDS.get_or_init(|| Cards::load(CARDS_FILE).expect("embedded detection cards are valid"))
 }
 
 /// Normalizes `CWE-89`, `cwe_89`, `89`, `REL-001` and `rel 1` to `PREFIX-N` without zero padding.
@@ -459,6 +584,8 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
             Some("introduced outside source code")
         } else if !language_applies(w, language) {
             Some("language not applicable")
+        } else if cards().get(&w.id).is_some_and(|c| !c.function_checkable) {
+            Some("not checkable within one function (detection card)")
         } else {
             None
         };
@@ -631,29 +758,170 @@ pub fn trait_question(t: &Trait) -> Question {
         hash,
     }
 }
-pub fn question(id: &str, role: &Role) -> Question {
-    let w = catalog().get(id).expect("planned weakness exists");
+/// Phrases that mark a catalog sentence as ruling cases out rather than describing the weakness.
+const EXCLUDING: [&str; 9] = [
+    "do not count",
+    "does not count",
+    "not counted",
+    "not this weakness",
+    "not a defect",
+    "not defects",
+    "not findings",
+    "is not about",
+    "does not cover",
+];
+/// Verdicts that rule a case out only when they end a clause: "is acceptable." but not
+/// "is acceptable for a handful of rows", nor "not affected by the HTML encoding".
+const EXCLUDING_VERDICTS: [&str; 13] = [
+    "not affected",
+    "is fine",
+    "are fine",
+    "is acceptable",
+    "are acceptable",
+    "is permitted",
+    "are permitted",
+    "is allowed",
+    "are allowed",
+    "is compliant",
+    "are compliant",
+    "is out of scope",
+    "are out of scope",
+];
+fn excludes(sentence: &str) -> bool {
+    let s = sentence.to_lowercase();
+    if s.starts_with("of these") || s.starts_with("of those") {
+        // Points back at an earlier sentence, so it means nothing on its own.
+        return false;
+    }
+    EXCLUDING.iter().any(|p| s.contains(p))
+        || EXCLUDING_VERDICTS.iter().any(|p| {
+            s.match_indices(p).any(|(i, _)| {
+                let rest = &s[i + p.len()..];
+                rest.is_empty()
+                    || rest.starts_with(['.', ',', ';', ':'])
+                    || [" as ", " here", " too", " and ", " nor", " when", " since"]
+                        .iter()
+                        .any(|t| rest.starts_with(t))
+            })
+        })
+}
+/// Splits whitespace-collapsed prose into sentences at `.`, `?` or `!` followed by a space and an
+/// upper-case letter, keeping common abbreviations whole.
+fn sentences(text: &str) -> Vec<&str> {
+    let mut out = vec![];
+    let mut start = 0;
+    let bytes = text.as_bytes();
+    for (i, &b) in bytes.iter().enumerate() {
+        if !matches!(b, b'.' | b'?' | b'!') || bytes.get(i + 1) != Some(&b' ') {
+            continue;
+        }
+        if !bytes.get(i + 2).is_some_and(|c| c.is_ascii_uppercase()) {
+            continue;
+        }
+        let head = &text[start..=i];
+        if ["e.g.", "i.e.", "vs.", "cf."]
+            .iter()
+            .any(|a| head.to_lowercase().ends_with(a))
+        {
+            continue;
+        }
+        out.push(head);
+        start = i + 2;
+    }
+    if start < text.len() {
+        out.push(&text[start..]);
+    }
+    out
+}
+/// Separates the sentences that rule cases out ("... do not count", "... are fine") from the rest
+/// of an entry's prose, so they reach the false criterion instead of falling after the cut.
+pub fn split_exclusions(text: &str) -> (String, String) {
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let (excluded, kept): (Vec<&str>, Vec<&str>) =
+        sentences(&text).into_iter().partition(|s| excludes(s));
+    (kept.join(" "), excluded.join(" "))
+}
+fn sentence_list(items: &[&str]) -> String {
+    items
+        .iter()
+        .map(|s| s.trim().trim_end_matches('.'))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+const OUTSIDE: &str = "it would only arise outside this function";
+/// Question text from a detection card; gates keep their recall-oriented framing.
+fn card_question(
+    w: &Weakness,
+    card: &Card,
+    role: &Role,
+    language: &str,
+) -> (String, String, String) {
+    let present = sentence_list(&patterns_for(&card.present_when, language));
+    match role {
+        Role::Finding => {
+            let mut criteria_false = format!(
+                "No when: {}.",
+                sentence_list(&patterns_for(&card.not_present_when, language))
+            );
+            for (other, note) in &card.distinguish_from {
+                let name = catalog().get(other).map_or("", |o| o.name.as_str());
+                criteria_false.push_str(&format!(
+                    " Also no when {}; that is {other} \"{name}\", not this weakness.",
+                    note.trim().trim_end_matches('.')
+                ));
+            }
+            criteria_false.push_str(&format!(" Also no when {OUTSIDE}."));
+            (
+                format!("{} (weakness {} \"{}\")", card.question.trim(), w.id, w.name),
+                format!("Yes when the function's own code shows: {present}."),
+                criteria_false,
+            )
+        }
+        Role::Gate => (
+            format!(
+                "Is it plausible that this function's code contains any weakness in the category {} \"{}\"? {}",
+                w.id,
+                w.name,
+                card.question.trim()
+            ),
+            format!("The function plausibly involves {}, for example: {present}.", w.name),
+            "The function clearly does nothing related to this category.".to_string(),
+        ),
+    }
+}
+/// Question text from catalog prose, for entries without a detection card.
+fn prose_question(w: &Weakness, role: &Role) -> (String, String, String) {
     let detail = if w.extended_description.is_empty() {
         &w.description
     } else {
         &w.extended_description
     };
-    let (instructions, criteria_true, criteria_false) = match role {
-        Role::Finding => (
-            format!(
-                "Does this function's own code contain the weakness {} \"{}\"? {}",
-                w.id,
-                w.name,
-                compact(&w.description, 400)
-            ),
-            format!(
-                "The function's code exhibits {}: {}",
-                w.name,
-                compact(detail, 600)
-            ),
-            "The function's code does not exhibit this weakness, or it would only arise outside this function."
-                .to_string(),
-        ),
+    match role {
+        Role::Finding => {
+            let (detail, exclusions) = split_exclusions(detail);
+            let criteria_false = if exclusions.is_empty() {
+                format!("The function's code does not exhibit this weakness, or {OUTSIDE}.")
+            } else {
+                format!(
+                    "{} Also no when the function's code does not exhibit this weakness, or {OUTSIDE}.",
+                    compact(&exclusions, 600)
+                )
+            };
+            (
+                format!(
+                    "Does this function's own code contain the weakness {} \"{}\"? {}",
+                    w.id,
+                    w.name,
+                    compact(&w.description, 400)
+                ),
+                format!(
+                    "The function's code exhibits {}: {}",
+                    w.name,
+                    compact(&detail, 600)
+                ),
+                criteria_false,
+            )
+        }
         Role::Gate => (
             format!(
                 "Is it plausible that this function's code contains any weakness in the category {} \"{}\"? {}",
@@ -664,7 +932,17 @@ pub fn question(id: &str, role: &Role) -> Question {
             format!("The function plausibly involves {}.", w.name),
             "The function clearly does nothing related to this category.".to_string(),
         ),
-    };
+    }
+}
+/// The question for one planned weakness in one language: from its detection card when it has
+/// one, otherwise from the catalog prose.
+pub fn question(id: &str, role: &Role, language: &str) -> Question {
+    let w = catalog().get(id).expect("planned weakness exists");
+    let (instructions, criteria_true, criteria_false) =
+        match cards().get(&w.id).filter(|c| c.function_checkable) {
+            Some(card) => card_question(w, card, role, language),
+            None => prose_question(w, role),
+        };
     let hash = identity(&(&instructions, &criteria_true, &criteria_false));
     Question {
         weakness_id: w.id.clone(),
@@ -811,17 +1089,111 @@ mod tests {
 
     #[test]
     fn questions_use_provider_safe_keys_and_stable_hashes() {
-        let q = question("cwe-89", &Role::Finding);
+        let q = question("cwe-89", &Role::Finding, "python");
         assert_eq!(
             (q.weakness_id.as_str(), q.key.as_str()),
             ("CWE-89", "CWE_89")
         );
-        assert_eq!(q.hash, question("CWE-89", &Role::Finding).hash);
-        let gate = question("CWE-89", &Role::Gate);
+        assert_eq!(q.hash, question("CWE-89", &Role::Finding, "python").hash);
+        let gate = question("CWE-89", &Role::Gate, "python");
         assert_ne!(q.hash, gate.hash);
         assert!(gate.instructions.starts_with("Is it plausible"));
         let t = trait_question(&traits().traits[0]);
         assert!(t.weakness_id.starts_with("trait:") && t.key.starts_with("TRAIT_"));
+    }
+
+    #[test]
+    fn exclusions_are_lifted_out_of_the_cut() {
+        let (kept, excluded) = split_exclusions(
+            "A divisor from input is used. Its sign, e.g. a negative, is not checked. Code where \
+             the range is proven locally does not count. Latency that is acceptable for a few \
+             rows grows. Of these, only the last is acceptable. Plain -O2 is fine.",
+        );
+        assert_eq!(
+            excluded,
+            "Code where the range is proven locally does not count. Plain -O2 is fine."
+        );
+        assert!(kept.contains("e.g. a negative") && kept.contains("acceptable for a few"));
+        assert!(kept.ends_with("only the last is acceptable."));
+        let w = catalog().get("REL-105").unwrap();
+        let (_, criteria_true, criteria_false) = prose_question(w, &Role::Finding);
+        assert!(!criteria_true.contains("do not count"));
+        assert!(criteria_false.starts_with("Constant shift counts"));
+        assert!(criteria_false.contains("outside this function"));
+        let w = catalog().get("CWE-89").unwrap();
+        let (_, _, criteria_false) = prose_question(w, &Role::Finding);
+        assert!(criteria_false.starts_with("The function's code does not exhibit"));
+    }
+
+    #[test]
+    fn cards_validate_ids_fields_and_languages() {
+        let ok = r#"{"cards":{"cwe-787":{"function_checkable":true,"question":"q?",
+            "present_when":{"c":["p"]},"not_present_when":{"any":["n"]},
+            "distinguish_from":{"125":"reads"}}}}"#;
+        let c = Cards::load(ok.as_bytes()).unwrap();
+        assert_eq!(
+            c.get("CWE-787")
+                .unwrap()
+                .distinguish_from
+                .keys()
+                .collect::<Vec<_>>(),
+            ["CWE-125"]
+        );
+        for bad in [
+            r#"{"cards":{"CWE-0":{"function_checkable":false,"reason":"r"}}}"#,
+            r#"{"cards":{"CWE-787":{"function_checkable":false}}}"#,
+            r#"{"cards":{"CWE-787":{"function_checkable":true,"question":"q?","present_when":{"c":["p"]}}}}"#,
+            r#"{"cards":{"CWE-787":{"function_checkable":true,"question":"q?","present_when":{"go":["p"]},"not_present_when":{"any":["n"]}}}}"#,
+            r#"{"cards":{"CWE-787":{"function_checkable":true,"question":"q?","present_when":{"c":["p"]},"not_present_when":{"any":["n"]},"distinguish_from":{"CWE-787":"x"}}}}"#,
+            r#"{"cards":{"CWE-787":{"function_checkable":false,"reason":"r","typo":1}}}"#,
+            r#"{"cards":{"CWE-787":{"function_checkable":false,"reason":"r"},"787":{"function_checkable":false,"reason":"r"}}}"#,
+        ] {
+            assert!(Cards::load(bad.as_bytes()).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn cards_render_per_language_and_bound_their_criteria() {
+        let q = question("CWE-787", &Role::Finding, "cpp");
+        assert!(q
+            .instructions
+            .ends_with("(weakness CWE-787 \"Out-of-bounds Write\")"));
+        assert!(q.criteria_true.contains("strcpy"), "C++ reads C patterns");
+        assert!(q.criteria_false.contains("CWE-125 \"Out-of-bounds Read\""));
+        assert!(q.criteria_false.ends_with("outside this function."));
+        let py = question("CWE-787", &Role::Finding, "python");
+        assert!(!py.criteria_true.contains("strcpy") && py.hash != q.hash);
+        for (id, card) in &cards().cards {
+            if !card.function_checkable {
+                continue;
+            }
+            for language in [
+                "c",
+                "cpp",
+                "javascript",
+                "typescript",
+                "tsx",
+                "python",
+                "rust",
+            ] {
+                let q = question(id, &Role::Finding, language);
+                for text in [&q.instructions, &q.criteria_true, &q.criteria_false] {
+                    assert!(text.chars().count() <= 1500, "{id} {language}: {text}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn uncheckable_cards_are_skipped_unless_selected() {
+        let plan = plan("c", &Selection::default()).unwrap();
+        let skip = plan.skipped.iter().find(|s| s.id == "REL-035").unwrap();
+        assert!(skip.reason.contains("detection card"));
+        let only = Selection {
+            only: vec!["REL-035".into()],
+            exclude: vec![],
+        };
+        assert_eq!(super::plan("c", &only).unwrap().nodes.len(), 1);
     }
 
     #[test]

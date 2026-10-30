@@ -204,7 +204,7 @@ mod tests {
     }
     fn questions(ids: &[&str]) -> Vec<Question> {
         ids.iter()
-            .map(|id| crate::weakness::question(id, &Role::Finding))
+            .map(|id| crate::weakness::question(id, &Role::Finding, "python"))
             .collect()
     }
 

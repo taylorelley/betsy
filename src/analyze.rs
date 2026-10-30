@@ -92,7 +92,7 @@ fn prepare(language: &str, selection: &Selection) -> Result<Arc<Prepared>> {
     let questions = plan
         .nodes
         .iter()
-        .map(|n| weakness::question(&n.id, &n.role))
+        .map(|n| weakness::question(&n.id, &n.role, language))
         .collect();
     let trait_questions = weakness::traits()
         .traits

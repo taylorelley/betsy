@@ -492,8 +492,8 @@ fn function() -> (Function, contract::Features) {
 }
 fn questions() -> Vec<weakness::Question> {
     vec![
-        weakness::question("CWE-89", &weakness::Role::Finding),
-        weakness::question("REL-001", &weakness::Role::Finding),
+        weakness::question("CWE-89", &weakness::Role::Finding, "python"),
+        weakness::question("REL-001", &weakness::Role::Finding, "python"),
     ]
 }
 #[test]

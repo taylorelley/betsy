@@ -7,21 +7,21 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --locked --offline --all-targets -- -D warnings` | Passed, no warnings |
-| `cargo test --locked --offline` | Passed: 61 tests (18 unit, 16 integration, 21 analysis, 6 external analyzer), 0 failures |
-| `cargo test --locked --offline --release` | Passed: 61 tests, 0 failures |
-| `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Passed: 61 tests, 0 failures |
+| `cargo test --locked --offline` | Passed: 66 tests (23 unit, 16 integration, 21 analysis, 6 external analyzer), 0 failures. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
+| `cargo test --locked --offline --release` | Not re-run for detection cards |
+| `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Not re-run for detection cards |
 | `cargo deny check licenses bans sources` (cargo-deny 0.20.2, all target platforms) | bans ok, licenses ok, sources ok |
 | `strace -f -e trace=network -o <scratch>/net.trace cargo test --locked --offline` | Passed: 61 tests; every connect was to 127.0.0.1, the local HTTP test server; no external addresses |
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
-| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 44,104 naive questions; 28,258 after prefilter; hierarchical lower bound 1,471 |
+| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 44,104 naive questions; 26,203 after prefilter; hierarchical lower bound 1,321 |
 | `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function) |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
 | `cargo audit --version` | Not installed locally; audit not run. Separate CI job installs and runs cargo-audit. |
 
 Per-language plans for the fixtures (planned questions per function, after the prefilter):
-C 928, C++ 939, JavaScript 709, Python 709, Rust 746, TypeScript 706, each at most six
+C 859, C++ 867, JavaScript 658, Python 658, Rust 694, TypeScript 655, each at most six
 rounds deep.
 
 ## v0.1 inventory and dispatch
@@ -56,6 +56,17 @@ retryable provider failures, Jev and OpenAI request/response wire shapes, HTTP r
 rate limits and halving of oversized requests, trait catalog validity, syntax-only proof
 of trait presence, trait pruning, recall attribution to traits and gated ancestors, and
 schema migration from v1 and v2 databases to v3.
+
+## Question wording and detection cards
+
+Unit tests check that sentences ruling cases out are moved from the true criterion to the false
+one, while abbreviations, "acceptable for ..." and sentences that point back at earlier ones
+stay put; that cards are rejected for unknown IDs, languages or fields, missing parts,
+self-references and duplicate IDs; that card criteria read per-language patterns (C++ reads C)
+and stay within 1,500 characters for every card and language; and that uncheckable cards are
+skipped by the prefilter but still asked when named explicitly. All 971 cards load and render
+within the limit for all seven languages. They have not been run against a provider or labelled
+code.
 
 ## Unit tests
 
