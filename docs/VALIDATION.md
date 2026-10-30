@@ -16,7 +16,8 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
 | `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 44,104 naive questions; 28,258 after prefilter; hierarchical lower bound 1,471 |
 | `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function) |
-| `./target/release/betsy run exec --run <run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
+| `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
+| `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
 | `cargo audit --version` | Not installed locally; audit not run. Separate CI job installs and runs cargo-audit. |
 
 Per-language plans for the fixtures (planned questions per function, after the prefilter):
