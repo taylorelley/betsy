@@ -225,7 +225,7 @@ leads to verify, not proof.
 The catalogs were written for people reading a catalogue, not for a yes/no check on one
 function, so questions are built in two ways:
 
-- **From catalog prose**, by default. Sentences that rule cases out ("... do not count",
+- **From catalog prose**, when an entry has no usable detection card. Sentences that rule cases out ("... do not count",
   "... are fine", "... are not this weakness") are moved from the description into the false
   criterion, ahead of the generic "does not exhibit this weakness, or it would only arise
   outside this function". Otherwise they usually fell after the 600-character cut: of the 128
@@ -252,7 +252,9 @@ are untouched. Each card has:
 
 Cards are validated when loaded: unknown IDs, languages or fields, missing parts and
 self-references are errors. They are part of the catalog hash, so editing a card changes the
-run identity. The seed set and the plan for extending it are in
+run identity. Every entry that any language plans has a card (971, of which 74 are marked not
+function-checkable); the catalog prose is now used only for entries named explicitly with
+`--weakness` whose card is uncheckable. Status, review notes and the validation plan are in
 [docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
 
 For DECISION SERVER and other Jev-compatible servers whose models accept only a string state
@@ -270,7 +272,7 @@ To keep this fast and cheap, BETSY layers six measures:
    - their [detection card](#detection-cards) marks them as not checkable within one function.
 
    MITRE `Prohibited`/`Discouraged` entries and Pillars are asked only as hierarchy gates and
-   are never reported. Fixtures go from 1,192 questions per function to 703–931, depending on
+   are never reported. Fixtures go from 1,192 questions per function to 655–867, depending on
    the language.
 2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
    CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;

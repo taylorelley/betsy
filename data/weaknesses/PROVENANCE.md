@@ -22,11 +22,12 @@ the question for selected entries; see [docs/DETECTION_CARDS.md](../../docs/DETE
 
 | File | Content | Cards | SHA-256 |
 |---|---|---:|---|
-| `cards.json` | detection cards | 19 | `fb8281188aed99df1d9b6b9f0bcf90282cda4f1312401b55619da8feaa67002d` |
+| `cards.json` | detection cards | 971 | `f1fe230a698ae42a6168509d8492534ffa2085c2fa439a64f56907c281b51330` |
 
 Sources, per card, are the catalog entry it is keyed by and the entries named in its
 `distinguish_from`, as they appear in the files above (MITRE CWE 4.20 for `CWE-` IDs). The
-wording is new, but cards for `CWE-` entries are derived from MITRE content. The CWE terms
+wording is new (a check rejects any ten consecutive words copied from an entry's description),
+but cards for `CWE-` entries are derived from MITRE content. The CWE terms
 appear to permit derived works when the notice in `CWE_NOTICE.txt` is kept; this has not yet
 been confirmed with Legal and must be before the cards ship.
 

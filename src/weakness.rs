@@ -1115,15 +1115,14 @@ mod tests {
         );
         assert!(kept.contains("e.g. a negative") && kept.contains("acceptable for a few"));
         assert!(kept.ends_with("only the last is acceptable."));
-        let q = question("REL-026", &Role::Finding, "c");
-        assert!(!q.criteria_true.contains("does not count"));
-        let q = question("REL-105", &Role::Finding, "c");
-        assert!(q.criteria_false.starts_with("Constant shift counts"));
-        assert!(q.criteria_false.contains("outside this function"));
-        let q = question("CWE-89", &Role::Finding, "c");
-        assert!(q
-            .criteria_false
-            .starts_with("The function's code does not exhibit"));
+        let w = catalog().get("REL-105").unwrap();
+        let (_, criteria_true, criteria_false) = prose_question(w, &Role::Finding);
+        assert!(!criteria_true.contains("do not count"));
+        assert!(criteria_false.starts_with("Constant shift counts"));
+        assert!(criteria_false.contains("outside this function"));
+        let w = catalog().get("CWE-89").unwrap();
+        let (_, _, criteria_false) = prose_question(w, &Role::Finding);
+        assert!(criteria_false.starts_with("The function's code does not exhibit"));
     }
 
     #[test]
