@@ -1,0 +1,272 @@
+{
+  "traits": [
+    {
+      "key": "memory_buffers",
+      "question": "Does this function read or write elements of an array, buffer, string or memory region by index, offset, pointer or length, including copy, fill, slice or string functions?",
+      "true": "The function indexes, slices, copies into or otherwise addresses elements of a buffer, array, string or memory region.",
+      "false": "The function never addresses individual elements or byte ranges of any buffer, array, string or memory region.",
+      "present_if": {
+        "c": ["subscript_expression"],
+        "cpp": ["subscript_expression"],
+        "javascript": ["subscript_expression"],
+        "typescript": ["subscript_expression"],
+        "tsx": ["subscript_expression"],
+        "python": ["subscript", "slice"],
+        "rust": ["index_expression"]
+      }
+    },
+    {
+      "key": "pointers",
+      "question": "Does this function use raw pointers or references at a low level: pointer arithmetic, dereferencing, address-of, pointer casts, pointer comparison or null pointers?",
+      "true": "The function manipulates raw pointers or addresses.",
+      "false": "The function does not manipulate raw pointers or addresses.",
+      "present_if": {
+        "c": ["pointer_expression", "pointer_declarator"],
+        "cpp": ["pointer_expression", "pointer_declarator"],
+        "rust": ["unsafe_block", "pointer_type"]
+      }
+    },
+    {
+      "key": "dynamic_memory",
+      "question": "Does this function allocate, free, reallocate, or transfer ownership of memory or other manually managed objects?",
+      "true": "The function allocates, frees, reallocates or hands over ownership of memory or manually managed objects.",
+      "false": "The function does not allocate, free or transfer ownership of manually managed memory or objects.",
+      "present_if": {
+        "cpp": ["new_expression", "delete_expression"]
+      }
+    },
+    {
+      "key": "resources",
+      "question": "Does this function open, acquire, hold, close or release resources such as files, sockets, handles, connections, locks, processes or contexts?",
+      "true": "The function acquires, holds or releases a resource such as a file, socket, handle, connection, lock, process or context.",
+      "false": "The function does not acquire, hold or release any such resource.",
+      "present_if": {
+        "python": ["with_statement"]
+      }
+    },
+    {
+      "key": "concurrency",
+      "question": "Does this function involve threads, async tasks, locks, atomics, signal handlers, or mutable state shared between execution contexts?",
+      "true": "The function runs concurrently with, synchronises with, or shares mutable state with other threads, tasks or signal handlers.",
+      "false": "The function involves no concurrency, synchronisation, signal handling or shared mutable state across execution contexts.",
+      "present_if": {
+        "javascript": ["await_expression"],
+        "typescript": ["await_expression"],
+        "tsx": ["await_expression"],
+        "python": ["await"],
+        "rust": ["await_expression"]
+      }
+    },
+    {
+      "key": "external_input",
+      "question": "Does this function receive or process data that may originate outside the program, such as user input, network or request data, files, environment variables, command-line arguments or IPC?",
+      "true": "Data handled by the function may originate from a source outside the program.",
+      "false": "All data handled by the function is clearly internal to the program.",
+      "present_if": {}
+    },
+    {
+      "key": "interpreter_output",
+      "question": "Does this function build or pass text to another interpreter or structured format, such as SQL, shell commands, HTML or JavaScript, XML, LDAP, file paths, URLs, regular expressions, format strings or log messages?",
+      "true": "The function constructs or forwards text that another interpreter, parser or formatter will process.",
+      "false": "The function does not construct or forward text for any other interpreter, parser or formatter.",
+      "present_if": {}
+    },
+    {
+      "key": "filesystem",
+      "question": "Does this function access the file system or construct file or directory paths?",
+      "true": "The function reads, writes, creates, deletes, links or resolves files or directories, or builds paths to them.",
+      "false": "The function neither accesses the file system nor builds file or directory paths.",
+      "present_if": {}
+    },
+    {
+      "key": "network",
+      "question": "Does this function send or receive data over a network, or handle HTTP requests or responses, URLs, sessions, cookies, redirects or TLS certificates?",
+      "true": "The function performs network communication or handles web requests, responses, URLs, sessions, cookies or certificates.",
+      "false": "The function performs no network communication and handles no web request state.",
+      "present_if": {}
+    },
+    {
+      "key": "security_logic",
+      "question": "Does this function implement or call authentication, authorisation, permission, privilege, ownership, session or access-control logic?",
+      "true": "The function makes, enforces, changes or depends on a security or access-control decision.",
+      "false": "The function involves no security or access-control decision.",
+      "present_if": {}
+    },
+    {
+      "key": "crypto",
+      "question": "Does this function use cryptography, hashing, random number generation, keys, tokens, signatures or certificates?",
+      "true": "The function uses cryptography, hashing, randomness, keys, tokens, signatures or certificates.",
+      "false": "The function uses no cryptography, hashing, randomness, keys, tokens, signatures or certificates.",
+      "present_if": {}
+    },
+    {
+      "key": "sensitive_data",
+      "question": "Does this function handle passwords, secrets, keys, personal or other sensitive information, including storing, transmitting, logging or displaying it?",
+      "true": "The function handles information that is or may be sensitive.",
+      "false": "The function handles no sensitive information.",
+      "present_if": {}
+    },
+    {
+      "key": "arithmetic",
+      "question": "Does this function perform integer or floating-point arithmetic beyond a simple loop counter, such as size or offset calculations, division, shifts, bitwise operations or numeric conversions?",
+      "true": "The function performs non-trivial arithmetic.",
+      "false": "The function performs no arithmetic beyond simple loop counters.",
+      "present_if": {}
+    },
+    {
+      "key": "floating_point",
+      "question": "Does this function use floating-point values, operations or comparisons?",
+      "true": "The function uses floating-point values or operations.",
+      "false": "The function uses no floating-point values or operations.",
+      "present_if": {
+        "python": ["float"],
+        "rust": ["float_literal"]
+      }
+    },
+    {
+      "key": "type_conversion",
+      "question": "Does this function convert or cast values between types, including numeric narrowing or widening, pointer casts, or parsing numbers from text?",
+      "true": "The function converts or casts values between types.",
+      "false": "The function performs no explicit or implicit type conversion of note.",
+      "present_if": {
+        "c": ["cast_expression"],
+        "cpp": ["cast_expression"],
+        "rust": ["type_cast_expression"]
+      }
+    },
+    {
+      "key": "iteration",
+      "question": "Does this function contain a loop, an iteration construct such as a comprehension or iterator chain, or recursion?",
+      "true": "The function loops, iterates or recurses.",
+      "false": "The function neither loops, iterates nor recurses.",
+      "present_if": {
+        "c": ["for_statement", "while_statement", "do_statement"],
+        "cpp": ["for_statement", "for_range_loop", "while_statement", "do_statement"],
+        "javascript": ["for_statement", "for_in_statement", "while_statement", "do_statement"],
+        "typescript": ["for_statement", "for_in_statement", "while_statement", "do_statement"],
+        "tsx": ["for_statement", "for_in_statement", "while_statement", "do_statement"],
+        "python": ["for_statement", "while_statement", "list_comprehension", "dictionary_comprehension", "set_comprehension", "generator_expression"],
+        "rust": ["for_expression", "while_expression", "loop_expression"]
+      }
+    },
+    {
+      "key": "data_store",
+      "question": "Does this function query or update a database, ORM, cache or remote data store?",
+      "true": "The function reads from or writes to a database, ORM, cache or remote data store.",
+      "false": "The function does not use any database, ORM, cache or remote data store.",
+      "present_if": {}
+    },
+    {
+      "key": "parsing",
+      "question": "Does this function parse, decode, deserialise, encode or validate structured data such as file formats, protocols, character encodings, markup or regular expressions?",
+      "true": "The function parses, decodes, encodes, deserialises or validates structured data.",
+      "false": "The function does not parse, decode, encode, deserialise or validate structured data.",
+      "present_if": {}
+    },
+    {
+      "key": "preprocessor",
+      "question": "Does this function use or depend on preprocessor macros, conditional compilation or variadic arguments?",
+      "true": "The function uses or depends on macros, conditional compilation or variadic arguments.",
+      "false": "The function uses no macros, conditional compilation or variadic arguments.",
+      "present_if": {
+        "c": ["preproc_if", "preproc_ifdef", "preproc_def", "preproc_function_def", "preproc_call", "variadic_parameter"],
+        "cpp": ["preproc_if", "preproc_ifdef", "preproc_def", "preproc_function_def", "preproc_call"]
+      }
+    },
+    {
+      "key": "switch",
+      "question": "Does this function contain a switch or match statement?",
+      "true": "The function contains a switch or match statement.",
+      "false": "The function contains no switch or match statement.",
+      "present_if": {
+        "c": ["switch_statement"],
+        "cpp": ["switch_statement"],
+        "javascript": ["switch_statement"],
+        "typescript": ["switch_statement"],
+        "tsx": ["switch_statement"],
+        "python": ["match_statement"],
+        "rust": ["match_expression"]
+      }
+    }
+  ],
+  "requires": {
+    "CWE-118": ["memory_buffers", "pointers"],
+    "CWE-131": ["memory_buffers", "pointers", "dynamic_memory"],
+    "CWE-135": ["memory_buffers"],
+    "CWE-170": ["memory_buffers", "pointers"],
+    "CWE-463": ["memory_buffers", "pointers"],
+    "CWE-468": ["pointers"],
+    "CWE-469": ["pointers"],
+    "CWE-404": ["dynamic_memory", "resources", "pointers"],
+    "CWE-410": ["resources", "dynamic_memory"],
+    "CWE-771": ["resources", "dynamic_memory"],
+    "CWE-911": ["resources", "dynamic_memory", "pointers"],
+    "CWE-662": ["concurrency"],
+    "CWE-432": ["concurrency"],
+    "CWE-828": ["concurrency"],
+    "CWE-831": ["concurrency"],
+    "CWE-666": ["dynamic_memory", "resources", "pointers", "crypto"],
+    "CWE-610": ["network", "filesystem", "parsing", "external_input", "security_logic"],
+    "CWE-706": ["filesystem", "network", "interpreter_output", "external_input"],
+    "CWE-704": ["type_conversion", "pointers", "arithmetic", "parsing"],
+    "CWE-1339": ["floating_point", "arithmetic"],
+    "CWE-1077": ["floating_point"],
+    "CWE-369": ["arithmetic", "floating_point"],
+    "REL-192": ["floating_point"],
+    "REL-194": ["floating_point"],
+    "REL-195": ["floating_point"],
+    "REL-196": ["floating_point"],
+    "REL-198": ["floating_point"],
+    "REL-208": ["floating_point", "arithmetic"],
+    "CWE-284": ["security_logic", "sensitive_data", "filesystem", "network", "crypto", "resources"],
+    "CWE-311": ["sensitive_data", "crypto", "network", "filesystem", "data_store"],
+    "CWE-326": ["crypto"],
+    "CWE-327": ["crypto"],
+    "CWE-330": ["crypto", "security_logic"],
+    "CWE-345": ["network", "crypto", "external_input", "parsing", "security_logic"],
+    "CWE-200": ["sensitive_data", "crypto", "network", "filesystem", "data_store", "security_logic", "interpreter_output"],
+    "CWE-134": ["interpreter_output", "external_input"],
+    "CWE-377": ["filesystem"],
+    "CWE-427": ["filesystem", "interpreter_output", "external_input"],
+    "CWE-428": ["filesystem", "interpreter_output"],
+    "CWE-552": ["filesystem", "network"],
+    "CWE-524": ["sensitive_data", "data_store"],
+    "CWE-669": ["filesystem", "network", "sensitive_data", "external_input", "parsing"],
+    "CWE-74": ["interpreter_output", "filesystem", "network", "data_store", "external_input"],
+    "CWE-116": ["interpreter_output", "network", "parsing"],
+    "CWE-138": ["interpreter_output", "parsing", "external_input", "filesystem"],
+    "CWE-172": ["parsing", "interpreter_output", "memory_buffers"],
+    "CWE-182": ["interpreter_output", "parsing"],
+    "CWE-228": ["parsing", "external_input", "network"],
+    "CWE-435": ["network", "parsing", "interpreter_output"],
+    "CWE-834": ["iteration"],
+    "CWE-1322": ["concurrency", "resources", "network", "filesystem"],
+    "CWE-799": ["security_logic", "network"],
+    "REL-034": ["preprocessor"],
+    "REL-035": ["preprocessor"],
+    "REL-056": ["preprocessor"],
+    "REL-057": ["preprocessor"],
+    "REL-132": ["preprocessor"],
+    "REL-157": ["preprocessor"],
+    "REL-158": ["preprocessor"],
+    "REL-161": ["preprocessor"],
+    "REL-162": ["preprocessor"],
+    "REL-163": ["preprocessor"],
+    "REL-121": ["iteration"],
+    "REL-125": ["switch"],
+    "REL-126": ["switch"],
+    "REL-129": ["switch"],
+    "REL-130": ["switch"],
+    "REL-131": ["switch"],
+    "REL-103": ["pointers"],
+    "REL-144": ["pointers"],
+    "PERF-001": ["data_store", "network"],
+    "PERF-002": ["data_store", "network", "filesystem", "parsing"],
+    "PERF-003": ["data_store"],
+    "PERF-004": ["iteration"],
+    "PERF-005": ["filesystem", "network", "data_store", "resources", "concurrency"],
+    "PERF-008": ["network", "data_store"],
+    "PERF-009": ["floating_point"],
+    "PERF-010": ["arithmetic", "floating_point"]
+  }
+}

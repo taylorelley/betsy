@@ -141,6 +141,37 @@ fn plans_account_for_every_weakness_and_match_golden() {
 }
 
 #[test]
+fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
+    let c = weakness::catalog();
+    let p = weakness::plan("c", &Selection::default()).unwrap();
+    let rel = p.nodes.iter().filter(|n| n.id.starts_with("REL-"));
+    let attached = rel.clone().filter(|n| n.parent.is_some()).count();
+    assert!(attached > 100, "{attached} REL entries attached");
+    for n in rel.filter(|n| n.parent.is_some()) {
+        let parent = &p.nodes[n.parent.unwrap()].id;
+        let peers: Vec<&str> = c
+            .get(&n.id)
+            .unwrap()
+            .related_weaknesses
+            .iter()
+            .filter(|r| r.nature == "PeerOf")
+            .map(|r| r.cwe_id.as_str())
+            .collect();
+        assert!(peers.contains(&parent.as_str()), "{} under {parent}", n.id);
+    }
+    for n in &p.nodes {
+        let siblings = n.parent.map(|q| p.nodes[q].children.len());
+        assert_eq!(n.spliced, siblings == Some(1), "{}", n.id);
+        let expected = match n.parent {
+            None => 1,
+            Some(q) => p.nodes[q].wave + u32::from(!n.spliced),
+        };
+        assert_eq!(n.wave, expected, "{}", n.id);
+    }
+    assert!(p.depth() > 2 && p.first_wave() >= p.roots.len());
+}
+
+#[test]
 fn explicit_selection_is_flat_and_exclusive() {
     let sel = Selection {
         only: vec!["CWE-89,REL-1".into()],
@@ -178,14 +209,13 @@ fn hierarchy_gates_children_of_negative_answers() {
         .map(|f| {
             weakness::plan(&f.language, &Selection::default())
                 .unwrap()
-                .roots
-                .len()
+                .first_wave()
         })
         .sum();
     assert_eq!(
         none.questions.load(Ordering::SeqCst),
         roots,
-        "only roots asked"
+        "only roots and their spliced chains asked"
     );
     let d = decisions(&db, &run);
     assert!(d.iter().any(|x| x.2 == "gated"));
@@ -261,6 +291,56 @@ fn positive_parent_opens_its_subtree_and_reports_findings() {
     assert!(!found
         .iter()
         .any(|(w, p)| *w == "CWE-787" && p.ends_with(".py")));
+}
+
+#[test]
+fn max_rounds_asks_remaining_subtrees_at_once() {
+    let (_t, mut db, m) = persisted();
+    let mock = Arc::new(Mock::new(
+        decide::mock::Script {
+            rules: vec![],
+            default: Some(0.9),
+        },
+        100,
+    ));
+    let config = Config::new(mock.as_ref(), Selection::default(), 0.5, 0.15, false)
+        .unwrap()
+        .with_max_rounds(Some(2))
+        .unwrap();
+    let run = analyze::create(&mut db, &m.snapshot_id, &config).unwrap()["run_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    analyze::drain(&mut db, &run, mock.clone(), exec(4)).unwrap();
+    let max_round: u32 = db
+        .query_row(
+            "SELECT MAX(round) FROM weakness_decisions WHERE run_id=?",
+            [&run],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(max_round, 2);
+    let planned: usize = m
+        .functions
+        .iter()
+        .map(|f| {
+            weakness::plan(&f.language, &Selection::default())
+                .unwrap()
+                .nodes
+                .len()
+        })
+        .sum();
+    assert_eq!(
+        mock.questions.load(Ordering::SeqCst),
+        planned,
+        "all passed, all asked"
+    );
+    assert!(
+        Config::new(mock.as_ref(), Selection::default(), 0.5, 0.15, false)
+            .unwrap()
+            .with_max_rounds(Some(0))
+            .is_err()
+    );
 }
 
 #[test]
@@ -533,4 +613,329 @@ fn http_retries_rate_limits_and_splits_oversized_requests() {
     let e = decide::decide_splitting(&jev, &state, &refs).unwrap_err();
     assert!(!e.retryable && !e.split);
     h.join().unwrap();
+}
+
+fn traits_run(
+    db: &mut rusqlite::Connection,
+    snapshot: &str,
+    provider: Arc<dyn Provider>,
+    traits: bool,
+) -> String {
+    let config = Config::new(provider.as_ref(), Selection::default(), 0.5, 0.15, false)
+        .unwrap()
+        .with_traits(traits);
+    let run = analyze::create(db, snapshot, &config).unwrap()["run_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    analyze::drain(db, &run, provider, exec(4)).unwrap();
+    run
+}
+fn trait_rules(probability: f64) -> Vec<decide::mock::Rule> {
+    weakness::traits()
+        .traits
+        .iter()
+        .map(|t| decide::mock::Rule {
+            weakness: format!("trait:{}", t.key),
+            contains: None,
+            probability,
+        })
+        .collect()
+}
+
+#[test]
+fn trait_catalog_is_valid_against_grammars_and_catalog() {
+    let t = weakness::traits();
+    assert!(!t.traits.is_empty() && t.traits.len() <= 64);
+    for tr in &t.traits {
+        for (language, kinds) in &tr.present_if {
+            let g = betsy::languages::grammar(language).unwrap();
+            for k in kinds {
+                assert_ne!(g.id_for_node_kind(k, true), 0, "{language} has no node {k}");
+            }
+        }
+    }
+    let p = weakness::plan("c", &Selection::default()).unwrap();
+    for n in &p.nodes {
+        if let Some(q) = n.parent {
+            let tagged = t.requires.contains_key(&n.id);
+            if !tagged {
+                assert_eq!(n.requires, p.nodes[q].requires, "{} inherits", n.id);
+            }
+        }
+        let union = n.children.iter().try_fold(n.requires, |acc, &c| {
+            Some(acc.zip(p.nodes[c].reach).map(|(a, b)| a | b))
+        });
+        assert_eq!(Some(n.reach), union, "{} reach", n.id);
+    }
+    assert!(p.nodes.iter().any(|n| n.reach.is_some()));
+    let flat = weakness::plan(
+        "c",
+        &Selection {
+            only: vec!["CWE-787".into()],
+            exclude: vec![],
+        },
+    )
+    .unwrap();
+    assert!(flat.nodes.iter().all(|n| n.requires.is_none()));
+}
+
+#[test]
+fn parser_proves_trait_presence_only() {
+    let t = weakness::traits();
+    let bit = |k: &str| 1u64 << t.traits.iter().position(|x| x.key == k).unwrap();
+    let c = weakness::proven_traits(
+        "c",
+        "int f(int *a, int n) { for (int i = 0; i < n; i++) a[i] = 0; return 0; }",
+    );
+    assert_ne!(c & bit("iteration"), 0);
+    assert_ne!(c & bit("memory_buffers"), 0);
+    assert_eq!(c & bit("switch"), 0);
+    let py = weakness::proven_traits("python", "def f(xs):\n    # for x in xs\n    return 1\n");
+    assert_eq!(py & bit("iteration"), 0, "comments prove nothing");
+    assert_ne!(
+        weakness::proven_traits("python", "def f(xs):\n    return [x for x in xs]\n")
+            & bit("iteration"),
+        0
+    );
+}
+
+#[test]
+fn traits_all_present_change_nothing_and_all_absent_prune() {
+    let script = |p| decide::mock::Script {
+        rules: trait_rules(p),
+        default: None,
+    };
+    let weaknesses = |db: &rusqlite::Connection, run: &str| {
+        decisions(db, run)
+            .into_iter()
+            .map(|(f, w, o, p)| (f, w, if o == "cache" { "provider".into() } else { o }, p))
+            .collect::<Vec<_>>()
+    };
+    let (_a, mut da, m) = persisted();
+    let plain = traits_run(
+        &mut da,
+        &m.snapshot_id,
+        Arc::new(Mock::new(script(1.0), 100)),
+        false,
+    );
+    let (_b, mut dbb, _) = persisted();
+    let present = Arc::new(Mock::new(script(1.0), 100));
+    let all = traits_run(&mut dbb, &m.snapshot_id, present.clone(), true);
+    assert_eq!(weaknesses(&da, &plain), weaknesses(&dbb, &all));
+
+    let (_c, mut dc, _) = persisted();
+    let absent = Arc::new(Mock::new(script(0.0), 100));
+    let none = traits_run(&mut dc, &m.snapshot_id, absent.clone(), true);
+    assert!(absent.questions.load(Ordering::SeqCst) < present.questions.load(Ordering::SeqCst));
+    let d = decisions(&dc, &none);
+    assert!(d.iter().any(|x| x.2 == "trait"));
+    let asked: std::collections::HashSet<String> = absent
+        .log
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(_, w)| w.clone())
+        .collect();
+    assert!(
+        !asked.contains("PERF-001"),
+        "N+1 queries need a data store or network"
+    );
+    assert!(
+        !asked.contains("CWE-662"),
+        "synchronisation needs concurrency"
+    );
+    assert!(
+        asked.contains("CWE-710"),
+        "untagged categories are always asked"
+    );
+    let recall = analyze::recall(&dc, &none, &none).unwrap();
+    assert_eq!(recall["recall"], 1.0);
+}
+
+#[test]
+fn recall_attributes_missed_findings_to_traits() {
+    let (_t, mut db, m) = persisted();
+    let mut rules = trait_rules(0.0);
+    rules.push(decide::mock::Rule {
+        weakness: "CWE-362".into(),
+        contains: None,
+        probability: 0.9,
+    });
+    let base = traits_run(
+        &mut db,
+        &m.snapshot_id,
+        Arc::new(Mock::new(
+            decide::mock::Script {
+                rules: rules.clone(),
+                default: Some(0.9),
+            },
+            100,
+        )),
+        false,
+    );
+    let pruned = traits_run(
+        &mut db,
+        &m.snapshot_id,
+        Arc::new(Mock::new(
+            decide::mock::Script {
+                rules,
+                default: Some(0.9),
+            },
+            100,
+        )),
+        true,
+    );
+    let r = analyze::recall(&db, &base, &pruned).unwrap();
+    assert!(r["recall"].as_f64().unwrap() < 1.0);
+    assert!(r["missed_by_cause"]["trait"].as_u64().unwrap() > 0);
+    assert_eq!(r["missed_by_cause"].as_object().unwrap().len(), 1);
+    assert!(r["run"]["questions"].as_u64() < r["baseline"]["questions"].as_u64());
+    let miss = r["missed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["weakness_id"] == "CWE-362")
+        .unwrap();
+    assert_eq!(
+        miss["decided_at"], "CWE-662",
+        "attributed to the pruned subtree root"
+    );
+}
+
+#[test]
+fn recall_attributes_spliced_subtrees_to_the_failing_ancestor() {
+    let (_t, mut db, m) = persisted();
+    let plan = weakness::plan("c", &Selection::default()).unwrap();
+    // Splice CWE-664 -> CWE-118 -> CWE-119 into one round by excluding 118's siblings.
+    let root = plan.nodes.iter().find(|n| n.id == "CWE-664").unwrap();
+    let selection = Selection {
+        only: vec![],
+        exclude: root
+            .children
+            .iter()
+            .map(|&i| plan.nodes[i].id.clone())
+            .filter(|id| id != "CWE-118")
+            .collect(),
+    };
+    let plan = weakness::plan("c", &selection).unwrap();
+    for id in ["CWE-664", "CWE-118", "CWE-119"] {
+        assert_eq!(plan.nodes.iter().find(|n| n.id == id).unwrap().wave, 1);
+    }
+    let provider = Arc::new(Mock::new(
+        decide::mock::Script {
+            rules: vec![decide::mock::Rule {
+                weakness: "CWE-664".into(),
+                contains: None,
+                probability: 0.01,
+            }],
+            default: Some(0.9),
+        },
+        100,
+    ));
+    let mut config = Config::new(provider.as_ref(), selection, 0.5, 0.15, true).unwrap();
+    let mut runs = vec![];
+    for exhaustive in [true, false] {
+        config.exhaustive = exhaustive;
+        let run = analyze::create(&mut db, &m.snapshot_id, &config).unwrap()["run_id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        analyze::drain(&mut db, &run, provider.clone(), exec(4)).unwrap();
+        runs.push(run);
+    }
+    let report = analyze::recall(&db, &runs[0], &runs[1]).unwrap();
+    let function = m.functions.iter().find(|f| f.path == "example.c").unwrap();
+    let miss = report["missed"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["function_id"] == function.id && x["weakness_id"] == "CWE-787")
+        .unwrap();
+    assert_eq!(miss["cause"], "gated");
+    assert_eq!(miss["decided_at"], "CWE-787");
+    assert_eq!(
+        miss["reason"],
+        format!(
+            "ancestor CWE-664 closed in round 1; subtree of {} not asked",
+            plan.nodes
+                .iter()
+                .find(|n| n.id == "CWE-787")
+                .unwrap()
+                .subtree
+        )
+    );
+}
+
+#[test]
+fn schema_v2_tables_migrate_to_v3_even_with_stale_version_metadata() {
+    for old_version in [0, 1, 2] {
+        let t = tempfile::tempdir().unwrap();
+        let path = t.path().join("old.sqlite");
+        {
+            let db = rusqlite::Connection::open(&path).unwrap();
+            let v2 = include_str!("../src/schema.sql")
+                .replace(",'trait'))", "))")
+                .replace("user_version=3", &format!("user_version={old_version}"));
+            db.execute_batch(&v2).unwrap();
+            db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions VALUES('r','f','CWE-1','finding',2,'gated',0.1,'hash','original reason')").unwrap();
+            assert!(db.execute("INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')", []).is_err());
+        }
+        let db = store::open(&path).unwrap();
+        let version: u32 = db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+        let foreign_keys: bool = db
+            .pragma_query_value(None, "foreign_keys", |r| r.get(0))
+            .unwrap();
+        assert!(foreign_keys);
+        let preserved: (u32, String, f64, String, String) = db
+            .query_row("SELECT round,origin,probability,question_hash,reason FROM weakness_decisions WHERE run_id='r' AND function_id='f' AND weakness_id='CWE-1'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))
+            .unwrap();
+        assert_eq!(
+            preserved,
+            (
+                2,
+                "gated".into(),
+                0.1,
+                "hash".into(),
+                "original reason".into()
+            )
+        );
+        db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')").unwrap();
+        let n: u32 = db
+            .query_row("SELECT COUNT(*) FROM weakness_decisions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 2);
+        let indexed_table: String = db
+            .query_row("SELECT tbl_name FROM sqlite_master WHERE type='index' AND name='weakness_findings'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(indexed_table, "weakness_decisions");
+        drop(db);
+        store::open(&path).unwrap();
+    }
+}
+
+#[test]
+fn legacy_databases_without_weakness_decisions_upgrade_to_v3() {
+    for old_version in [0, 1] {
+        let t = tempfile::tempdir().unwrap();
+        let path = t.path().join("legacy.sqlite");
+        {
+            let db = rusqlite::Connection::open(&path).unwrap();
+            let inventory_schema = include_str!("../src/schema.sql")
+                .split("CREATE TABLE IF NOT EXISTS analysis_runs")
+                .next()
+                .unwrap();
+            db.execute_batch(inventory_schema).unwrap();
+            db.pragma_update(None, "user_version", old_version).unwrap();
+        }
+        let db = store::open(&path).unwrap();
+        let version: u32 = db
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 3);
+        db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-1','finding',1,'trait')").unwrap();
+    }
 }

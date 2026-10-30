@@ -24,6 +24,12 @@ pub struct Config {
     pub threshold: f64,
     pub gate_threshold: f64,
     pub exhaustive: bool,
+    /// In this round every remaining descendant is asked at once, ending the walk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_rounds: Option<u32>,
+    /// Hash of the trait catalog when weaknesses are filtered by function traits first.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traits: Option<String>,
 }
 impl Config {
     pub fn new(
@@ -47,7 +53,18 @@ impl Config {
             threshold,
             gate_threshold,
             exhaustive,
+            max_rounds: None,
+            traits: None,
         })
+    }
+    pub fn with_traits(mut self, enabled: bool) -> Self {
+        self.traits = enabled.then(|| weakness::traits().hash.clone());
+        self
+    }
+    pub fn with_max_rounds(mut self, max_rounds: Option<u32>) -> Result<Self> {
+        anyhow::ensure!(max_rounds != Some(0), "max rounds must be at least 1");
+        self.max_rounds = max_rounds;
+        Ok(self)
     }
     fn provider_key(&self) -> String {
         identity(&self.provider)
@@ -67,6 +84,7 @@ pub struct Exec {
 struct Prepared {
     plan: Plan,
     questions: Vec<Question>,
+    trait_questions: Vec<Question>,
 }
 fn prepare(language: &str, selection: &Selection) -> Result<Arc<Prepared>> {
     let plan = weakness::plan(language, selection)?;
@@ -75,7 +93,16 @@ fn prepare(language: &str, selection: &Selection) -> Result<Arc<Prepared>> {
         .iter()
         .map(|n| weakness::question(&n.id, &n.role))
         .collect();
-    Ok(Arc::new(Prepared { plan, questions }))
+    let trait_questions = weakness::traits()
+        .traits
+        .iter()
+        .map(weakness::trait_question)
+        .collect();
+    Ok(Arc::new(Prepared {
+        plan,
+        questions,
+        trait_questions,
+    }))
 }
 
 pub fn create(db: &mut Connection, snapshot: &str, config: &Config) -> Result<Value> {
@@ -207,6 +234,48 @@ fn ask_round(
     Ok((answers, usage))
 }
 
+/// Asks the uncached questions among `indices` and returns every answer with its origin.
+#[allow(clippy::too_many_arguments)]
+fn ask_cached(
+    provider: &dyn Provider,
+    state: &State,
+    questions: &[Question],
+    indices: &[usize],
+    cached: &HashMap<String, f64>,
+    sem: &Semaphore,
+    tally: &mut Tally,
+) -> Result<HashMap<usize, (Answer, &'static str)>, ProviderError> {
+    let mut answers = HashMap::new();
+    let mut pending = vec![];
+    for &i in indices {
+        match cached.get(&questions[i].hash) {
+            Some(&p) => {
+                answers.insert(i, (Answer::Probability(p), "cache"));
+                tally.from_cache += 1;
+            }
+            None => pending.push(i),
+        }
+    }
+    let qs: Vec<&Question> = pending.iter().map(|&i| &questions[i]).collect();
+    let (got, u) = ask_round(provider, state, &qs, sem)?;
+    tally.usage.add(&u);
+    tally.asked += pending.len();
+    for (&i, a) in pending.iter().zip(got) {
+        if let Answer::Probability(p) = a {
+            tally.fresh.push((questions[i].hash.clone(), p));
+        }
+        answers.insert(i, (a, "provider"));
+    }
+    Ok(answers)
+}
+#[derive(Default)]
+struct Tally {
+    asked: usize,
+    from_cache: usize,
+    fresh: Vec<(String, f64)>,
+    usage: Usage,
+}
+
 fn evaluate(
     provider: &dyn Provider,
     prepared: &Prepared,
@@ -217,83 +286,192 @@ fn evaluate(
 ) -> Result<Outcome, ProviderError> {
     let plan = &prepared.plan;
     let state = State { function };
+    let traits = weakness::traits();
     let mut frontier = plan.roots.clone();
     let mut decisions = vec![];
-    let mut fresh = vec![];
-    let mut usage = Usage::default();
-    let (mut asked, mut from_cache, mut gated_subtrees, mut gated_total) = (0, 0, 0, 0);
+    let mut tally = Tally::default();
+    let (mut gated_subtrees, mut gated_total) = (0, 0);
+    let (mut trait_subtrees, mut trait_total) = (0, 0);
     let mut round = 0;
+    // A refusal counts as present: missing a weakness is worse than an extra question.
+    let passes = |a: Answer| {
+        config.exhaustive || !matches!(a, Answer::Probability(p) if p < config.gate_threshold)
+    };
+    let mut trait_report = BTreeMap::new();
+    let mut present: Option<u64> = None;
+    if config.traits.is_some() && !config.exhaustive && plan.nodes.iter().any(|n| n.reach.is_some())
+    {
+        round += 1;
+        let proven = weakness::proven_traits(
+            &function.language,
+            function.source.as_deref().unwrap_or_default(),
+        );
+        let unproven: Vec<usize> = (0..traits.traits.len())
+            .filter(|i| proven & (1 << i) == 0)
+            .collect();
+        let answers = ask_cached(
+            provider,
+            &state,
+            &prepared.trait_questions,
+            &unproven,
+            cached,
+            sem,
+            &mut tally,
+        )?;
+        let mut mask = proven;
+        for (i, t) in traits.traits.iter().enumerate() {
+            let entry = match answers.get(&i) {
+                None => json!({"origin":"parser"}),
+                Some(&(a, origin)) => {
+                    if passes(a) {
+                        mask |= 1 << i;
+                    }
+                    match a {
+                        Answer::Probability(p) => json!({"origin":origin,"probability":p}),
+                        Answer::Refused => json!({"origin":"refused"}),
+                    }
+                }
+            };
+            trait_report.insert(t.key.clone(), entry);
+        }
+        present = Some(mask);
+    }
+    let absent = |m: Option<u64>| present.is_some_and(|p| m.is_some_and(|m| m & p == 0));
     while !frontier.is_empty() {
         round += 1;
-        let mut answers: HashMap<usize, (Answer, &'static str)> = HashMap::new();
-        let mut pending = vec![];
-        for &i in &frontier {
-            match cached.get(&prepared.questions[i].hash) {
-                Some(&p) => {
-                    answers.insert(i, (Answer::Probability(p), "cache"));
-                    from_cache += 1;
-                }
-                None => pending.push(i),
-            }
-        }
-        let qs: Vec<&Question> = pending.iter().map(|&i| &prepared.questions[i]).collect();
-        let (got, u) = ask_round(provider, &state, &qs, sem)?;
-        usage.add(&u);
-        asked += pending.len();
-        for (&i, a) in pending.iter().zip(got) {
-            if let Answer::Probability(p) = a {
-                fresh.push((prepared.questions[i].hash.clone(), p));
-            }
-            answers.insert(i, (a, "provider"));
-        }
-        let mut next = vec![];
-        for &i in &frontier {
+        let last = config.max_rounds.is_some_and(|m| round >= m);
+        // This round's nodes, parents before children: the frontier plus spliced chains and
+        // the children of nodes whose own traits are absent, or every remaining descendant in
+        // the last round. Subtrees none of whose traits are present are dropped whole.
+        let mut members = vec![];
+        let mut in_round = std::collections::HashSet::new();
+        let mut stack: Vec<usize> = frontier.iter().rev().copied().collect();
+        while let Some(i) = stack.pop() {
             let node = &plan.nodes[i];
-            let (answer, origin) = answers[&i];
+            in_round.insert(i);
+            if absent(node.reach) {
+                trait_subtrees += 1;
+                trait_total += node.subtree;
+                decisions.push(Decision {
+                    weakness_id: node.id.clone(),
+                    role: node.role.clone(),
+                    round,
+                    origin: "trait",
+                    probability: None,
+                    question_hash: None,
+                    reason: Some(format!(
+                        "requires one of {:?}, none present; subtree of {} not asked",
+                        traits.names(node.reach.unwrap_or_default()),
+                        node.subtree
+                    )),
+                });
+                continue;
+            }
+            members.push(i);
+            let through = absent(node.requires);
+            stack.extend(
+                node.children
+                    .iter()
+                    .rev()
+                    .filter(|&&c| last || through || plan.nodes[c].spliced),
+            );
+        }
+        let asked: Vec<usize> = members
+            .iter()
+            .copied()
+            .filter(|&i| !absent(plan.nodes[i].requires))
+            .collect();
+        let answers = ask_cached(
+            provider,
+            &state,
+            &prepared.questions,
+            &asked,
+            cached,
+            sem,
+            &mut tally,
+        )?;
+        let mut next = vec![];
+        // Nodes in this round whose own answer and every in-round ancestor's answer passed.
+        let mut open: HashMap<usize, bool> = HashMap::new();
+        for &i in &members {
+            let node = &plan.nodes[i];
+            let answer = answers.get(&i).copied();
             let probability = match answer {
-                Answer::Probability(p) => Some(p),
-                Answer::Refused => None,
+                Some((Answer::Probability(p), _)) => Some(p),
+                _ => None,
             };
             decisions.push(Decision {
                 weakness_id: node.id.clone(),
                 role: node.role.clone(),
                 round,
-                origin: if probability.is_none() {
-                    "refused"
-                } else {
-                    origin
+                origin: match answer {
+                    None => "trait",
+                    Some((Answer::Refused, _)) => "refused",
+                    Some((_, origin)) => origin,
                 },
                 probability,
-                question_hash: Some(prepared.questions[i].hash.clone()),
-                reason: None,
+                question_hash: answer.map(|_| prepared.questions[i].hash.clone()),
+                reason: answer.is_none().then(|| {
+                    format!(
+                        "requires one of {:?}, none present; descendants considered",
+                        traits.names(node.requires.unwrap_or_default())
+                    )
+                }),
             });
-            // A refusal descends: missing a weakness is worse than an extra question.
-            if config.exhaustive || probability.is_none_or(|p| p >= config.gate_threshold) {
-                next.extend(&node.children);
-            } else {
-                for &c in &node.children {
-                    gated_subtrees += 1;
-                    gated_total += plan.nodes[c].subtree;
-                    decisions.push(Decision {
-                        weakness_id: plan.nodes[c].id.clone(),
-                        role: plan.nodes[c].role.clone(),
-                        round: round + 1,
-                        origin: "gated",
-                        probability: None,
-                        question_hash: None,
-                        reason: Some(format!(
-                            "parent {} p={:.4} < gate {}; subtree of {} not asked",
-                            node.id,
-                            probability.unwrap_or_default(),
-                            config.gate_threshold,
-                            plan.nodes[c].subtree
-                        )),
-                    });
+            // A node skipped for its traits routes like a passing gate.
+            let passed = answer.is_none_or(|(a, _)| passes(a));
+            let ancestor = node.parent.and_then(|p| open.get(&p).copied());
+            open.insert(i, passed && ancestor.unwrap_or(true));
+            let remaining = node.children.iter().filter(|c| !in_round.contains(c));
+            if open[&i] {
+                next.extend(remaining);
+                continue;
+            }
+            let why = if passed {
+                let mut ancestor = node.parent;
+                while let Some(p) = ancestor {
+                    if answers.get(&p).is_some_and(|&(a, _)| !passes(a)) {
+                        break;
+                    }
+                    ancestor = plan.nodes[p].parent;
                 }
+                format!(
+                    "ancestor {} closed in round {round}",
+                    plan.nodes[ancestor.expect("closed by an ancestor")].id
+                )
+            } else {
+                format!(
+                    "parent {} p={:.4} < gate {}",
+                    node.id,
+                    probability.unwrap_or_default(),
+                    config.gate_threshold
+                )
+            };
+            for &c in remaining {
+                gated_subtrees += 1;
+                gated_total += plan.nodes[c].subtree;
+                decisions.push(Decision {
+                    weakness_id: plan.nodes[c].id.clone(),
+                    role: plan.nodes[c].role.clone(),
+                    round: round + 1,
+                    origin: "gated",
+                    probability: None,
+                    question_hash: None,
+                    reason: Some(format!(
+                        "{why}; subtree of {} not asked",
+                        plan.nodes[c].subtree
+                    )),
+                });
             }
         }
         frontier = next;
     }
+    let Tally {
+        asked,
+        from_cache,
+        fresh,
+        usage,
+    } = tally;
     let mut positives: Vec<&Decision> = decisions
         .iter()
         .filter(|d| d.role == Role::Finding && d.probability.is_some_and(|p| p >= config.threshold))
@@ -312,7 +490,11 @@ fn evaluate(
         "cached": from_cache,
         "gated_subtrees": gated_subtrees,
         "gated_weaknesses": gated_total,
+        "trait_subtrees": trait_subtrees,
+        "trait_weaknesses": trait_total,
+        "traits": trait_report,
         "rounds": round,
+        "depth": plan.depth(),
         "usage": usage,
         "positives": positives.iter().map(|d| json!({"weakness_id":d.weakness_id,"probability":d.probability})).collect::<Vec<_>>(),
     });
@@ -507,6 +689,128 @@ pub fn findings(db: &Connection, run: &str) -> Result<Value> {
     Ok(json!({"run_id":run,"threshold":config.threshold,"findings":out}))
 }
 
+/// Compares a pruned run with a baseline over the same snapshot. Each baseline finding the
+/// run did not report is attributed to the decision that pruned it: a trait filter, a gate,
+/// or a probability below the run's threshold.
+pub fn recall(db: &Connection, baseline: &str, run: &str) -> Result<Value> {
+    let snapshot = |r: &str| -> Result<String> {
+        db.query_row(
+            "SELECT snapshot_id FROM dispatch_runs WHERE id=?",
+            [r],
+            |x| x.get(0),
+        )
+        .optional()?
+        .with_context(|| format!("unknown run {r}"))
+    };
+    anyhow::ensure!(
+        snapshot(baseline)? == snapshot(run)?,
+        "runs analyse different snapshots"
+    );
+    let (base_config, config) = (load_config(db, baseline)?, load_config(db, run)?);
+    let positives = |r: &str, threshold: f64| -> Result<Vec<(String, String, String, f64)>> {
+        let mut q = db.prepare(
+            "SELECT d.function_id,fl.language,d.weakness_id,d.probability FROM weakness_decisions d JOIN functions f ON f.id=d.function_id JOIN files fl ON fl.snapshot_id=f.snapshot_id AND fl.path=f.path WHERE d.run_id=? AND d.role='finding' AND d.probability>=? ORDER BY d.function_id,d.weakness_id",
+        )?;
+        let rows = q
+            .query_map(params![r, threshold], |x| {
+                Ok((x.get(0)?, x.get(1)?, x.get(2)?, x.get(3)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        Ok(rows)
+    };
+    type Row = (String, Option<f64>, Option<String>);
+    let mut decided: HashMap<(String, String), Row> = HashMap::new();
+    {
+        let mut q = db.prepare(
+            "SELECT function_id,weakness_id,origin,probability,reason FROM weakness_decisions WHERE run_id=?",
+        )?;
+        let rows = q.query_map([run], |x| {
+            Ok((
+                (x.get::<_, String>(0)?, x.get::<_, String>(1)?),
+                (x.get(2)?, x.get(3)?, x.get(4)?),
+            ))
+        })?;
+        for r in rows {
+            let (k, v) = r?;
+            decided.insert(k, v);
+        }
+    }
+    let found = positives(run, config.threshold)?;
+    let found: std::collections::HashSet<(&str, &str)> = found
+        .iter()
+        .map(|(f, _, w, _)| (f.as_str(), w.as_str()))
+        .collect();
+    let mut plans: HashMap<String, Plan> = HashMap::new();
+    let mut missed = vec![];
+    let mut by_cause = BTreeMap::<String, usize>::new();
+    let expected = positives(baseline, base_config.threshold)?;
+    for (function, language, weakness_id, p) in &expected {
+        if found.contains(&(function.as_str(), weakness_id.as_str())) {
+            continue;
+        }
+        if !plans.contains_key(language) {
+            plans.insert(
+                language.clone(),
+                weakness::plan(language, &config.selection)?,
+            );
+        }
+        let plan = &plans[language];
+        // Pruned subtrees record only their root, so walk up to the recorded ancestor.
+        let mut cur = plan.nodes.iter().position(|n| n.id == *weakness_id);
+        let mut cause = None;
+        while let Some(i) = cur {
+            if let Some(d) = decided.get(&(function.clone(), plan.nodes[i].id.clone())) {
+                cause = Some((plan.nodes[i].id.clone(), d.clone()));
+                break;
+            }
+            cur = plan.nodes[i].parent;
+        }
+        let (at, origin, probability, reason) = match cause {
+            Some((at, (origin, probability, reason))) => (Some(at), origin, probability, reason),
+            None => (None, "not_planned".to_string(), None, None),
+        };
+        let kind = match origin.as_str() {
+            "provider" | "cache" => "below_threshold",
+            o => o,
+        };
+        *by_cause.entry(kind.to_string()).or_default() += 1;
+        missed.push(json!({"function_id":function,"weakness_id":weakness_id,"baseline_probability":p,"cause":kind,"decided_at":at,"origin":origin,"probability":probability,"reason":reason}));
+    }
+    let asked = |r: &str| -> Result<(u64, u64, u64)> {
+        let mut q = db.prepare(
+            "SELECT result_json FROM dispatch_items WHERE run_id=? AND status='completed'",
+        )?;
+        let mut totals = (0, 0, 0);
+        for s in q.query_map([r], |x| x.get::<_, String>(0))? {
+            let v: Value = serde_json::from_str(&s?)?;
+            totals.0 += 1;
+            totals.1 += v["asked"].as_u64().unwrap_or(0) + v["cached"].as_u64().unwrap_or(0);
+            totals.2 += v["rounds"].as_u64().unwrap_or(0);
+        }
+        Ok(totals)
+    };
+    let side = |r: &str, c: &Config| -> Result<Value> {
+        let (functions, questions, rounds) = asked(r)?;
+        Ok(
+            json!({"run_id":r,"functions":functions,"questions":questions,"rounds":rounds,"threshold":c.threshold,"traits":c.traits.is_some(),"exhaustive":c.exhaustive,"max_rounds":c.max_rounds}),
+        )
+    };
+    let recall = if expected.is_empty() {
+        1.0
+    } else {
+        (expected.len() - missed.len()) as f64 / expected.len() as f64
+    };
+    Ok(json!({
+        "baseline": side(baseline, &base_config)?,
+        "run": side(run, &config)?,
+        "baseline_findings": expected.len(),
+        "recovered": expected.len() - missed.len(),
+        "recall": recall,
+        "missed_by_cause": by_cause,
+        "missed": missed,
+    }))
+}
+
 /// Dry-run question budget for a snapshot, without contacting any provider.
 pub fn estimate(
     db: &Connection,
@@ -527,7 +831,7 @@ pub fn estimate(
         let plan = weakness::plan(&language, selection)?;
         naive += functions * total;
         exhaustive += functions * plan.nodes.len();
-        first_round += functions * plan.roots.len();
+        first_round += functions * plan.first_wave();
         languages.push(json!({
             "language": language,
             "functions": functions,
@@ -536,15 +840,19 @@ pub fn estimate(
             "planned_questions": plan.nodes.len(),
             "findings": plan.findings(),
             "gates": plan.nodes.len() - plan.findings(),
-            "round1_questions": plan.roots.len(),
+            "round1_questions": plan.first_wave(),
+            "max_rounds_per_function": plan.depth(),
+            "trait_tagged": plan.nodes.iter().filter(|n| n.requires.is_some()).count(),
+            "trait_prunable_roots": plan.roots.iter().filter(|&&r| plan.nodes[r].reach.is_some()).count(),
             "exhaustive_requests_per_function": plan.nodes.len().div_ceil(per),
-            "round1_requests_per_function": plan.roots.len().div_ceil(per),
+            "round1_requests_per_function": plan.first_wave().div_ceil(per),
         }));
     }
     Ok(json!({
         "snapshot_id": snapshot,
         "profile": weakness::PROFILE,
         "max_questions_per_request": per,
+        "traits": weakness::traits().traits.len(),
         "questions": {"naive_all_weaknesses": naive, "after_prefilter_exhaustive": exhaustive, "hierarchical_lower_bound": first_round},
         "languages": languages,
     }))
