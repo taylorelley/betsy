@@ -1,37 +1,37 @@
 {
   "c": {
-    "questions": 928,
-    "findings": 886,
-    "roots": 63
+    "questions": 920,
+    "findings": 878,
+    "roots": 55
   },
   "cpp": {
-    "questions": 939,
-    "findings": 897,
-    "roots": 63
+    "questions": 931,
+    "findings": 889,
+    "roots": 55
   },
   "javascript": {
-    "questions": 709,
-    "findings": 676,
-    "roots": 28
+    "questions": 706,
+    "findings": 673,
+    "roots": 25
   },
   "typescript": {
-    "questions": 706,
-    "findings": 673,
-    "roots": 31
-  },
-  "tsx": {
-    "questions": 706,
-    "findings": 673,
-    "roots": 31
-  },
-  "python": {
-    "questions": 709,
-    "findings": 676,
+    "questions": 703,
+    "findings": 670,
     "roots": 28
   },
+  "tsx": {
+    "questions": 703,
+    "findings": 670,
+    "roots": 28
+  },
+  "python": {
+    "questions": 706,
+    "findings": 673,
+    "roots": 25
+  },
   "rust": {
-    "questions": 746,
-    "findings": 709,
-    "roots": 54
+    "questions": 741,
+    "findings": 704,
+    "roots": 49
   }
 }

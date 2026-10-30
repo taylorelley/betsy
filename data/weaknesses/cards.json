@@ -1,0 +1,335 @@
+{
+  "cards": {
+    "CWE-125": {
+      "function_checkable": true,
+      "question": "Can this function read memory before the start or past the end of a buffer, array or string it accesses?",
+      "present_when": {
+        "any": [
+          "an index, offset or length used to read comes from a parameter, input, loop bound or calculation and is not checked against the buffer's size first",
+          "a loop reads with an inclusive bound such as i <= len, or one element beyond the data actually stored"
+        ],
+        "c": [
+          "memcpy, memcmp, strncpy, strlen or pointer arithmetic reads a length that is not tied to the source buffer's real size",
+          "a string is read with strlen or a %s format when it may not be NUL-terminated"
+        ],
+        "rust": [
+          "get_unchecked, slice::from_raw_parts or raw pointer reads inside unsafe use a length or index that is not validated"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every read index is checked against the length on all paths before the access",
+          "the index is a constant, or is masked or reduced modulo the buffer size",
+          "the loop bound is the buffer's own length with an exclusive comparison"
+        ],
+        "c": [
+          "the length passed to a copy is sizeof the source, or the minimum of both sizes"
+        ],
+        "python": [
+          "the access is ordinary Python indexing or slicing, which raises or clamps rather than reading outside memory"
+        ],
+        "javascript": [
+          "the access is ordinary array or string indexing, which yields undefined rather than reading outside memory"
+        ],
+        "rust": [
+          "the access is safe indexing, get() or an iterator, which is bounds-checked by the language"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-787": "the out-of-range access only writes",
+        "CWE-129": "the defect is a missing or wrong validation of an index taken from input and the read itself is not shown"
+      }
+    },
+    "CWE-787": {
+      "function_checkable": true,
+      "question": "Can this function write memory before the start or past the end of a buffer, array or string it writes to?",
+      "present_when": {
+        "any": [
+          "an index, offset or length used to write comes from a parameter, input, loop bound or calculation and is not checked against the destination's size first",
+          "a loop writes with an inclusive bound such as i <= len, or a terminator is written one past the space allocated"
+        ],
+        "c": [
+          "strcpy, strcat, sprintf, gets or scanf %s write into a fixed-size buffer without a bound",
+          "memcpy, memset or strncpy write a length that is not tied to the destination buffer's real size",
+          "an allocation size is computed with arithmetic that can overflow before the buffer is filled"
+        ],
+        "rust": [
+          "ptr::write, copy_nonoverlapping or set_len inside unsafe use a length or index that is not validated"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every write index is checked against the destination's capacity on all paths before the access",
+          "the index is a constant, or is masked or reduced modulo the buffer size"
+        ],
+        "c": [
+          "bounded functions such as snprintf or strlcpy receive the destination's real size",
+          "the copy length is sizeof the destination, or the minimum of both sizes"
+        ],
+        "python": [
+          "the write is ordinary Python indexing or slice assignment, which raises or grows the list rather than writing outside memory"
+        ],
+        "javascript": [
+          "the write is ordinary array indexing, which grows the array rather than writing outside memory"
+        ],
+        "rust": [
+          "the write is safe indexing, push or extend, which is bounds-checked by the language"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-125": "the out-of-range access only reads",
+        "CWE-129": "the defect is a missing or wrong validation of an index taken from input and the write itself is not shown"
+      }
+    },
+    "CWE-476": {
+      "function_checkable": true,
+      "question": "Can this function dereference a pointer or reference that may be null at that point?",
+      "present_when": {
+        "any": [
+          "a value that the function itself shows may be null (a lookup result, an optional field, a pointer tested for null elsewhere in the function) is used before or without a null test on that path"
+        ],
+        "c": [
+          "the result of malloc, calloc, realloc, fopen, getenv, strchr or a similar call that can return NULL is dereferenced without a NULL test",
+          "a pointer is tested for NULL after it has already been dereferenced"
+        ],
+        "javascript": [
+          "a property is read from a value that can be null or undefined, such as a find() or getElementById() result, without a check or optional chaining"
+        ],
+        "python": [
+          "an attribute or item is taken from a value that can be None, such as re.match() or dict.get() results, without a check"
+        ],
+        "rust": [
+          "a raw pointer from FFI or ptr::null is dereferenced inside unsafe without an is_null check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the pointer is tested for null on every path before each use",
+          "the value comes from a source that cannot be null, such as the address of a local or a constructor that throws on failure",
+          "the only possible null would come from a caller passing one, and nothing in this function suggests callers do"
+        ],
+        "c": [
+          "the allocation goes through a wrapper that aborts on failure"
+        ],
+        "javascript": [
+          "optional chaining (?.) or a nullish default (??) guards the access"
+        ],
+        "rust": [
+          "the value is a reference, Box or Option handled by match, if let, ? or unwrap_or, which cannot dereference null"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-690": "the null comes specifically from an unchecked return value and that is the more precise finding",
+        "CWE-416": "the pointer is not null but refers to memory that was already freed"
+      }
+    },
+    "CWE-617": {
+      "function_checkable": true,
+      "question": "Does this function contain an assertion that input from outside the program could make fail, ending the process or request?",
+      "present_when": {
+        "any": [
+          "an assert or abort-on-failure check tests a value that comes from a parameter fed by external input, a file, a network message or user data, and that value is not validated before the assertion"
+        ],
+        "c": [
+          "assert() or a project assertion macro checks a length, count, index or state read from input"
+        ],
+        "python": [
+          "assert checks request, file or message content (note that python -O removes these, which is a separate concern)"
+        ],
+        "rust": [
+          "assert!, panic!, unreachable!, unwrap() or expect() fires on a malformed input value rather than a programming error"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the assertion checks an internal invariant that only a programming error could violate, such as a pointer the function itself just set",
+          "the asserted value has already been validated on every path, with an error returned for bad input",
+          "the assertion only exists in debug builds and the same condition is handled at run time"
+        ],
+        "c": [
+          "static_assert or _Static_assert, which is checked at compile time"
+        ]
+      },
+      "distinguish_from": {
+        "REL-026": "the hazard is an unguarded division, dereference or index rather than an assertion"
+      }
+    },
+    "REL-026": {
+      "function_checkable": true,
+      "question": "Does this function perform a division, dereference, index or shift whose operand range it never checks, when that operand comes from outside the function?",
+      "present_when": {
+        "any": [
+          "a divisor taken from a parameter, input, length field or calculation is used with / or % without a non-zero test",
+          "a shift count from a parameter or input is not bounded by the operand's width"
+        ],
+        "c": [
+          "buf[i] or ptr + n uses an index from a message, length field or parameter without a range test",
+          "a pointer returned by a lookup or allocation is dereferenced without a NULL test"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operand range is proven in the function: a non-zero constant divisor, an index masked to the array size, or a test with an early return on every path",
+          "the operation cannot fail in this language, such as Python division, which raises a clean exception"
+        ],
+        "rust": [
+          "checked_div, checked_shl, get() or safe indexing, which report failure rather than corrupting results"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-369": "the only hazard is division by zero and that is the more precise finding",
+        "CWE-476": "the only hazard is a null dereference and that is the more precise finding",
+        "CWE-129": "the only hazard is an unvalidated array index from input and that is the more precise finding"
+      }
+    },
+    "CWE-777": {
+      "function_checkable": true,
+      "question": "Does this function validate or filter a string with a regular expression that is not anchored at both ends, so extra content before or after the match is accepted?",
+      "present_when": {
+        "any": [
+          "a regular expression used to accept or reject input lacks ^ and $ (or \\A and \\z) and is applied with a search-style call",
+          "an allowlist pattern is anchored at only one end"
+        ],
+        "javascript": [
+          "RegExp.test() or String.match() validates input with a pattern lacking ^...$"
+        ],
+        "python": [
+          "re.search() or re.match() is used for validation with no $ or \\Z at the end of the pattern"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the regular expression is used to find, extract or replace text rather than to validate or authorise input",
+          "the pattern is anchored at both ends, or applied with a whole-string call"
+        ],
+        "python": [
+          "re.fullmatch() is used"
+        ],
+        "rust": [
+          "Regex::is_match on a pattern wrapped in ^...$"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1333": "the concern is catastrophic backtracking rather than what the pattern accepts"
+      }
+    },
+    "CWE-367": {
+      "function_checkable": true,
+      "question": "Does this function check the state of a file or other shared resource and then act on it in a separate step, so the state can change in between?",
+      "present_when": {
+        "any": [
+          "a file path is checked (exists, access, stat, permissions, is-symlink) and the same path is then opened, created, deleted or changed by a separate call"
+        ],
+        "c": [
+          "access() or stat() is followed by open() or fopen() on the same path"
+        ],
+        "python": [
+          "os.path.exists, os.access or os.path.isfile is followed by open, os.remove or os.rename on the same path"
+        ],
+        "javascript": [
+          "fs.existsSync or fs.access is followed by fs.open, fs.writeFile or fs.unlink on the same path"
+        ],
+        "rust": [
+          "Path::exists or fs::metadata is followed by File::create, fs::write or fs::remove_file on the same path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operation is done in one atomic call and its error is handled, such as open with O_CREAT|O_EXCL, or create_new(true)",
+          "the check is made on an already-open handle (fstat on the descriptor) rather than the path",
+          "the resource is private to the process, such as a local variable or an in-memory structure behind a lock held across check and use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-362": "the race is between threads on shared memory rather than a check followed by a use of an external resource"
+      }
+    },
+    "PERF-004": {
+      "function_checkable": true,
+      "question": "Does this function build a string by repeated concatenation inside a loop?",
+      "present_when": {
+        "any": [
+          "inside a loop, a string variable is extended with += or s = s + ... on each iteration"
+        ],
+        "javascript": [
+          "a string is grown with += across loop iterations that can run many times"
+        ],
+        "python": [
+          "a str is grown with += in a for or while loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "parts are collected into a list or array and joined once after the loop",
+          "a builder or buffer is used, such as io.StringIO, a String with push_str, or std::string with reserve and append",
+          "the loop has a small fixed number of iterations"
+        ],
+        "rust": [
+          "push_str or write! onto a String, which grows in amortised constant time"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-006": "the cost comes from recomputing the same value on each iteration rather than from copying a growing string"
+      }
+    },
+    "PERF-007": {
+      "function_checkable": true,
+      "question": "Does this function repeatedly test membership or search for keys in a list or array inside a loop, where a set or map would make each lookup constant time?",
+      "present_when": {
+        "any": [
+          "inside a loop, x in list, list.index, Array.includes, indexOf, find or a nested loop searches a sequence that grows with the input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the lookup is against a set, dict, map or hash table",
+          "the searched sequence is small and fixed, such as a literal of a few items",
+          "the membership test runs once rather than per iteration"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-006": "the repeated work is a computation unrelated to searching a sequence"
+      }
+    },
+    "REL-005": {
+      "function_checkable": false,
+      "reason": "Placeholder guideline about review process with no technical requirement; nothing in code can show it."
+    },
+    "REL-006": {
+      "function_checkable": false,
+      "reason": "Placeholder guideline about review process with no technical requirement; nothing in code can show it."
+    },
+    "REL-035": {
+      "function_checkable": false,
+      "reason": "Concerns a header file's include guard, which lies outside any function body."
+    },
+    "REL-053": {
+      "function_checkable": false,
+      "reason": "Needs every external identifier in the program to compare names."
+    },
+    "REL-060": {
+      "function_checkable": false,
+      "reason": "Needs the program's external symbols to know whether a name is reused."
+    },
+    "REL-061": {
+      "function_checkable": false,
+      "reason": "Needs every identifier in the program to know whether a static name is reused."
+    },
+    "REL-163": {
+      "function_checkable": false,
+      "reason": "Concerns preprocessor blocks that span files, outside any function body."
+    },
+    "PERF-003": {
+      "function_checkable": false,
+      "reason": "Depends on the database schema's indexes, which are not in the function's code."
+    },
+    "CWE-1302": {
+      "function_checkable": false,
+      "reason": "Concerns hardware bus transactions on a system-on-chip, not software function code."
+    },
+    "CWE-1303": {
+      "function_checkable": false,
+      "reason": "Concerns shared microarchitectural hardware such as caches and branch predictors, not function code."
+    }
+  }
+}

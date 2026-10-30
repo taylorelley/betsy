@@ -14,3 +14,20 @@ Copied byte for byte from `taylorelley/scorpius-cli` at commit
 The files are embedded into `betsy` at build time. Their combined hash is part of every
 analysis run's configuration, so editing a catalog never silently reuses old decisions.
 CWE content is subject to the MITRE terms reproduced in `CWE_NOTICE.txt`.
+
+## Detection cards
+
+`cards.json` is not copied from scorpius-cli. It is an overlay written for BETSY that rewrites
+the question for selected entries; see [docs/DETECTION_CARDS.md](../../docs/DETECTION_CARDS.md).
+
+| File | Content | Cards | SHA-256 |
+|---|---|---:|---|
+| `cards.json` | detection cards | 19 | `fb8281188aed99df1d9b6b9f0bcf90282cda4f1312401b55619da8feaa67002d` |
+
+Sources, per card, are the catalog entry it is keyed by and the entries named in its
+`distinguish_from`, as they appear in the files above (MITRE CWE 4.20 for `CWE-` IDs). The
+wording is new, but cards for `CWE-` entries are derived from MITRE content. The CWE terms
+appear to permit derived works when the notice in `CWE_NOTICE.txt` is kept; this has not yet
+been confirmed with Legal and must be before the cards ship.
+
+The cards' hash is part of the catalog hash, so it is part of every analysis run's configuration.
