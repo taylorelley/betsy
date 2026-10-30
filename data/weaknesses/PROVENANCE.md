@@ -24,7 +24,7 @@ written for BETSY, in the same schema and continuing the same ID sequences; see
 
 | File | Catalog | Entries | SHA-256 |
 |---|---|---:|---|
-| `betsy_reliability_weaknesses.json` | reliability (`REL-214` to `REL-299`) | 86 | `70b015006a6e8b21ab31b01816446a08e9c89cd5719431d3fb3848424e09fe81` |
+| `betsy_reliability_weaknesses.json` | reliability (`REL-214` to `REL-306`) | 93 | `eec356898f1fd5d5b4db1cff8a39c178521d0cb0edf20dffa2e3cd986a486dae` |
 | `betsy_performance_weaknesses.json` | performance (`PERF-011` to `PERF-024`) | 14 | `4de254b9e27eab2f8c4421aa7d831afab95ae74646e3fd24d975ba5b2603ba40` |
 
 ## Detection cards
@@ -34,7 +34,7 @@ the question for selected entries; see [docs/DETECTION_CARDS.md](../../docs/DETE
 
 | File | Content | Cards | SHA-256 |
 |---|---|---:|---|
-| `cards.json` | detection cards | 1,071 | `38ba7da403a5d6e3354849d169f842683fc265ad6351fd2834885843eb416fef` |
+| `cards.json` | detection cards | 1,078 | `bc99fa3e213faaeb940cf0da39b91b2d1e394ac59519415ca8a9cfaf96485772` |
 
 Sources, per card, are the catalog entry it is keyed by and the entries named in its
 `distinguish_from`, as they appear in the files above (MITRE CWE 4.20 for `CWE-` IDs). The

@@ -91,7 +91,7 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213 + 86, 10 + 14)
+        (969, 213 + 93, 10 + 14)
     );
     // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
     // entries live in the betsy_ files.
@@ -169,6 +169,9 @@ fn plans_account_for_every_weakness_and_match_golden() {
     assert!(has("python", "REL-275") && !has("javascript", "REL-275"));
     assert!(has("rust", "REL-280") && has("cpp", "REL-280") && !has("c", "REL-280"));
     assert!(has("c", "REL-299") && has("python", "REL-299") && !has("javascript", "REL-299"));
+    // Time, text and distributed-systems entries apply to every language but REL-300.
+    assert!(LANGUAGES.iter().all(|l| has(l, "REL-301") && has(l, "REL-305")));
+    assert!(has("tsx", "REL-300") && has("python", "REL-300") && !has("rust", "REL-300"));
 }
 
 #[test]

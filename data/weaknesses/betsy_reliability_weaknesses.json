@@ -4912,5 +4912,353 @@
     "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT Oracle Coding Standard for Java; no text is copied from the source.",
     "view_ids": [],
     "view_names": []
+  },
+  {
+    "id": "REL-300",
+    "name": "Listener, Timer or Subscription Registered in a Lifecycle Without Matching Cleanup",
+    "description": "A component, object or setup routine registers an event listener, interval timer, observer or subscription and has no matching removal when it is torn down, so the callback and everything it references stay alive.",
+    "extended_description": "Each mount or construction adds another registration. Old callbacks keep firing against stale state, and the objects they capture can never be collected, which grows memory and causes duplicated side effects over time.",
+    "detection_methods": [
+      "Find addEventListener, setInterval, subscribe, on(...) and observer registration in setup code",
+      "Check for removal in the matching teardown, such as an effect cleanup, componentWillUnmount, close or __exit__"
+    ],
+    "potential_mitigations": [
+      "Return a cleanup function from effects and remove listeners in teardown",
+      "Use once options, AbortSignal or scoped subscriptions"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-401",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "JavaScript",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Memory Growth",
+      "Duplicate or Stale Callbacks"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "A Taxonomy of Bugs (Machinery)",
+        "entry_id": "memory-leak",
+        "entry_name": "Reference leak",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in A Taxonomy of Bugs (Machinery); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-301",
+    "name": "Wall-Clock Time Used to Measure Elapsed Time or Deadlines",
+    "description": "Durations, timeouts or rate limits are computed by subtracting readings of the system wall clock, which can jump backwards or forwards when the clock is adjusted.",
+    "extended_description": "Wall-clock time follows NTP corrections, manual changes and leap-second handling. Elapsed times can come out negative or huge, timeouts fire early or never, and rate limiters misbehave. Monotonic clocks exist for this purpose.",
+    "detection_methods": [
+      "Find subtractions or comparisons of time.time, Date.now, new Date, system_clock, gettimeofday, time() or SystemTime::now readings",
+      "Check whether the result is a duration, deadline or timeout"
+    ],
+    "potential_mitigations": [
+      "Use a monotonic clock such as time.monotonic, performance.now, steady_clock, CLOCK_MONOTONIC or Instant",
+      "Keep wall-clock time for timestamps shown to people or stored"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-682",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Wrong Timeouts",
+      "Negative or Huge Durations"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "falsehoods-time",
+        "entry_name": "Falsehoods programmers believe about time",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in Every Programmer Should Know (mtdvio); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-302",
+    "name": "Calendar Arithmetic With Fixed-Length Days, Months or Years",
+    "description": "Code moves a local date or time by a day, month or year by adding a fixed number of seconds or days, such as 86400 seconds or 30 days, which is wrong across daylight-saving changes, month ends and leap years.",
+    "extended_description": "Local days can be 23 or 25 hours long, months have 28 to 31 days and years 365 or 366. Fixed arithmetic lands on the wrong date or hour, for example skipping a day or producing 31 February.",
+    "detection_methods": [
+      "Find constants such as 86400, 24*60*60*1000, 30 or 365 used to step dates",
+      "Check whether the values are local calendar dates rather than UTC instants"
+    ],
+    "potential_mitigations": [
+      "Use calendar-aware functions such as relativedelta, Temporal, chrono Months or date libraries",
+      "Work in UTC for instants and convert at the edges"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-682",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Wrong Dates",
+      "Off-by-One-Hour Errors"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "falsehoods-time",
+        "entry_name": "Falsehoods programmers believe about time",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in Every Programmer Should Know (mtdvio); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-303",
+    "name": "Digit-String Identifier Parsed Into a Numeric Type",
+    "description": "A phone number, postcode, account number, card number or other identifier made of digits is converted to an integer or float, which drops leading zeros and plus signs and can lose precision for long values.",
+    "extended_description": "Identifiers are labels, not quantities. Parsing them as numbers turns 021 into 21, loses the + of an international number, and in JavaScript rounds values longer than 15 or 16 digits.",
+    "detection_methods": [
+      "Find int, Number, parseInt, atoi, stoi or parse::<u64> applied to fields named phone, zip, postcode, account, id or similar",
+      "Check whether the result is stored, compared or displayed"
+    ],
+    "potential_mitigations": [
+      "Keep identifiers as strings and validate their format",
+      "Use numbers only for values that take part in arithmetic"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-704",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Corrupted Identifiers",
+      "Failed Lookups"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "falsehoods-phone-numbers",
+        "entry_name": "Falsehoods programmers believe about phone numbers",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "falsehoods-addresses",
+        "entry_name": "Falsehoods programmers believe about addresses",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in Every Programmer Should Know (mtdvio); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-304",
+    "name": "Human Name or Address Forced Into a Rigid Format",
+    "description": "Names or postal addresses are validated or split with assumptions that do not hold worldwide, such as only ASCII letters, exactly two name parts, a required surname or fixed field lengths.",
+    "extended_description": "Real names contain spaces, hyphens, apostrophes and non-Latin scripts, may be a single word, and may have the family name first. Addresses vary in structure by country. Rigid rules reject real people or corrupt their details.",
+    "detection_methods": [
+      "Find regular expressions, length limits and split calls applied to name and address fields",
+      "Check for assumptions about letters, part counts and order"
+    ],
+    "potential_mitigations": [
+      "Accept a single free-text name field with only length and control-character checks",
+      "Store addresses as lines plus country, validating only what the destination country requires"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-20",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Valid Users Rejected",
+      "Corrupted Personal Details"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "falsehoods-names",
+        "entry_name": "Falsehoods programmers believe about names",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "falsehoods-addresses",
+        "entry_name": "Falsehoods programmers believe about addresses",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in Every Programmer Should Know (mtdvio); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-305",
+    "name": "Remote Call Retried in a Loop With No Attempt Limit or Backoff",
+    "description": "A network, database or service call is retried on failure in a loop that has no maximum number of attempts, no growing delay or no jitter, so outages turn into endless tight retry storms.",
+    "extended_description": "Immediate unbounded retries multiply load on a failing service and can keep it down. Many clients retrying in lockstep make it worse. Without a limit the calling thread or request also never fails cleanly.",
+    "detection_methods": [
+      "Find while True or for loops around calls that catch errors and try again",
+      "Check for an attempt counter, increasing sleep and random jitter"
+    ],
+    "potential_mitigations": [
+      "Limit attempts and back off exponentially with jitter",
+      "Use a retry library or client policy, and retry only idempotent operations"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-400",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Retry Storm",
+      "Resource Exhaustion",
+      "Hung Requests"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "fallacies-distributed-computing",
+        "entry_name": "Fallacies of distributed computing",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in Every Programmer Should Know (mtdvio); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-306",
+    "name": "Locale-Sensitive Case Conversion Used for Case-Insensitive Comparison",
+    "description": "Text is compared case-insensitively by lower- or upper-casing both sides with functions whose result depends on the locale or that do not handle full Unicode case folding.",
+    "extended_description": "In a Turkish locale 'I'.lower() style conversion gives a dotless i, so 'TITLE' and 'title' differ. Some characters, such as German sharp s, need case folding rather than lowercasing. Byte-wise tolower on UTF-8 text mangles multi-byte characters.",
+    "detection_methods": [
+      "Find comparisons of lower(), toLowerCase, toUpperCase, tolower or towlower results",
+      "Check whether the text can be non-ASCII and whether the locale can vary"
+    ],
+    "potential_mitigations": [
+      "Use casefold, localeCompare with sensitivity set, or a Unicode case-folding function",
+      "For ASCII protocol tokens, use ASCII-only comparisons such as eq_ignore_ascii_case or strcasecmp in the C locale"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-697",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Comparison Result",
+      "Lookup Failures"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "Every Programmer Should Know (mtdvio)",
+        "entry_id": "unicode",
+        "entry_name": "Unicode and character sets",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in Every Programmer Should Know (mtdvio); no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
   }
 ]

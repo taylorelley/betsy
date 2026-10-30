@@ -97,6 +97,13 @@ in `taxonomy_mappings`; the wording is BETSY's own.
   masking the original, catching null-dereference errors, libraries calling `exit`, `Thread.run`
   instead of `start`, pool tasks waiting on their own pool, lost background-task errors,
   thread-local state left in pooled threads, and undrained child-process pipes.
+- **"Every programmer should know" and the Machinery bug taxonomy (REL-300 to REL-306).** Most
+  of the linked material (floating point, Unicode, regex, crypto, latency, naive date-times) was
+  already carded. The new entries cover listeners, timers and subscriptions with no cleanup, wall
+  clocks used for durations, fixed-length calendar arithmetic, digit-string identifiers parsed as
+  numbers, rigid name and address formats, unbounded retries without backoff, and locale-sensitive
+  case conversion for comparison. Architecture-level fallacies, such as changing topology or
+  clocks ordered across machines, cannot be decided from one function and were left out.
 
 ## Language-specific patterns
 

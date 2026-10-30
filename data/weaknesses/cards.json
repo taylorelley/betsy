@@ -24305,6 +24305,245 @@
         ]
       }
     },
+    "REL-300": {
+      "function_checkable": true,
+      "question": "Does this function register a listener, timer, observer or subscription as part of setting something up, without removing it when that thing is torn down?",
+      "present_when": {
+        "javascript": [
+          "useEffect(() => { window.addEventListener(...) or setInterval(...) or store.subscribe(...) }) with no cleanup function returned",
+          "componentDidMount, connectedCallback or a constructor that adds listeners or timers with no removal in componentWillUnmount, disconnectedCallback or a dispose method"
+        ],
+        "tsx": [
+          "a React effect or hook that subscribes, observes or starts a timer and returns no cleanup"
+        ],
+        "python": [
+          "an object's __init__ or setup connects a signal, registers a callback or starts a timer with no disconnect in close, __exit__ or teardown"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the effect returns a function that removes the listener, clears the timer or unsubscribes",
+          "the listener uses { once: true } or an AbortSignal that is aborted on teardown",
+          "the registration is made once at module load for the program's lifetime"
+        ],
+        "python": [
+          "teardown disconnects or cancels the registration",
+          "the registration uses a weak reference or lives for the whole program"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-401": "memory is allocated and never freed, rather than a callback registration being left behind"
+      }
+    },
+    "REL-301": {
+      "function_checkable": true,
+      "question": "Does this function measure an elapsed time, timeout or deadline using wall-clock readings instead of a monotonic clock?",
+      "present_when": {
+        "python": [
+          "start = time.time() ... time.time() - start, or a deadline computed with datetime.now() and compared later"
+        ],
+        "javascript": [
+          "Date.now() - start or new Date() differences used for a timeout, retry delay, rate limit or benchmark"
+        ],
+        "c": [
+          "time(NULL), gettimeofday or clock_gettime(CLOCK_REALTIME) differences used as durations"
+        ],
+        "cpp": [
+          "std::chrono::system_clock::now() differences used for timeouts or measuring work"
+        ],
+        "rust": [
+          "SystemTime::now() with duration_since or elapsed used for a timeout or measurement"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "time.monotonic() or time.perf_counter() is used"
+        ],
+        "javascript": [
+          "performance.now() or process.hrtime is used",
+          "the wall-clock value is only stored or displayed"
+        ],
+        "c": [
+          "clock_gettime(CLOCK_MONOTONIC) is used"
+        ],
+        "cpp": [
+          "std::chrono::steady_clock is used"
+        ],
+        "rust": [
+          "std::time::Instant is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-232": "naive and time-zone-aware date-times are mixed"
+      }
+    },
+    "REL-302": {
+      "function_checkable": true,
+      "question": "Does this function advance or compare calendar dates by adding fixed numbers of seconds or days where days, months or years can differ in length?",
+      "present_when": {
+        "any": [
+          "86400, 24 * 3600, 24*60*60*1000, 30 or 365 used to compute tomorrow, next month, next year or an age from local date-times"
+        ],
+        "python": [
+          "timedelta(days=30) for one month or timedelta(days=365) for one year, or adding 86400 to a local timestamp"
+        ],
+        "javascript": [
+          "date.getTime() + 24*60*60*1000 for the next local day, or setDate(getDate() + 30) for next month"
+        ],
+        "c": [
+          "adding 86400 to a time_t and then calling localtime to get the next calendar day"
+        ],
+        "rust": [
+          "Duration::from_secs(86400) added to a local date-time for the next day"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the values are UTC instants and a fixed duration is truly meant",
+          "a calendar-aware API steps months and years"
+        ],
+        "python": [
+          "dateutil.relativedelta, date + timedelta(days=1) on a plain date, or zoneinfo-aware arithmetic is used"
+        ],
+        "javascript": [
+          "Temporal, date-fns addMonths or addDays, or Luxon is used"
+        ],
+        "c": [
+          "mktime normalises a struct tm whose tm_mday or tm_mon was incremented"
+        ],
+        "rust": [
+          "chrono Months, checked_add_months or NaiveDate succ is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-232": "naive and aware date-times are mixed rather than stepped by fixed amounts"
+      }
+    },
+    "REL-303": {
+      "function_checkable": true,
+      "question": "Does this function convert a phone number, postcode, account number or other digit-string identifier into a numeric type?",
+      "present_when": {
+        "python": [
+          "int(phone), int(postcode), int(account_no) or float(card_number), then stored, compared or formatted"
+        ],
+        "javascript": [
+          "Number(zip), parseInt(phone) or +accountId on an identifier, or an ID longer than 15 digits handled as a number"
+        ],
+        "c": [
+          "atoi, atol or strtol on a phone number, postcode or account string that is then stored or compared"
+        ],
+        "cpp": [
+          "std::stoi or std::stoll on a phone number, postcode or account string"
+        ],
+        "rust": [
+          "phone.parse::<u64>() or postcode.parse::<u32>() and the number kept as the identifier"
+        ],
+        "typescript": [
+          "an identifier field declared as number in a type for data that arrives as digit strings"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the identifier is kept as a string and validated with a pattern",
+          "the digits are parsed only to compute a checksum, with the string kept as the identifier"
+        ],
+        "javascript": [
+          "BigInt or a string is used for long identifiers"
+        ]
+      },
+      "distinguish_from": {
+        "REL-216": "a parsed number is used without checking for NaN"
+      }
+    },
+    "REL-304": {
+      "function_checkable": true,
+      "question": "Does this function validate, split or reformat a person's name or postal address using rules that only fit some cultures or countries?",
+      "present_when": {
+        "any": [
+          "a name checked against a pattern like ^[A-Za-z]+$ or [a-zA-Z ]{2,20} that rejects accents, apostrophes, hyphens or non-Latin scripts",
+          "a full name split on the first or last space into first and last name, or a surname made mandatory",
+          "an address required to have a house number, a state or a five-digit postcode regardless of country"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is stored as entered with only length or control-character checks",
+          "address rules depend on the country and come from a maintained library",
+          "the field is not a person's name or a postal address"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-20": "input that should be restricted is not validated enough, rather than valid input being rejected"
+      }
+    },
+    "REL-305": {
+      "function_checkable": true,
+      "question": "Does this function retry a failed network, database or service call in a loop with no attempt limit, or with no delay that grows between attempts?",
+      "present_when": {
+        "any": [
+          "while true or an unbounded loop that calls a remote service, catches the failure and loops again",
+          "a retry loop with a fixed short sleep or no sleep at all, and no maximum attempt count"
+        ],
+        "javascript": [
+          "a recursive retry function that calls itself on rejection with no attempt counter"
+        ],
+        "python": [
+          "while True: try: requests.get(...) break except RequestException: continue"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "attempts are capped and the delay grows, for example exponentially with jitter",
+          "a retry library or client retry policy such as tenacity, backoff, p-retry, tokio-retry or the SDK's built-in retries is used",
+          "the loop is a long-running consumer that waits on a blocking call rather than retrying a failure"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-021": "the loop polls a condition without sleeping rather than retrying a failed call",
+        "CWE-1088": "a call has no timeout, rather than unbounded retries"
+      }
+    },
+    "REL-306": {
+      "function_checkable": true,
+      "question": "Does this function compare text case-insensitively by converting case with a method that is locale-dependent or does not fold all Unicode characters?",
+      "present_when": {
+        "python": [
+          "a.lower() == b.lower() or upper() comparisons on user names, e-mail addresses or other text that can be non-ASCII"
+        ],
+        "javascript": [
+          "a.toLowerCase() === b.toLowerCase() or toLocaleUpperCase() on identifiers that may be compared across locales"
+        ],
+        "c": [
+          "tolower or toupper applied byte by byte to UTF-8 text before strcmp",
+          "strcasecmp on non-ASCII text under a user locale"
+        ],
+        "cpp": [
+          "std::tolower in a transform over a UTF-8 std::string before comparing"
+        ],
+        "rust": [
+          "to_lowercase() == on both sides for non-ASCII text that needs case folding"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "casefold() is used",
+          "the strings are ASCII-only protocol tokens"
+        ],
+        "javascript": [
+          "localeCompare(b, undefined, { sensitivity: 'accent' or 'base' }) or Intl.Collator is used"
+        ],
+        "c": [
+          "the comparison is on ASCII-only tokens in the C locale",
+          "ICU case folding is used"
+        ],
+        "rust": [
+          "eq_ignore_ascii_case on ASCII tokens, or a Unicode case-folding crate"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-178": "a security decision mishandles case differences, rather than an ordinary comparison"
+      }
+    },
     "PERF-001": {
       "function_checkable": true,
       "question": "Does this function issue a database or API query inside a loop over the results of an earlier query, one round trip per item?",
