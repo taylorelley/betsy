@@ -1,12 +1,12 @@
 {
   "c": {
-    "questions": 869,
-    "findings": 827,
+    "questions": 883,
+    "findings": 841,
     "roots": 51
   },
   "cpp": {
-    "questions": 887,
-    "findings": 845,
+    "questions": 916,
+    "findings": 874,
     "roots": 51
   },
   "javascript": {
@@ -25,13 +25,13 @@
     "roots": 28
   },
   "python": {
-    "questions": 676,
-    "findings": 643,
+    "questions": 679,
+    "findings": 646,
     "roots": 25
   },
   "rust": {
-    "questions": 706,
-    "findings": 669,
+    "questions": 708,
+    "findings": 671,
     "roots": 49
   }
 }

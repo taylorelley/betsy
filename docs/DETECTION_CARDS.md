@@ -64,6 +64,26 @@ CWE-1024, `is` with literals under CWE-595, bare `except` under CWE-396, regex c
 loop under PERF-006), the entry was not added. Language-specific entries name their platforms
 (`TypeScript` reaches TypeScript and TSX only; `C` also reaches C++).
 
+### Entries from coding standards and references
+
+A second round compared the cards with published coding standards and reference material, and
+added an entry wherever a function-level defect had no card. Each entry records its source rules
+in `taxonomy_mappings`; the wording is BETSY's own.
+
+- **SEI CERT C and C++ (REL-243 to REL-271).** Of 205 rules, 119 were already covered, 10 cannot
+  be decided from one function, and 32 were closer to an existing card than to a new entry.
+  The new entries cover struct padding copied out or compared with `memcmp`, C23
+  `[[unsequenced]]` functions with side effects, writes through and stale pointers from
+  `getenv`/`strerror`/`localeconv`, exit and fault-signal handlers that do not end the program,
+  `errno` tested without being reset, update streams switched without a flush or seek, mutexes
+  destroyed while held, condition waits and weak compare-exchange outside a loop, single notifies
+  for mixed predicates, asynchronous thread termination, unnamed C++ guards, polymorphic arrays,
+  mixed iterator ranges, stateful predicates, raw storage without construction, misaligned
+  placement new, replacement `operator new` and handlers that break their contract,
+  function-try-block handlers using members, handler order (also for Python), catching by value,
+  deleting through a base without a virtual destructor, initialiser order, self-assignment,
+  pointer-to-member misuse, copies that change their source, and `noreturn` functions that return.
+
 ## Language-specific patterns
 
 C++ reads `c` patterns and TypeScript and TSX read `javascript` ones, so those languages mostly

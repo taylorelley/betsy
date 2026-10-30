@@ -91,7 +91,7 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213 + 29, 10 + 14)
+        (969, 213 + 58, 10 + 14)
     );
     // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
     // entries live in the betsy_ files.
@@ -159,6 +159,11 @@ fn plans_account_for_every_weakness_and_match_golden() {
     assert!(has("cpp", "PERF-013") && has("rust", "PERF-013") && !has("python", "PERF-013"));
     assert!(has("javascript", "PERF-024") && !has("python", "PERF-024"));
     assert!(LANGUAGES.iter().all(|l| has(l, "PERF-022")));
+    // Entries from the SEI CERT C and C++ standards.
+    assert!(has("c", "REL-250") && has("cpp", "REL-250") && !has("rust", "REL-250"));
+    assert!(has("cpp", "REL-256") && !has("c", "REL-256"));
+    assert!(has("python", "REL-264") && has("cpp", "REL-264") && !has("c", "REL-264"));
+    assert!(has("rust", "REL-253") && !has("javascript", "REL-253"));
 }
 
 #[test]

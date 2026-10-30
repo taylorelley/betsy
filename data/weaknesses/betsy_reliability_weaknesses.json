@@ -1474,5 +1474,1680 @@
     "mapping_rationale": "Written for BETSY to cover a common function-level defect; not derived from an external catalog entry.",
     "view_ids": [],
     "view_names": []
+  },
+  {
+    "id": "REL-243",
+    "name": "Structure With Uninitialised Padding Copied Across a Trust Boundary",
+    "description": "A structure is filled member by member and then written whole to another process, the kernel's caller, a file or the network, so the padding bytes between members carry stale memory with it.",
+    "extended_description": "Compilers insert padding to align members, and setting each member leaves those bytes holding whatever was on the stack or heap before. Copying sizeof the structure to user space, a socket or a file therefore discloses old data such as pointers or keys.",
+    "detection_methods": [
+      "Find structures sent with copy_to_user, send, write, fwrite or memcpy into an output buffer using sizeof the structure",
+      "Check whether the structure was zeroed as a whole before its members were set"
+    ],
+    "potential_mitigations": [
+      "Clear the whole structure with memset or = {0} before setting members",
+      "Serialise member by member, or declare the type packed when the layout allows it"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-200",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Information Disclosure",
+      "Address Space Layout Leak"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "DCL39-C",
+        "entry_name": "Padding leaked across a trust boundary",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "DCL55-CPP",
+        "entry_name": "Padding leaked across a trust boundary",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard, SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-244",
+    "name": "Function Attributed Unsequenced or Reproducible but Having Side Effects",
+    "description": "A C23 function carries the unsequenced or reproducible attribute, which lets the compiler merge or reorder its calls, yet its body changes or depends on state the attribute rules out.",
+    "extended_description": "These attributes promise that calls with equal arguments can be combined or reordered. A body that writes a global, performs I/O, reads volatile objects or, for unsequenced, reads mutable globals breaks that promise, and optimised code may skip or reorder the calls.",
+    "detection_methods": [
+      "Find functions declared with [[unsequenced]] or [[reproducible]]",
+      "Check their bodies for writes to globals or statics, I/O, volatile access or calls to functions with effects"
+    ],
+    "potential_mitigations": [
+      "Remove the attribute",
+      "Move the side effects out of the attributed function"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-758",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Skipped or Reordered Side Effects"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "DCL42-C",
+        "entry_name": "Effects inside unsequenced or reproducible functions",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-245",
+    "name": "Objects Compared Byte-Wise Including Padding or Non-Value Bits",
+    "description": "Two structures, floating-point values or class objects are compared with memcmp or an equivalent raw byte comparison, so padding bytes, alternate encodings and hidden members decide the result instead of the values.",
+    "extended_description": "Padding has unspecified contents, so equal members can compare unequal. Floating-point zero has two encodings and NaN is never equal to itself, yet byte comparison says otherwise. Polymorphic C++ objects contain a hidden virtual table pointer, and classes such as std::string hold pointers to their data.",
+    "detection_methods": [
+      "Find memcmp, bcmp or byte-loop comparisons whose operands are structs, unions, floating-point values or class objects",
+      "Check whether the type has padding, floating-point members or non-trivial members"
+    ],
+    "potential_mitigations": [
+      "Compare member by member",
+      "Define operator== or a comparison function that compares values"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1025",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Incorrect Comparison Result",
+      "Unspecified Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "EXP42-C",
+        "entry_name": "Comparing padding data",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "FLP37-C",
+        "entry_name": "Comparing floating-point object representations",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "EXP62-CPP",
+        "entry_name": "Accessing object representation bits that are not value bits",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard, SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-246",
+    "name": "Modification of a String Returned by getenv, setlocale, localeconv or strerror",
+    "description": "Code writes through a pointer returned by a library function that owns the storage and does not allow callers to change it, such as getenv, setlocale, localeconv, strerror or asctime.",
+    "extended_description": "The standard library may return a pointer into static or environment storage. Writing to it is undefined, can corrupt the environment of the process, and can change what later callers of the same function see.",
+    "detection_methods": [
+      "Find writes, strcat, strtok or in-place transforms applied to the result of getenv, setlocale, localeconv, strerror or asctime",
+      "Check whether the result was copied first"
+    ],
+    "potential_mitigations": [
+      "Copy the result into a buffer the function owns before changing it",
+      "Treat the result as pointer to const"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-758",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Corrupted Environment"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "ENV30-C",
+        "entry_name": "Changing library-owned return objects",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-247",
+    "name": "Pointer From getenv, strerror or envp Used After a Later Call Invalidates It",
+    "description": "A pointer returned by getenv, strerror, setlocale or localeconv, or taken from the envp array, is kept and read after a later call that may overwrite or reallocate the storage it points to.",
+    "extended_description": "Several library functions reuse one static buffer, so the second call changes what the first pointer shows. Changing the environment with setenv or putenv can reallocate the array that envp points to, leaving the old pointer dangling.",
+    "detection_methods": [
+      "Track pointers from getenv, strerror, setlocale, localeconv and envp across later calls to the same family or to setenv, putenv and unsetenv",
+      "Check whether the first result was copied before those calls"
+    ],
+    "potential_mitigations": [
+      "Copy the result before calling the function again",
+      "Read the environment through environ after changing it, not through envp"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-825",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Stale or Wrong Data",
+      "Use of Invalid Pointer"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "ENV31-C",
+        "entry_name": "Relying on envp after the environment changes",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "ENV34-C",
+        "entry_name": "Keeping pointers returned by certain library functions",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-248",
+    "name": "Exit Handler That Calls exit or longjmp Instead of Returning",
+    "description": "A function registered with atexit or at_quick_exit ends the program again or jumps away with longjmp rather than returning, which is undefined and can skip the remaining handlers.",
+    "extended_description": "Handlers run during program termination. Calling exit from inside one re-enters termination, and longjmp out of one leaves the process in an undefined state. Other registered handlers and stream flushing may never run.",
+    "detection_methods": [
+      "Find functions passed to atexit or at_quick_exit, or C++ functions registered for termination",
+      "Check whether they call exit, quick_exit or longjmp, directly or through helpers in the same body"
+    ],
+    "potential_mitigations": [
+      "Return normally from every exit handler",
+      "Use _Exit only when skipping remaining cleanup is intended"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-705",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Skipped Cleanup"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "ENV32-C",
+        "entry_name": "Exit handlers must return normally",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-249",
+    "name": "Signal Handler for SIGFPE, SIGSEGV or SIGILL That Returns",
+    "description": "A handler for a computational exception signal returns normally, so execution resumes at the faulting instruction with undefined results.",
+    "extended_description": "After an arithmetic fault, invalid access or illegal instruction the program cannot safely continue at the point of failure. Returning from the handler usually repeats the fault forever or continues with corrupted state.",
+    "detection_methods": [
+      "Find handlers installed with signal or sigaction for SIGFPE, SIGSEGV, SIGILL or SIGBUS",
+      "Check whether every path ends in _Exit, abort or siglongjmp"
+    ],
+    "potential_mitigations": [
+      "End the handler with _Exit or abort",
+      "Prevent the fault with checks instead of catching it"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-758",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Infinite Fault Loop"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "SIG35-C",
+        "entry_name": "Returning from computational exception handlers",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-250",
+    "name": "errno Read Without Being Reset or Without a Failure Indicator",
+    "description": "Code tests errno to decide whether a library call failed, but either did not set errno to zero before the call or reads it even though the call's return value did not report failure.",
+    "extended_description": "Successful calls may leave errno unchanged or set it to an unrelated value, so a non-zero errno alone says nothing about the last call. Functions such as strtol report range errors only through errno, which must be cleared beforehand.",
+    "detection_methods": [
+      "Find conditions on errno after library calls",
+      "Check for errno = 0 before calls that need it and for a test of the return value before relying on errno"
+    ],
+    "potential_mitigations": [
+      "Set errno to zero before strtol, strtod and similar calls",
+      "Check the return value first and read errno only when it signals failure"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-253",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Spurious Error Handling",
+      "Missed Errors"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "ERR30-C",
+        "entry_name": "Setting and checking errno",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "ERR32-C",
+        "entry_name": "Relying on indeterminate errno",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-251",
+    "name": "Stream Switched Between Reading and Writing Without a Flush or Seek",
+    "description": "A file opened for update is read and then written, or written and then read, with no flush or positioning call between the two, which the C library leaves undefined.",
+    "extended_description": "Update streams share one buffer for input and output. Switching direction without fflush, fseek, fsetpos or rewind may lose data, write at the wrong place or return stale bytes. C++ file streams behave the same way.",
+    "detection_methods": [
+      "Find FILE streams opened with + modes, or fstream objects used for both reading and writing",
+      "Check that a flush or seek separates each change of direction"
+    ],
+    "potential_mitigations": [
+      "Call fflush after output and fseek or rewind before switching to input, and seek before switching to output",
+      "Use separate streams or reopen the file"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-573",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Data Corruption",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "FIO39-C",
+        "entry_name": "Alternating input and output without flush or positioning",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "FIO50-CPP",
+        "entry_name": "Alternating file stream input and output",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard, SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-252",
+    "name": "Mutex Destroyed While Still Locked or in Use",
+    "description": "A mutex is destroyed, or the object owning it is destroyed, while the mutex is locked or while other threads may still lock it.",
+    "extended_description": "Destroying a held mutex is undefined in C threads, POSIX and C++. A common form is a mutex that is local to a function which starts threads using it and returns before joining them.",
+    "detection_methods": [
+      "Find pthread_mutex_destroy, mtx_destroy or the end of scope of a std::mutex",
+      "Check that the mutex is unlocked and all threads using it have finished first"
+    ],
+    "potential_mitigations": [
+      "Unlock and join all users before destroying the mutex",
+      "Give the mutex a lifetime longer than every thread that uses it"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-667",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Deadlock or Crash"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "CON31-C",
+        "entry_name": "Destroying a locked mutex",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "CON50-CPP",
+        "entry_name": "Destroying a mutex while it is locked",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard, SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-253",
+    "name": "Condition Wait or Weak Compare-Exchange Not Retried in a Loop",
+    "description": "A thread waits on a condition variable once, guarded by an if rather than a loop over the predicate, or calls a weak compare-exchange once, so spurious wake-ups and spurious failures are taken as real outcomes.",
+    "extended_description": "Condition waits may return without a notification, and another thread may change the state between the notify and the wake-up. Weak compare-exchange may fail even when the values match. Each must be retried until the condition truly holds.",
+    "detection_methods": [
+      "Find condition waits and check that they sit inside a while loop over the predicate or use a predicate overload",
+      "Find compare_exchange_weak calls and check that they are retried in a loop"
+    ],
+    "potential_mitigations": [
+      "Wrap the wait in while (!predicate)",
+      "Use the predicate overload of wait, or loop around weak compare-exchange"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-662",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Race Condition",
+      "Operation on Unready State"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "CON36-C",
+        "entry_name": "Wrapping spurious-failure functions in a loop",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "CON41-C",
+        "entry_name": "Wrapping spurious-failure functions in a loop",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "CON54-CPP",
+        "entry_name": "Wrapping spurious-wake-up functions in a loop",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT Oracle Coding Standard for Java",
+        "entry_id": "THI03-J",
+        "entry_name": "Waiting inside a loop",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard, SEI CERT C++ Coding Standard, SEI CERT Oracle Coding Standard for Java; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-254",
+    "name": "Condition Variable Notified or Waited Inconsistently",
+    "description": "A condition variable shared by waiters with different predicates is signalled with a single-waiter notify, or the same condition variable is waited on with different mutexes, so threads miss wake-ups or behave undefinedly.",
+    "extended_description": "A single notify wakes an arbitrary waiter, which may not be the one whose condition became true; it goes back to sleep and the right one never wakes. POSIX leaves waiting on one condition variable with two different mutexes undefined.",
+    "detection_methods": [
+      "Find notify_one, pthread_cond_signal or cnd_signal on condition variables waited on for different conditions",
+      "Find one condition variable waited on with different mutexes"
+    ],
+    "potential_mitigations": [
+      "Use notify_all or broadcast when waiters test different predicates",
+      "Use one condition variable per predicate and always the same mutex"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-662",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Rust",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Lost Wake-Up",
+      "Deadlock",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "CON38-C",
+        "entry_name": "Preserving thread safety and liveness with condition variables",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "CON55-CPP",
+        "entry_name": "Preserving thread safety and liveness with condition variables",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "POS53-C",
+        "entry_name": "One mutex per condition variable wait",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT Oracle Coding Standard for Java",
+        "entry_id": "THI02-J",
+        "entry_name": "Notifying all waiting threads",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard, SEI CERT C++ Coding Standard, SEI CERT Oracle Coding Standard for Java; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-255",
+    "name": "Thread Terminated by a Signal or by Asynchronous Cancellation",
+    "description": "A thread is stopped from outside with pthread_kill and a terminating signal or with asynchronous cancellation, so it can be cut off while holding locks or with data half updated.",
+    "extended_description": "Asynchronous cancellation can take effect at any instruction, including inside malloc or while a mutex is held. Sending SIGKILL or SIGTERM to one thread ends the whole process. Neither lets the thread release resources in order.",
+    "detection_methods": [
+      "Find pthread_kill with terminating signals",
+      "Find pthread_setcanceltype with PTHREAD_CANCEL_ASYNCHRONOUS"
+    ],
+    "potential_mitigations": [
+      "Use a shared stop flag that the thread checks",
+      "Use deferred cancellation with cleanup handlers"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-662",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Deadlock",
+      "Corrupted State",
+      "Process Termination"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "POS44-C",
+        "entry_name": "Signals used to terminate threads",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C Coding Standard",
+        "entry_id": "POS47-C",
+        "entry_name": "Asynchronous thread cancellation",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-256",
+    "name": "Declaration Parsed as a Function or an Unnamed Temporary Instead of an Object",
+    "description": "A C++ statement meant to create an object is parsed as a function declaration or creates a temporary that is destroyed at once, so a lock, timer or guard does nothing.",
+    "extended_description": "Empty parentheses after a variable name declare a function. Writing a type with a constructor argument but no variable name, such as std::lock_guard<std::mutex>(m);, either declares a variable named m or makes a temporary that ends at the semicolon, so the critical section is unprotected.",
+    "detection_methods": [
+      "Find guard or RAII types constructed without a variable name",
+      "Find declarations like T x(); intended to create an object"
+    ],
+    "potential_mitigations": [
+      "Name every guard object",
+      "Use brace initialisation or class template argument deduction with a name"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-710",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Missing Synchronisation",
+      "Code Does Not Run as Written"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "DCL53-CPP",
+        "entry_name": "Syntactically ambiguous declarations",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-257",
+    "name": "Array of Derived Objects Indexed or Deleted Through a Base Pointer",
+    "description": "An array of derived class objects is accessed with pointer arithmetic or deleted through a pointer to the base class, so the element size used is wrong.",
+    "extended_description": "Indexing uses the size of the static type, so p[1] on a Base pointer to Derived objects lands inside the first object when the sizes differ. delete[] through a base pointer is undefined even with a virtual destructor.",
+    "detection_methods": [
+      "Find new Derived[n] assigned to a Base pointer",
+      "Find functions taking Base* and indexing it when callers pass derived arrays"
+    ],
+    "potential_mitigations": [
+      "Store pointers or smart pointers to the objects in a container",
+      "Keep the array typed as the derived class"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-468",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Memory Corruption",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "EXP51-CPP",
+        "entry_name": "Deleting an array through a pointer of the wrong type",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "CTR56-CPP",
+        "entry_name": "Pointer arithmetic on polymorphic objects",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-258",
+    "name": "Iterator Range Built From Different Containers or With Reversed Bounds",
+    "description": "An algorithm or container member is given a begin iterator and an end iterator that come from different containers, or a first iterator that lies after the last, so it walks off the intended range.",
+    "extended_description": "Standard algorithms assume last is reachable from first by incrementing. Mixing iterators of two containers, or passing them in the wrong order, makes the algorithm read or write unrelated memory.",
+    "detection_methods": [
+      "Find algorithm calls whose iterator arguments name different containers",
+      "Find ranges built from computed iterators that may be out of order"
+    ],
+    "potential_mitigations": [
+      "Pass begin and end of the same container, or use ranges algorithms that take the container",
+      "Check that computed positions are ordered before forming a range"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-119",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Out-of-Bounds Access",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "CTR53-CPP",
+        "entry_name": "Using valid iterator ranges",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-259",
+    "name": "Stateful Predicate Passed to an Algorithm That May Copy It",
+    "description": "A function object or mutable lambda that changes its own state on each call is passed to a standard algorithm, which may copy the predicate and call different copies.",
+    "extended_description": "Algorithms such as remove_if take predicates by value and may copy them internally, so state like a call counter is split across copies. A predicate that removes, for example, the third element can remove others as well.",
+    "detection_methods": [
+      "Find predicates with mutable captures or data members changed in operator()",
+      "Check whether they are passed to remove_if, find_if, partition or similar"
+    ],
+    "potential_mitigations": [
+      "Make predicates stateless",
+      "Keep state outside and capture it by reference, or wrap the predicate in std::ref"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-758",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Wrong Elements Selected",
+      "Unspecified Results"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "CTR58-CPP",
+        "entry_name": "Predicate function objects should not be mutable",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-260",
+    "name": "Object Used in Raw Storage Without Construction or Destruction",
+    "description": "Memory from malloc, a char buffer or an allocator is used as an object of a class type without constructing it, or the memory is released without running the object's destructor.",
+    "extended_description": "Only trivial types may be used in storage without construction. Classes with constructors, virtual functions or owning members need placement new or std::construct_at, and an explicit destructor call before the storage is freed or reused.",
+    "detection_methods": [
+      "Find malloc, calloc, realloc or allocator allocate results cast to class types and used",
+      "Find free or deallocate of storage holding non-trivial objects without a destructor call"
+    ],
+    "potential_mitigations": [
+      "Construct with placement new or std::construct_at and destroy with std::destroy_at",
+      "Use new and delete, or containers, instead of raw storage"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-665",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Resource Leak"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "MEM53-CPP",
+        "entry_name": "Constructing and destroying objects in manually managed storage",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-261",
+    "name": "Object Constructed in Misaligned or Undersized Storage",
+    "description": "Placement new or std::construct_at builds an object in a buffer that is smaller than the type or not aligned for it, or an over-aligned type is allocated with a plain allocator that ignores its alignment.",
+    "extended_description": "A char array has alignment one, so constructing a double or a class with stricter alignment inside it is undefined. A buffer shorter than sizeof the type is overrun by the constructor. Before C++17, new of an over-aligned type did not honour the alignment.",
+    "detection_methods": [
+      "Find placement new into char or byte arrays and check their size and alignas",
+      "Find types declared with large alignas allocated through plain operator new or malloc"
+    ],
+    "potential_mitigations": [
+      "Declare buffers with alignas(T) and at least sizeof(T) bytes",
+      "Use aligned allocation functions for over-aligned types"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-787",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Memory Corruption",
+      "Misaligned Access"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "MEM54-CPP",
+        "entry_name": "Placement new with properly aligned and sufficient storage",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "MEM57-CPP",
+        "entry_name": "Default operator new for over-aligned types",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-262",
+    "name": "Replacement Allocator or Handler Violating Its Standard Contract",
+    "description": "A user-supplied operator new, new handler or terminate handler behaves in a way the standard forbids, such as returning a null pointer from a throwing operator new or returning from a terminate handler.",
+    "extended_description": "Code that calls new assumes it either returns usable memory or throws std::bad_alloc. A replacement that returns nullptr leads callers to dereference null. A terminate handler must end the program, and a new handler must free memory, throw or end the program.",
+    "detection_methods": [
+      "Find definitions of operator new, operator delete, set_new_handler or set_terminate callbacks",
+      "Check what each does on failure"
+    ],
+    "potential_mitigations": [
+      "Throw std::bad_alloc on allocation failure in throwing forms",
+      "Make terminate handlers call std::abort"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-573",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Null Dereference",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "MEM55-CPP",
+        "entry_name": "Honouring replacement dynamic storage requirements",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "OOP56-CPP",
+        "entry_name": "Honouring replacement handler requirements",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-263",
+    "name": "Constructor or Destructor Function-Try-Block Handler Using Members",
+    "description": "The catch clause of a function-try-block on a constructor or destructor reads or calls members or base classes, which have already been destroyed or were never constructed when the handler runs.",
+    "extended_description": "If a member initialiser or the body throws, all constructed members and bases are destroyed before control reaches the handler. Referring to them there is undefined.",
+    "detection_methods": [
+      "Find constructors and destructors written as try : init { } catch (...) { }",
+      "Check whether the handler uses this, members or bases"
+    ],
+    "potential_mitigations": [
+      "Only log, translate or rethrow in such handlers",
+      "Move cleanup into members' own destructors"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-672",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Use of Destroyed Object"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "ERR53-CPP",
+        "entry_name": "Members referred to in constructor or destructor function-try-block handlers",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-264",
+    "name": "Broad Exception Handler Placed Before a More Specific One",
+    "description": "In one try statement a handler for a base exception class comes before a handler for one of its subclasses, so the specific handler can never run.",
+    "extended_description": "Handlers are tried in order and the first match wins. Catching std::exception before std::runtime_error, or Exception before ValueError, makes the later clause dead code and applies generic handling where special handling was intended.",
+    "detection_methods": [
+      "List the handlers of each try in order",
+      "Check whether an earlier handler's type is a base of a later one"
+    ],
+    "potential_mitigations": [
+      "Order handlers from most derived to most general"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-561",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      },
+      {
+        "type": "Language",
+        "class": "",
+        "name": "Python",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Dead Handler",
+      "Wrong Error Handling"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "ERR54-CPP",
+        "entry_name": "Ordering catch handlers from most to least derived",
+        "mapping_fit": ""
+      },
+      {
+        "taxonomy_name": "QuantifiedCode Python Anti-Patterns",
+        "entry_id": "bad-except-clauses-order",
+        "entry_name": "Bad order of except clauses",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in QuantifiedCode Python Anti-Patterns, SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-265",
+    "name": "Exception Caught by Value or Thrown and Caught by Pointer",
+    "description": "A C++ handler catches a class-type exception by value, which slices derived exceptions and copies them, or the code throws pointers to heap exceptions that handlers must remember to delete.",
+    "extended_description": "Catching by value copies only the base part of a derived exception, losing its type and data, and the copy can itself throw. Throwing new E leaks the exception object unless every handler deletes it.",
+    "detection_methods": [
+      "Find catch clauses whose parameter is a class type without &",
+      "Find throw new and catch of pointer types"
+    ],
+    "potential_mitigations": [
+      "Throw by value and catch by const reference"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-755",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Lost Error Information",
+      "Memory Leak"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "ERR61-CPP",
+        "entry_name": "Catching exceptions by lvalue reference",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-266",
+    "name": "Derived Object Deleted Through a Base Class Without a Virtual Destructor",
+    "description": "A derived object created with new is deleted, or owned by a smart pointer, through a pointer to a base class whose destructor is not virtual, so the derived destructor does not run.",
+    "extended_description": "Deleting through a base pointer is undefined unless the base destructor is virtual. In practice the derived part is not destroyed, which leaks its resources. std::unique_ptr<Base> holding a Derived has the same problem.",
+    "detection_methods": [
+      "Find new Derived stored in a Base pointer or unique_ptr<Base> and later deleted",
+      "Check whether Base declares a virtual destructor where visible"
+    ],
+    "potential_mitigations": [
+      "Declare the base destructor virtual",
+      "Keep ownership in the derived type, or use std::shared_ptr created from the derived type"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-404",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Resource Leak",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "OOP52-CPP",
+        "entry_name": "Deleting polymorphic objects without virtual destructors",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-267",
+    "name": "Constructor Initialiser Reads a Member Not Yet Initialised",
+    "description": "A member initialiser list uses another member's value, but that member is declared later in the class and so is initialised later, whatever order the list is written in.",
+    "extended_description": "Members are initialised in declaration order. An initialiser such as len(buf.size()) runs before buf is constructed if len is declared first, so it reads an indeterminate value.",
+    "detection_methods": [
+      "For each mem-initialiser that reads another member, compare declaration order where the class is visible",
+      "Watch for initialiser lists written in a different order from the declarations"
+    ],
+    "potential_mitigations": [
+      "Initialise from constructor parameters instead of other members",
+      "Reorder member declarations to match dependencies"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-908",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Use of Uninitialised Value",
+      "Undefined Behaviour"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "OOP53-CPP",
+        "entry_name": "Writing constructor member initialisers in canonical order",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-268",
+    "name": "Copy Assignment That Breaks on Self-Assignment",
+    "description": "A copy assignment operator releases the object's current resources and then copies from the source, so assigning an object to itself reads data it has just freed.",
+    "extended_description": "With a = a, the source and target are the same object. Deleting the target's buffer first leaves the source pointer dangling, and the following copy reads freed memory.",
+    "detection_methods": [
+      "Find user-defined operator= that delete or free members before copying from the argument",
+      "Check for a self-assignment test or copy-and-swap"
+    ],
+    "potential_mitigations": [
+      "Use copy-and-swap",
+      "Copy into a new buffer before releasing the old one, or test this != &other"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-416",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Use After Free",
+      "Data Corruption"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "OOP54-CPP",
+        "entry_name": "Gracefully handling self-copy assignment",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-269",
+    "name": "Pointer-to-Member Applied to an Object That Lacks That Member",
+    "description": "A pointer to a member of a derived class is converted to a pointer to member of the base and applied with .* or ->* to an object whose dynamic type does not have the member.",
+    "extended_description": "Converting member pointers up the hierarchy is allowed with a cast, but using one on an object that is only the base type reaches memory or a function that does not exist for that object.",
+    "detection_methods": [
+      "Find static_cast between pointer-to-member types",
+      "Check the dynamic type of objects they are applied to"
+    ],
+    "potential_mitigations": [
+      "Apply member pointers only to objects of the class that declares the member",
+      "Use virtual functions instead of member pointer casts"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-843",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Type Confusion"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "OOP55-CPP",
+        "entry_name": "Pointer-to-member operators with nonexistent members",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-270",
+    "name": "Copy Operation That Modifies Its Source Object",
+    "description": "A copy constructor or copy assignment operator changes the object it copies from, so copies made by containers and algorithms silently alter the originals.",
+    "extended_description": "Standard containers and algorithms copy values freely and assume the source is unchanged. Moving ownership out of the source in a copy operation, like the old auto_ptr, leaves originals empty after a sort or a push_back.",
+    "detection_methods": [
+      "Find copy constructors and assignment operators",
+      "Check for writes to the source, mutable members changed, or const_cast on it"
+    ],
+    "potential_mitigations": [
+      "Leave the source unchanged in copy operations",
+      "Implement transfer of ownership as a move operation instead"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-1076",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C++",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Unexpected State Changes",
+      "Data Loss in Containers"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "OOP58-CPP",
+        "entry_name": "Copy operations must not mutate the source object",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
+  },
+  {
+    "id": "REL-271",
+    "name": "Function Declared noreturn That Can Return",
+    "description": "A function declared [[noreturn]] or _Noreturn has a path on which it returns to its caller, which is undefined because callers are compiled assuming it never does.",
+    "extended_description": "The compiler may drop the code after a call to a noreturn function, so returning from it falls into whatever follows. Typical causes are a conditional exit or a loop that can end.",
+    "detection_methods": [
+      "Find functions declared [[noreturn]] or _Noreturn",
+      "Check that every path calls another noreturn function, throws or loops forever"
+    ],
+    "potential_mitigations": [
+      "End every path with abort, exit, a throw or an infinite loop",
+      "Remove the attribute if the function can return"
+    ],
+    "abstraction": "Base",
+    "structure": "Simple",
+    "status": "Draft",
+    "likelihood_of_exploit": "",
+    "related_weaknesses": [
+      {
+        "nature": "PeerOf",
+        "cwe_id": "CWE-670",
+        "view_id": "",
+        "ordinal": ""
+      }
+    ],
+    "applicable_platforms": [
+      {
+        "type": "Language",
+        "class": "",
+        "name": "C",
+        "prevalence": "Often"
+      }
+    ],
+    "modes_of_introduction": [
+      "Implementation"
+    ],
+    "common_consequences": [
+      "Undefined Behaviour",
+      "Execution Continues Past an Expected Exit"
+    ],
+    "taxonomy_mappings": [
+      {
+        "taxonomy_name": "SEI CERT C++ Coding Standard",
+        "entry_id": "MSC53-CPP",
+        "entry_name": "Functions declared noreturn must not return",
+        "mapping_fit": ""
+      }
+    ],
+    "mapping_usage": "BETSY-authored reliability weakness",
+    "mapping_rationale": "Written for BETSY in original wording to cover a function-level defect described in SEI CERT C++ Coding Standard; no text is copied from the source.",
+    "view_ids": [],
+    "view_names": []
   }
 ]

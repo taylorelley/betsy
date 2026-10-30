@@ -22945,6 +22945,606 @@
         "PERF-020": "the lock is held across slow I/O, causing contention but not deadlock"
       }
     },
+    "REL-243": {
+      "function_checkable": true,
+      "question": "Does this function copy a whole structure out to another trust domain after setting its members one by one, so padding bytes may hold leftover memory?",
+      "present_when": {
+        "c": [
+          "a local or heap struct has its members assigned individually and is then passed with sizeof(the struct) to copy_to_user, send, sendto, write, fwrite or memcpy into an outgoing buffer",
+          "a struct allocated with malloc rather than calloc is filled field by field and then written as a whole"
+        ],
+        "cpp": [
+          "a class or struct object with mixed-size members is written with reinterpret_cast<const char*>(&obj) and sizeof(obj) to a stream or socket"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the struct is zeroed in full with memset, calloc or = {0} before its members are set",
+          "fields are serialised individually into the output buffer",
+          "the struct has no padding, for example it is packed or every member has the same size",
+          "the copy stays inside the same process and trust domain"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-457": "a member itself is read before being assigned, rather than padding being copied out"
+      }
+    },
+    "REL-244": {
+      "function_checkable": true,
+      "question": "Is this function marked [[unsequenced]] or [[reproducible]] while its body writes shared state, performs I/O or reads volatile data?",
+      "present_when": {
+        "c": [
+          "[[reproducible]] or [[unsequenced]] on the definition and the body assigns a global or static, prints, logs, allocates, or calls a function with side effects",
+          "[[unsequenced]] on a function whose result depends on a mutable global or on data reached through a pointer argument",
+          "volatile objects are read or written inside an attributed function"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the function has neither attribute",
+          "the attributed body only computes from its parameters and local variables"
+        ]
+      }
+    },
+    "REL-245": {
+      "function_checkable": true,
+      "question": "Does this function decide whether two structures, floating-point values or class objects are equal by comparing their raw bytes?",
+      "present_when": {
+        "c": [
+          "memcmp(&a, &b, sizeof a) or bcmp on struct or union values whose members differ in size or alignment",
+          "memcmp on float or double values or on structs containing them"
+        ],
+        "cpp": [
+          "std::memcmp or a byte loop over objects of a class with virtual functions, std::string, std::vector or other non-trivial members"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the comparison is member by member, or the operands are arrays of unsigned char or other byte buffers",
+          "the struct has no padding and only integer members, or it was zeroed in full before every member was set"
+        ],
+        "cpp": [
+          "operator== or a defaulted comparison compares the values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-597": "the code compares two C strings by pointer instead of by content"
+      }
+    },
+    "REL-246": {
+      "function_checkable": true,
+      "question": "Does this function modify the storage returned by getenv, setlocale, localeconv, strerror or a similar library call instead of a copy?",
+      "present_when": {
+        "c": [
+          "the result of getenv is passed to strtok, strcat, toupper in a loop or written through an index",
+          "fields of the struct returned by localeconv are assigned",
+          "the string from setlocale, strerror or asctime is edited in place"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the result is copied with strdup, strncpy or snprintf into an owned buffer before any change",
+          "the result is only read"
+        ]
+      }
+    },
+    "REL-247": {
+      "function_checkable": true,
+      "question": "Does this function hold on to a result of getenv, strerror, setlocale, localeconv or an envp entry and read it after another call that can overwrite or move that storage?",
+      "present_when": {
+        "c": [
+          "char *a = getenv(\"X\"); char *b = getenv(\"Y\"); and then a is used",
+          "the result of strerror or setlocale is saved, the same function is called again, and the first result is read",
+          "envp is iterated or indexed after setenv, putenv or unsetenv in the same function"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each result is copied with strdup or into an owned buffer before the next such call",
+          "each result is used immediately and not kept",
+          "thread-safe variants that fill caller buffers, such as strerror_r, are used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "the pointer refers to memory the program itself freed"
+      }
+    },
+    "REL-248": {
+      "function_checkable": true,
+      "question": "Is this function an exit handler, or does it register one, where the handler calls exit, quick_exit or longjmp instead of returning?",
+      "present_when": {
+        "c": [
+          "a function passed to atexit or at_quick_exit contains exit(...), quick_exit(...) or longjmp(...)",
+          "this function's body is such a handler, recognisable from an atexit registration in the same body or its name and role"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the handler performs cleanup and returns",
+          "the function is not registered for program termination"
+        ]
+      }
+    },
+    "REL-249": {
+      "function_checkable": true,
+      "question": "Does this function install or act as a handler for SIGFPE, SIGSEGV, SIGILL or SIGBUS that can return normally?",
+      "present_when": {
+        "c": [
+          "signal(SIGFPE, h) or sigaction for SIGSEGV, SIGILL or SIGBUS where the handler body ends without _Exit, abort or siglongjmp",
+          "a handler for these signals sets a flag and returns"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every path in the handler calls _Exit, abort or siglongjmp",
+          "the handler is for asynchronous signals such as SIGINT or SIGTERM"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-479": "the handler calls functions that are not async-signal-safe"
+      }
+    },
+    "REL-250": {
+      "function_checkable": true,
+      "question": "Does this function judge a library call's success by errno without clearing errno beforehand, or without first seeing a failure in the call's return value?",
+      "present_when": {
+        "c": [
+          "strtol, strtoul, strtod or strtoll is followed by if (errno) or errno == ERANGE with no errno = 0 before the call",
+          "fopen, malloc, printf or another call is followed by a test of errno while its return value is not checked",
+          "errno is read in a signal handler after a library call"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "errno = 0 immediately precedes the call and errno is read right after it",
+          "errno is consulted only after the return value signals failure, such as NULL or -1",
+          "errno is not used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the return value is ignored and errno is not consulted at all"
+      }
+    },
+    "REL-251": {
+      "function_checkable": true,
+      "question": "Does this function read from and write to the same update stream without a flush or seek call between the change of direction?",
+      "present_when": {
+        "c": [
+          "fread, fgets or fgetc followed by fwrite, fputs or fprintf on the same FILE opened with r+, w+ or a+, or the reverse order, with no fflush, fseek, fsetpos or rewind between"
+        ],
+        "cpp": [
+          "an std::fstream is read with >> or getline and then written with << or write, or the reverse, with no seekg, seekp or flush between"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "fflush, fseek, fsetpos or rewind separates every switch between input and output",
+          "the stream is used only for reading or only for writing",
+          "reading hit end of file before the write, which the library allows"
+        ]
+      }
+    },
+    "REL-252": {
+      "function_checkable": true,
+      "question": "Does this function destroy a mutex, or let it go out of scope, while it is still locked or while threads that use it may still be running?",
+      "present_when": {
+        "c": [
+          "pthread_mutex_destroy or mtx_destroy is called on a path where the mutex was locked and not unlocked",
+          "a local pthread_mutex_t is shared with threads that are not joined before the function returns"
+        ],
+        "cpp": [
+          "a local std::mutex is captured by threads or async tasks that are detached or not joined before the scope ends"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every lock is released and every thread using the mutex is joined before destruction",
+          "the mutex has static or longer lifetime than all its users"
+        ]
+      },
+      "distinguish_from": {
+        "REL-237": "the mutex is locked and unlocked by hand without a guard but is not destroyed while held"
+      }
+    },
+    "REL-253": {
+      "function_checkable": true,
+      "question": "Does this function wait on a condition variable without re-checking its predicate in a loop, or call a weak compare-exchange without retrying?",
+      "present_when": {
+        "c": [
+          "pthread_cond_wait or cnd_wait called once under if (!ready) or with no predicate test",
+          "atomic_compare_exchange_weak used once with no loop around it"
+        ],
+        "cpp": [
+          "cv.wait(lock) without a predicate argument and not inside while (!ready)",
+          "compare_exchange_weak called once outside a loop"
+        ],
+        "python": [
+          "Condition.wait() called once under if or with no predicate test, instead of while not ready or wait_for(predicate)"
+        ],
+        "rust": [
+          "Condvar::wait called once under if, instead of in a while loop or wait_while"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the wait or compare-exchange sits in a loop that re-tests the condition",
+          "compare_exchange_strong is used where a single attempt is intended"
+        ],
+        "cpp": [
+          "the wait uses the predicate overload wait(lock, pred), wait_for or wait_until with a predicate"
+        ],
+        "python": [
+          "wait_for(predicate) is used, or the wait is inside while not predicate"
+        ],
+        "rust": [
+          "wait_while is used, or the wait is inside while !ready"
+        ]
+      },
+      "distinguish_from": {
+        "REL-254": "the wait is looped but notify_one wakes the wrong waiter, or waiters use different mutexes"
+      }
+    },
+    "REL-254": {
+      "function_checkable": true,
+      "question": "Does this function signal a shared condition variable with a single-waiter notify while waiters test different conditions, or wait on one condition variable with different mutexes?",
+      "present_when": {
+        "c": [
+          "pthread_cond_signal or cnd_signal on a condition variable whose waiters each wait for their own turn or state value",
+          "pthread_cond_wait on the same condition variable with different mutex arguments in different places"
+        ],
+        "cpp": [
+          "notify_one on a std::condition_variable used by several threads waiting for different predicates, such as a turn counter"
+        ],
+        "python": [
+          "Condition.notify() or notify(1) where waiting threads each wait for a different value"
+        ],
+        "rust": [
+          "Condvar::notify_one where several threads wait for different states",
+          "one Condvar used with guards from different Mutexes"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "notify_all, pthread_cond_broadcast or cnd_broadcast is used",
+          "all waiters wait for the same condition, so any one of them can proceed",
+          "each predicate has its own condition variable"
+        ],
+        "python": [
+          "notify_all() is used, or every waiter waits for the same condition"
+        ],
+        "rust": [
+          "notify_all is used, or all waiters share one predicate and one Mutex"
+        ]
+      },
+      "distinguish_from": {
+        "REL-253": "the wait is not inside a predicate loop"
+      }
+    },
+    "REL-255": {
+      "function_checkable": true,
+      "question": "Does this function stop a thread with a terminating signal or enable asynchronous cancellation?",
+      "present_when": {
+        "c": [
+          "pthread_kill(thread, SIGKILL), SIGTERM or another signal whose default action ends the process",
+          "pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, ...)"
+        ],
+        "cpp": [
+          "pthread_kill or TerminateThread called on the native handle of a std::thread"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the thread is asked to stop through a flag or message it checks",
+          "deferred cancellation is used with cleanup handlers",
+          "pthread_kill sends a signal with a handler, such as SIGUSR1, to wake the thread"
+        ]
+      }
+    },
+    "REL-256": {
+      "function_checkable": true,
+      "question": "Does this function contain a statement meant to create a guard or object that C++ instead parses as a function declaration or an immediately destroyed temporary?",
+      "present_when": {
+        "cpp": [
+          "std::lock_guard<std::mutex>(m);, std::unique_lock<std::mutex>(m); or std::scoped_lock{m}; with no variable name",
+          "a scope timer, RAII guard or transaction object constructed without a name",
+          "Widget w(); followed by use of w as an object"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "every guard has a name, such as std::lock_guard lk(m);",
+          "brace initialisation such as Widget w{}; is used",
+          "an unnamed temporary is intended, such as a call whose result is used in the same expression"
+        ]
+      }
+    },
+    "REL-257": {
+      "function_checkable": true,
+      "question": "Does this function index, iterate or delete[] an array of derived class objects through a pointer to the base class?",
+      "present_when": {
+        "cpp": [
+          "Base* p = new Derived[n]; followed by p[i], p + i or delete[] p",
+          "a Base* parameter is indexed or advanced while the function or its callers pass arrays of a derived type"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the objects are held as std::vector<std::unique_ptr<Base>> or an array of Base*",
+          "the pointer type is the same as the element type",
+          "the classes are final value types without derived arrays"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-843": "the object is accessed as an unrelated type rather than an array element with the wrong stride"
+      }
+    },
+    "REL-258": {
+      "function_checkable": true,
+      "question": "Does this function pass an iterator range whose ends come from different containers, or whose start may lie after its end?",
+      "present_when": {
+        "cpp": [
+          "std::sort(a.begin(), b.end()), std::copy(v.begin(), w.end(), out) or erase(x.begin(), y.end())",
+          "a range from find results or offsets, such as (it2, it1), where it2 can come after it1 with no check"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "both iterators come from the same container in order",
+          "std::ranges algorithms are called with the container itself"
+        ]
+      },
+      "distinguish_from": {
+        "REL-234": "an iterator became invalid after the container was changed"
+      }
+    },
+    "REL-259": {
+      "function_checkable": true,
+      "question": "Does this function pass a predicate that changes its own internal state on each call to a standard algorithm?",
+      "present_when": {
+        "cpp": [
+          "a [n = 0]() mutable { return ++n == 3; } lambda or a functor incrementing a member, passed to remove_if, find_if, partition or copy_if",
+          "a predicate that records what it has already seen in its own members"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the predicate has no mutable state",
+          "the state is held outside and captured by reference, or std::ref wraps the functor",
+          "the algorithm is std::for_each or std::generate, which return or use the function object as intended"
+        ]
+      }
+    },
+    "REL-260": {
+      "function_checkable": true,
+      "question": "Does this function use raw storage as an object of a non-trivial class type without constructing it, or free such storage without destroying the object?",
+      "present_when": {
+        "cpp": [
+          "S* p = static_cast<S*>(malloc(sizeof(S))); followed by p->member or a method call, where S has a constructor, virtual functions or members such as std::string",
+          "free or allocator.deallocate on storage holding such an object without p->~S() or std::destroy_at",
+          "realloc of an array of non-trivial objects"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "placement new or std::construct_at creates the object and std::destroy_at or ~S() ends it",
+          "the type is trivially constructible and destructible",
+          "new, delete or a standard container manages the objects"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-762": "memory is released with a deallocation function that does not match how it was allocated"
+      }
+    },
+    "REL-261": {
+      "function_checkable": true,
+      "question": "Does this function construct an object in storage that may be too small or not suitably aligned for its type?",
+      "present_when": {
+        "cpp": [
+          "char buf[N]; new (buf) T(...) with no alignas(T) on buf, or N smaller than sizeof(T)",
+          "placement new at an offset into a byte buffer that is not a multiple of alignof(T)",
+          "malloc or plain operator new used for a type declared with alignas larger than the default alignment"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the buffer is declared alignas(T) unsigned char[sizeof(T)] or uses std::aligned_storage",
+          "std::aligned_alloc or aligned operator new provides the storage",
+          "an allocator or container constructs the object"
+        ]
+      },
+      "distinguish_from": {
+        "REL-260": "the storage is fine but the object is never constructed or destroyed"
+      }
+    },
+    "REL-262": {
+      "function_checkable": true,
+      "question": "Is this function a replacement operator new, new handler or terminate handler that breaks what the standard requires of it?",
+      "present_when": {
+        "cpp": [
+          "a throwing operator new that returns nullptr or malloc's null result instead of throwing std::bad_alloc",
+          "a function passed to std::set_terminate that returns",
+          "a new handler that returns without freeing any memory, so allocation loops forever"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "operator new throws std::bad_alloc on failure, or is the nothrow form returning nullptr",
+          "the terminate handler ends with std::abort or std::_Exit",
+          "the function is not a replacement or handler"
+        ]
+      }
+    },
+    "REL-263": {
+      "function_checkable": true,
+      "question": "Is this a constructor or destructor with a function-try-block whose catch handler uses the object's members or base classes?",
+      "present_when": {
+        "cpp": [
+          "C::C() try : a(...), b(...) { } catch (...) { b.close(); } or any use of this, a member or a base in the handler",
+          "a destructor function-try-block handler that calls member functions"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the handler only logs, uses the caught exception or rethrows",
+          "the function-try-block is on an ordinary function"
+        ]
+      }
+    },
+    "REL-264": {
+      "function_checkable": true,
+      "question": "Does any try statement in this function list a handler for a base exception type before a handler for one of its subclasses?",
+      "present_when": {
+        "cpp": [
+          "catch (const std::exception&) before catch (const std::runtime_error&), or catch (...) before any other handler"
+        ],
+        "python": [
+          "except Exception: before except ValueError:, except OSError: before except FileNotFoundError:, or except LookupError before except KeyError"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "handlers go from most derived to most general",
+          "the exception types are unrelated"
+        ],
+        "python": [
+          "handlers go from most specific to most general",
+          "the exception classes are unrelated"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "a single overly broad catch is the only handler"
+      }
+    },
+    "REL-265": {
+      "function_checkable": true,
+      "question": "Does this function catch a class-type exception by value, or throw or catch exceptions as pointers?",
+      "present_when": {
+        "cpp": [
+          "catch (std::exception e) or catch (MyError e) without a reference",
+          "throw new MyError(...) or catch (MyError* e)"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "handlers catch const E& or E&, or catch (...)",
+          "exceptions are thrown by value",
+          "the caught type is a scalar such as int"
+        ]
+      },
+      "distinguish_from": {
+        "REL-238": "an ordinary derived object, not an exception, is sliced by a copy"
+      }
+    },
+    "REL-266": {
+      "function_checkable": true,
+      "question": "Does this function delete, or hand ownership through, a base-class pointer to a derived object whose base has no virtual destructor?",
+      "present_when": {
+        "cpp": [
+          "Base* b = new Derived; ... delete b; where Base, as declared in the visible code, has no virtual destructor",
+          "std::unique_ptr<Base> p(new Derived) or std::make_unique<Derived>() converted to unique_ptr<Base> for a base without a virtual destructor"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the base declares virtual ~Base() or is final",
+          "the object is deleted through its own type",
+          "std::shared_ptr<Base> is created from make_shared<Derived>, which keeps the right deleter"
+        ]
+      },
+      "distinguish_from": {
+        "REL-257": "an array of derived objects is indexed or deleted through a base pointer"
+      }
+    },
+    "REL-267": {
+      "function_checkable": true,
+      "question": "Does a member initialiser in this constructor read another member that is declared, and so initialised, after it?",
+      "present_when": {
+        "cpp": [
+          "C(int n) : size(data.size()), data(n) where size is declared before data",
+          "a base or member initialiser calls a member function that reads members not yet initialised"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "initialisers use only constructor parameters, constants or members declared earlier",
+          "the class declaration shows the read member is declared first"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-457": "a local variable, not a member in an initialiser list, is read before it is assigned"
+      }
+    },
+    "REL-268": {
+      "function_checkable": true,
+      "question": "Is this a copy assignment operator that frees the object's own resources before copying from the source, with no protection against self-assignment?",
+      "present_when": {
+        "cpp": [
+          "operator=(const T& o) { delete p; p = new X(*o.p); return *this; } with no this != &o check",
+          "free(buf) followed by memcpy from o.buf in an assignment operator"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "copy-and-swap is used",
+          "the new copy is made before the old resource is released",
+          "if (this != &o) guards the body",
+          "the operator is defaulted or the class has no owning members"
+        ]
+      }
+    },
+    "REL-269": {
+      "function_checkable": true,
+      "question": "Does this function apply a pointer to member with .* or ->* to an object that may not have that member?",
+      "present_when": {
+        "cpp": [
+          "void (Base::*f)() = static_cast<void (Base::*)()>(&Derived::g); (base_obj.*f)() where base_obj is not a Derived",
+          "a null pointer to member applied with .* or ->*"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the member pointer is of the object's own class or a base of it",
+          "the dynamic type is checked before the call"
+        ]
+      }
+    },
+    "REL-270": {
+      "function_checkable": true,
+      "question": "Is this a copy constructor or copy assignment operator that changes the object being copied from?",
+      "present_when": {
+        "cpp": [
+          "T(T& other) or T(const T& other) that sets other.ptr = nullptr, resets a member of other or calls a mutating method on it",
+          "const_cast<T&>(other) used to modify the source, or a mutable member of the source changed"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the source is only read",
+          "the function is a move constructor or move assignment taking T&&"
+        ]
+      }
+    },
+    "REL-271": {
+      "function_checkable": true,
+      "question": "Is this function declared [[noreturn]] or _Noreturn yet has a path that returns?",
+      "present_when": {
+        "c": [
+          "_Noreturn void fail(...) with an if that calls exit on only one branch, or a body that can reach its end"
+        ],
+        "cpp": [
+          "[[noreturn]] void f() whose body has a return, a conditional throw with no else, or a loop that can finish"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every path calls abort, exit, _Exit, longjmp, throws or loops forever",
+          "the function is not declared noreturn"
+        ]
+      },
+      "distinguish_from": {
+        "REL-135": "an ordinary non-void function ends without returning a value"
+      }
+    },
     "PERF-001": {
       "function_checkable": true,
       "question": "Does this function issue a database or API query inside a loop over the results of an earlier query, one round trip per item?",
