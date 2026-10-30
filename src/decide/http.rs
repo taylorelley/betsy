@@ -42,32 +42,18 @@ impl Client {
                     })
                 }
                 Err(ureq::Error::Status(code, resp)) => {
-                    let retry_after = resp
-                        .header("Retry-After")
-                        .and_then(|s| s.trim().parse::<f64>().ok())
-                        .map(|s| Duration::from_secs_f64(s.clamp(0.0, 60.0)));
+                    let wait = retry_after(resp.header("Retry-After"));
                     let text: String = resp
                         .into_string()
                         .unwrap_or_default()
                         .chars()
                         .take(2000)
                         .collect();
-                    let retryable = matches!(code, 408 | 429 | 500..=599);
-                    let e = ProviderError {
-                        code: if code == 429 {
-                            "rate_limited"
-                        } else {
-                            "provider_http"
-                        },
-                        message: format!("HTTP {code}: {text}"),
-                        retryable,
-                        split: matches!(code, 413 | 422)
-                            || (code == 400 && text.to_ascii_lowercase().contains("question")),
-                    };
-                    if !retryable {
+                    let e = status_error(code, &text);
+                    if !e.retryable {
                         return Err(e);
                     }
-                    (e, retry_after)
+                    (e, wait)
                 }
                 Err(e) => (
                     ProviderError {
@@ -86,5 +72,67 @@ impl Client {
             std::thread::sleep(wait.unwrap_or(backoff).min(Duration::from_secs(60)));
             attempt += 1;
         }
+    }
+}
+
+/// `Retry-After` in seconds, clamped to a minute. HTTP-date values are ignored in favour of backoff.
+fn retry_after(header: Option<&str>) -> Option<Duration> {
+    header
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .filter(|s| s.is_finite())
+        .map(|s| Duration::from_secs_f64(s.clamp(0.0, 60.0)))
+}
+/// Retries 408, 429 and 5xx; asks for a split on payload-size rejections.
+fn status_error(code: u16, text: &str) -> ProviderError {
+    ProviderError {
+        code: if code == 429 {
+            "rate_limited"
+        } else {
+            "provider_http"
+        },
+        message: format!("HTTP {code}: {text}"),
+        retryable: matches!(code, 408 | 429 | 500..=599),
+        split: matches!(code, 413 | 422)
+            || (code == 400 && text.to_ascii_lowercase().contains("question")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_after_reads_seconds_and_clamps() {
+        assert_eq!(
+            retry_after(Some(" 2.5 ")),
+            Some(Duration::from_millis(2500))
+        );
+        assert_eq!(retry_after(Some("600")), Some(Duration::from_secs(60)));
+        assert_eq!(retry_after(Some("-3")), Some(Duration::ZERO));
+        assert_eq!(retry_after(Some("NaN")), None);
+        assert_eq!(retry_after(Some("Wed, 21 Oct 2026 07:28:00 GMT")), None);
+        assert_eq!(retry_after(None), None);
+    }
+
+    #[test]
+    fn statuses_classify_retry_and_split() {
+        let e = status_error(429, "slow down");
+        assert_eq!(
+            (e.code, e.retryable, e.split),
+            ("rate_limited", true, false)
+        );
+        for code in [408, 500, 502, 503, 599] {
+            let e = status_error(code, "");
+            assert!(e.retryable && !e.split, "{code}");
+        }
+        for code in [413, 422] {
+            let e = status_error(code, "");
+            assert!(e.split && !e.retryable, "{code}");
+        }
+        assert!(status_error(400, "Too many Questions").split);
+        let e = status_error(400, "bad model");
+        assert!(!e.split && !e.retryable);
+        assert!(!status_error(401, "").retryable);
+        assert_eq!(status_error(404, "nope").message, "HTTP 404: nope");
     }
 }

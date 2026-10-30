@@ -1,9 +1,10 @@
 [package]
 name = "betsy"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+rust-version = "1.90"
 license = "MIT OR Apache-2.0"
-description = "BETSY — Bug Evaluation Through Simple Yes/No: deterministic function inventory"
+description = "BETSY (Bug Evaluation Through Simple Yes/No): deterministic function inventory and per-function weakness decisions"
 
 [[bin]]
 name = "betsy"

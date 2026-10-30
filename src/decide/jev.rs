@@ -53,7 +53,7 @@ pub fn parse(resp: &Value, questions: &[&Question]) -> Result<(Vec<Answer>, Usag
 }
 impl Provider for Jev {
     fn config(&self) -> Value {
-        json!({"provider":"jev","model":self.model,"api":"v1/systemone","question_type":"noul"})
+        json!({"provider":"jev","model":self.model,"api":"v1/systemone","question_type":"noul","state":super::STATE_VERSION})
     }
     fn max_questions(&self) -> usize {
         self.max_questions

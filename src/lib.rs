@@ -1,6 +1,8 @@
 pub mod analyze;
+pub mod contract;
 pub mod decide;
 pub mod dispatch;
+pub mod external;
 pub mod languages;
 pub mod manifest;
 pub mod model;

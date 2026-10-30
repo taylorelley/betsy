@@ -61,7 +61,7 @@ pub fn parse(resp: &Value, questions: &[&Question]) -> Result<(Vec<Answer>, Usag
 }
 impl Provider for OpenAi {
     fn config(&self) -> Value {
-        json!({"provider":"openai","model":self.model,"api":"v1/decisions","question_type":"predicate"})
+        json!({"provider":"openai","model":self.model,"api":"v1/decisions","question_type":"predicate","state":super::STATE_VERSION})
     }
     fn max_questions(&self) -> usize {
         self.max_questions

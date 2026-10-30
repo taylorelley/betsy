@@ -1,6 +1,6 @@
 # BETSY
 
-**Bug Evaluation Through Simple Yes/No**, initial build v0.1.0.
+**Bug Evaluation Through Simple Yes/No**, v0.2.0.
 
 BETSY inventories source functions deterministically and dispatches them individually
 for later analysis. This milestone implements the attached [build specification](docs/BUILD_SPEC.md).
@@ -12,8 +12,8 @@ parser facts and are leads to verify, never proof.
 
 ## Build and try it
 
-Install stable Rust with the rustfmt and clippy components, plus a C compiler (the
-Tree-sitter grammars and bundled SQLite compile locally). Initial dependency fetching
+Install stable Rust (1.90 or later) with the rustfmt and clippy components, plus a C
+compiler (the Tree-sitter grammars and bundled SQLite compile locally). Initial dependency fetching
 requires Internet access. Scanning requires no language server, source-project setup,
 model credentials or network access.
 
@@ -151,6 +151,43 @@ evidence; the latest error remains on the item even after success. This guarante
 queue transitions, not exactly-once external side effects. External analyzers should use
 occurrence IDs as their own idempotency keys. Run status is derived from persisted item states.
 
+## External analyzers
+
+`betsy run exec` drives a dispatch run through a local analyzer program, one function at a
+time. It is opt-in and runs the program directly, never through a shell.
+
+```sh
+betsy run create --snapshot <snapshot-id> --analyzer my-analyzer-v1
+betsy run exec --run <run-id> --profile risk-triage-v1 --timeout-secs 60 -- ./my-analyzer --flag
+```
+
+Each claimed function is written to the program's stdin as one request (`contract::Request`,
+`schema_version` 1):
+
+```json
+{"schema_version":1,"analysis_profile":"risk-triage-v1","occurrence_id":"sha256:...",
+ "snapshot_id":"sha256:...","source_complete":true,"source_hash":"sha256:...",
+ "language":"python","path":"example.py","kind":"function","name":"outer","qualified_name":null,
+ "features":{"lines":5,"bytes":99,"nested_callables":2,"syntax_traits":[]},"source":"..."}
+```
+
+Features are deterministic and bounded, and derive only from the function's own source:
+line and byte counts, callables extracted inside it at any depth, and the
+[traits](#weakness-decisions) whose syntax occurs in it. A missing trait does not mean the
+function lacks it.
+
+The program must print one JSON value on stdout and exit 0; that value completes the item.
+Other outcomes fail it with the dispatcher's usual audit trail:
+
+- a non-zero exit (`analyzer_exit`, with the stderr tail) or stdout that is not one JSON value
+  of at most 16 MiB (`analyzer_output`) is final;
+- exceeding `--timeout-secs` (`timeout`; the process is killed) is retryable with `run retry`;
+- a program that cannot start leaves the item pending again and stops the command.
+
+`--limit N` stops after N functions. Runs created by `betsy analyze` are refused. The analyzer
+runs with BETSY's own working directory and environment, and should treat `occurrence_id` as
+its idempotency key.
+
 ## Weakness decisions
 
 `data/weaknesses/` embeds the scorpius-cli catalogs: 969 MITRE CWEs, 213 reliability (`REL-`)
@@ -168,8 +205,11 @@ betsy run recall --run <pruned-run> --baseline <exhaustive-run>   # what pruning
 
 Each question asks about exactly one weakness and gets an independent probability: a Jev
 `noul` (`POST /v1/systemone`) or an OpenAI `predicate` (`POST /v1/decisions`). The function
-record (language, path, kind, name, exact stored source) is the shared state. `--provider
-mock --mock-file script.json` is a deterministic offline provider for tests.
+record (language, path, kind, name, exact stored source) and its
+[analyzer features](#external-analyzers) are the shared state. The state's shape is versioned
+(`decide::STATE_VERSION`, now 2) inside each provider's configuration, so a shape change starts
+a fresh decision cache and refuses to resume older runs. `--provider mock --mock-file
+script.json` is a deterministic offline provider for tests.
 
 To keep this fast and cheap, BETSY layers six measures:
 
@@ -256,11 +296,15 @@ cargo clippy --locked --offline --all-targets -- -D warnings
 cargo test --locked --offline
 cargo test --locked --offline --release
 cargo audit # if installed; needs an advisory database
+cargo deny check licenses bans sources # if installed; policy in deny.toml
 ```
 
 See [validation results](docs/VALIDATION.md). CI runs formatting, linting, debug and release
-checks with offline dependency resolution after `cargo fetch --locked`; a separate job runs
-`cargo audit`. The dependency graph and production code contain no model or HTTP client.
+checks with offline dependency resolution after `cargo fetch --locked`. Separate jobs run the
+tests on the minimum supported Rust version (1.90, set by `tree-sitter-language`), check
+dependency licences and sources with `cargo deny`, and run `cargo audit`. Scanning, listing, verification and dispatch make no network calls. The only
+HTTP client (ureq) is used by `betsy analyze` when the `jev` or `openai` provider is selected;
+the `mock` provider and every test stay offline.
 Oracles are checked-in literal snippets and independently specified spans, not regenerated
 from extractor output. Starter fixture inputs and their original oracle are preserved unchanged.
 Grammar-specific expectations add node types and independently computed snippet hashes.
