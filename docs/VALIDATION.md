@@ -56,7 +56,8 @@ retryable provider failures, Jev and OpenAI request/response wire shapes, HTTP r
 rate limits and halving of oversized requests, trait catalog validity, syntax-only proof
 of trait presence, trait pruning, recall attribution to traits and gated ancestors, and
 schema migration from v1, v2 and v3 databases to v4. They also check that rejected
-credentials or an unknown model stop the run and leave every function pending, that answers
+credentials or an unknown model stop the run and leave every function pending, even when an
+earlier chunk of the same round failed for an ordinary reason, that answers
 paid for before a failure are cached and reused by the retry, that `--recover-claimed`
 requeues interrupted claims, that `run findings --threshold` reports at another threshold,
 that resuming rejects options differing from the run's configuration, that `--no-cache`

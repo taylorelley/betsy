@@ -1353,3 +1353,58 @@ fn analysis_run_creation_is_atomic() {
         .unwrap();
     assert_eq!(runs, 0);
 }
+
+/// Answers the first request, then rejects full chunks with a retryable 503 and the short
+/// last chunk with a fatal 401, so a round's later chunk carries the fatal error.
+struct MixedErrors {
+    requests: std::sync::atomic::AtomicUsize,
+}
+impl Provider for MixedErrors {
+    fn config(&self) -> Value {
+        json!({"provider":"mixed","model":"fixed"})
+    }
+    fn max_questions(&self) -> usize {
+        20
+    }
+    fn decide(
+        &self,
+        _: &State,
+        q: &[&weakness::Question],
+    ) -> Result<(Vec<Answer>, Usage), ProviderError> {
+        if self.requests.fetch_add(1, Ordering::SeqCst) == 0 {
+            let usage = Usage {
+                requests: 1,
+                ..Usage::default()
+            };
+            return Ok((vec![Answer::Probability(0.1); q.len()], usage));
+        }
+        let (code, retryable) = if q.len() == self.max_questions() {
+            ("provider_http", true)
+        } else {
+            (decide::AUTH, false)
+        };
+        Err(ProviderError {
+            code,
+            message: "mixed".into(),
+            retryable,
+            split: false,
+        })
+    }
+}
+
+#[test]
+fn a_fatal_chunk_error_outranks_an_earlier_ordinary_one() {
+    let (_t, mut db, m) = persisted();
+    // The first function's first round must span a full chunk that fails ordinarily and a
+    // later short chunk that fails fatally.
+    let first = weakness::plan(&m.functions[0].language, &Selection::default())
+        .unwrap()
+        .first_wave();
+    assert!(first > 40 && !first.is_multiple_of(20), "{first}");
+    let p = Arc::new(MixedErrors { requests: 0.into() });
+    let run = create_run(&mut db, &m.snapshot_id, p.as_ref());
+    let e = analyze::drain(&mut db, &run, p, exec(1)).unwrap_err();
+    assert!(e.to_string().contains(decide::AUTH), "{e}");
+    let s = dispatch::summary(&db, &run).unwrap();
+    assert_eq!(s["counts"], json!({"pending":37}));
+}

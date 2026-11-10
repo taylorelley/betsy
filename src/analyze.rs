@@ -299,7 +299,15 @@ fn ask_round(
         }
         Err(e) => {
             round.answers.extend(std::iter::repeat_n(None, len));
-            round.error.get_or_insert(e);
+            // A configuration rejection must survive an earlier chunk's ordinary failure, or
+            // drain would fail this function and keep claiming work instead of stopping.
+            let keep = round
+                .error
+                .as_ref()
+                .is_some_and(|k| k.fatal() || !e.fatal());
+            if !keep {
+                round.error = Some(e);
+            }
         }
     };
     take(

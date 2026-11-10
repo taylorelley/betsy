@@ -125,7 +125,19 @@ source in different paths remains distinct. Queue order compares UTF-8 path byte
 node kind and ID. IDs identify one snapshot, not an enduring symbol across edits.
 
 The database uses SQLite write-ahead logging with full sync, so `index.sqlite-wal` and
-`index.sqlite-shm` files sit beside it while it is open; copy all three, or none while BETSY runs.
+`index.sqlite-shm` files sit beside it while it is open, and committed data can live in the
+`-wal` file until a checkpoint moves it into the main file. Never copy the files of a database
+that is in use: a checkpoint between copying the main file and the `-wal` file loses committed
+records without any error. To back up, either stop every BETSY process using the database and
+then copy all three files, or take a consistent snapshot with SQLite's backup API, which is safe
+while BETSY runs:
+
+```sh
+sqlite3 .betsy/index.sqlite ".backup backup.sqlite"
+# without the sqlite3 tool, the same API through Python:
+python3 -c "import sqlite3; sqlite3.connect('.betsy/index.sqlite').backup(sqlite3.connect('backup.sqlite'))"
+```
+
 Keep the database on a local filesystem.
 
 Foreign keys, transactions and immutable inventory triggers protect sealed inventory records.
