@@ -48,6 +48,8 @@ fn exec(concurrency: usize) -> Exec {
         concurrency,
         max_inflight: 16,
         retry_failed: false,
+        recover_claimed: false,
+        refresh_cache: false,
     }
 }
 fn run_with(
@@ -293,7 +295,7 @@ fn hierarchy_gates_children_of_negative_answers() {
     );
     let d = decisions(&db, &run);
     assert!(d.iter().any(|x| x.2 == "gated"));
-    assert!(analyze::findings(&db, &run).unwrap()["findings"]
+    assert!(analyze::findings(&db, &run, None).unwrap()["findings"]
         .as_array()
         .unwrap()
         .is_empty());
@@ -345,7 +347,7 @@ fn positive_parent_opens_its_subtree_and_reports_findings() {
         100,
     ));
     let (run, _) = run_with(&mut db, &m.snapshot_id, mock, false, 2);
-    let f = analyze::findings(&db, &run).unwrap();
+    let f = analyze::findings(&db, &run, None).unwrap();
     let found: Vec<(&str, &str)> = f["findings"]
         .as_array()
         .unwrap()
@@ -964,7 +966,7 @@ fn recall_attributes_spliced_subtrees_to_the_failing_ancestor() {
 }
 
 #[test]
-fn schema_v2_tables_migrate_to_v3_even_with_stale_version_metadata() {
+fn schema_v2_tables_migrate_to_current_even_with_stale_version_metadata() {
     for old_version in [0, 1, 2] {
         let t = tempfile::tempdir().unwrap();
         let path = t.path().join("old.sqlite");
@@ -972,7 +974,7 @@ fn schema_v2_tables_migrate_to_v3_even_with_stale_version_metadata() {
             let db = rusqlite::Connection::open(&path).unwrap();
             let v2 = include_str!("../src/schema.sql")
                 .replace(",'trait'))", "))")
-                .replace("user_version=3", &format!("user_version={old_version}"));
+                .replace("user_version=4", &format!("user_version={old_version}"));
             db.execute_batch(&v2).unwrap();
             db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions VALUES('r','f','CWE-1','finding',2,'gated',0.1,'hash','original reason')").unwrap();
             assert!(db.execute("INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-2','finding',1,'trait')", []).is_err());
@@ -981,7 +983,7 @@ fn schema_v2_tables_migrate_to_v3_even_with_stale_version_metadata() {
         let version: u32 = db
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
         let foreign_keys: bool = db
             .pragma_query_value(None, "foreign_keys", |r| r.get(0))
             .unwrap();
@@ -1014,7 +1016,7 @@ fn schema_v2_tables_migrate_to_v3_even_with_stale_version_metadata() {
 }
 
 #[test]
-fn legacy_databases_without_weakness_decisions_upgrade_to_v3() {
+fn legacy_databases_without_weakness_decisions_upgrade_to_current() {
     for old_version in [0, 1] {
         let t = tempfile::tempdir().unwrap();
         let path = t.path().join("legacy.sqlite");
@@ -1031,7 +1033,321 @@ fn legacy_databases_without_weakness_decisions_upgrade_to_v3() {
         let version: u32 = db
             .pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 3);
+        assert_eq!(version, 4);
         db.execute_batch("PRAGMA foreign_keys=OFF; INSERT INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin) VALUES('r','f','CWE-1','finding',1,'trait')").unwrap();
     }
+}
+
+#[test]
+fn v3_dispatch_queues_are_numbered_in_canonical_order_on_open() {
+    let (t, mut db, m) = persisted();
+    let run = dispatch::create(&mut db, &m.snapshot_id, "legacy").unwrap()["run_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let first = dispatch::next(&mut db, &run).unwrap().unwrap();
+    // Recreate the v3 shape: no ordinal column, no queue index.
+    db.execute_batch(
+        "DROP INDEX dispatch_queue; ALTER TABLE dispatch_items DROP COLUMN ordinal; PRAGMA user_version=3;",
+    )
+    .unwrap();
+    drop(db);
+    let mut db = store::open(&t.path().join("db.sqlite")).unwrap();
+    let unnumbered: u32 = db
+        .query_row(
+            "SELECT count(*) FROM dispatch_items WHERE ordinal IS NULL",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(unnumbered, 0);
+    let mut claimed = vec![first.id];
+    while let Some(f) = dispatch::next(&mut db, &run).unwrap() {
+        claimed.push(f.id);
+    }
+    let canonical: Vec<String> = m.functions.iter().map(|f| f.id.clone()).collect();
+    assert_eq!(claimed, canonical);
+}
+
+/// Answers every question with a fixed probability, under a configuration that does not
+/// depend on it, and fails with `error` after `ok_requests` successful requests.
+struct Scripted {
+    probability: f64,
+    ok_requests: std::sync::atomic::AtomicUsize,
+    error: Option<(&'static str, bool)>,
+    requests: std::sync::atomic::AtomicUsize,
+    /// Questions answered by successful requests.
+    answered: std::sync::atomic::AtomicUsize,
+}
+impl Scripted {
+    fn new(probability: f64, ok_requests: usize, error: Option<(&'static str, bool)>) -> Self {
+        Self {
+            probability,
+            ok_requests: ok_requests.into(),
+            error,
+            requests: 0.into(),
+            answered: 0.into(),
+        }
+    }
+}
+impl Provider for Scripted {
+    fn config(&self) -> Value {
+        json!({"provider":"scripted","model":"fixed"})
+    }
+    fn max_questions(&self) -> usize {
+        20
+    }
+    fn decide(
+        &self,
+        _: &State,
+        q: &[&weakness::Question],
+    ) -> Result<(Vec<Answer>, Usage), ProviderError> {
+        self.requests.fetch_add(1, Ordering::SeqCst);
+        if let Some((code, retryable)) = self.error {
+            let left = self.ok_requests.load(Ordering::SeqCst);
+            if left == 0 {
+                return Err(ProviderError {
+                    code,
+                    message: "scripted".into(),
+                    retryable,
+                    split: false,
+                });
+            }
+            self.ok_requests.store(left - 1, Ordering::SeqCst);
+        }
+        self.answered.fetch_add(q.len(), Ordering::SeqCst);
+        let usage = Usage {
+            requests: 1,
+            ..Usage::default()
+        };
+        Ok((vec![Answer::Probability(self.probability); q.len()], usage))
+    }
+}
+fn create_run(db: &mut rusqlite::Connection, snapshot: &str, p: &dyn Provider) -> String {
+    let config = Config::new(p, Selection::default(), 0.5, 0.15, true).unwrap();
+    analyze::create(db, snapshot, &config).unwrap()["run_id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+fn cache_size(db: &rusqlite::Connection) -> u64 {
+    db.query_row("SELECT count(*) FROM decision_cache", [], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+fn rejected_credentials_stop_the_run_without_failing_functions() {
+    for code in [decide::AUTH, decide::NOT_FOUND] {
+        let (_t, mut db, m) = persisted();
+        let p = Arc::new(Scripted::new(0.5, 0, Some((code, false))));
+        let run = create_run(&mut db, &m.snapshot_id, p.as_ref());
+        let e = analyze::drain(&mut db, &run, p.clone(), exec(4)).unwrap_err();
+        assert!(e.to_string().contains(code), "{e}");
+        // At most one function per worker was tried before stopping.
+        assert!(p.requests.load(Ordering::SeqCst) <= 4);
+        let s = dispatch::summary(&db, &run).unwrap();
+        assert_eq!(s["counts"], json!({"pending":37}), "{code}");
+        let ok: Arc<dyn Provider> = Arc::new(Scripted::new(0.5, 0, None));
+        let out = analyze::drain(&mut db, &run, ok, exec(4)).unwrap();
+        assert_eq!(out["counts"], json!({"completed":37}));
+    }
+}
+
+#[test]
+fn answers_paid_for_before_a_failure_are_cached_for_the_retry() {
+    let (_t, mut db, m) = persisted();
+    // Exhaustive plans need many 20-question requests per function; allow three.
+    let p = Arc::new(Scripted::new(0.2, 3, Some(("provider_http", true))));
+    let run = create_run(&mut db, &m.snapshot_id, p.as_ref());
+    let out = analyze::drain(&mut db, &run, p.clone(), exec(1)).unwrap();
+    assert_eq!(out["counts"]["failed_retryable"], 37);
+    assert_eq!(out["usage"]["requests"], 3, "paid requests are counted");
+    let answered = p.answered.load(Ordering::SeqCst) as u64;
+    assert!(answered > 20, "more than one chunk was paid for");
+    assert_eq!(cache_size(&db), answered, "every paid answer kept");
+    let ok = Arc::new(Scripted::new(0.2, 0, None));
+    let out = analyze::drain(
+        &mut db,
+        &run,
+        ok,
+        Exec {
+            retry_failed: true,
+            ..exec(1)
+        },
+    )
+    .unwrap();
+    assert_eq!(out["status"], "finished");
+    let cached: u64 = db
+        .query_row(
+            "SELECT count(*) FROM weakness_decisions WHERE run_id=? AND origin='cache'",
+            [&run],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(cached >= answered, "{cached}");
+}
+
+#[test]
+fn interrupted_claims_are_recovered_on_request() {
+    let (_t, mut db, m) = persisted();
+    let p: Arc<dyn Provider> = Arc::new(Scripted::new(0.1, 0, None));
+    let run = create_run(&mut db, &m.snapshot_id, p.as_ref());
+    for _ in 0..3 {
+        dispatch::next(&mut db, &run).unwrap().unwrap();
+    }
+    let out = analyze::drain(&mut db, &run, p.clone(), exec(2)).unwrap();
+    assert_eq!(out["counts"]["claimed"], 3);
+    assert!(out["hint"].as_str().unwrap().contains("--recover-claimed"));
+    let out = analyze::drain(
+        &mut db,
+        &run,
+        p,
+        Exec {
+            recover_claimed: true,
+            ..exec(2)
+        },
+    )
+    .unwrap();
+    assert_eq!(out["counts"], json!({"completed":37}));
+    assert!(out.get("hint").is_none());
+    assert_eq!(
+        dispatch::recover_all(&mut db, &run).unwrap()["recovered"],
+        0
+    );
+}
+
+#[test]
+fn findings_threshold_can_be_lowered_after_the_run() {
+    let (_t, mut db, m) = persisted();
+    let p: Arc<dyn Provider> = Arc::new(Scripted::new(0.3, 0, None));
+    let run = create_run(&mut db, &m.snapshot_id, p.as_ref());
+    analyze::drain(&mut db, &run, p, exec(4)).unwrap();
+    let at = |t| analyze::findings(&db, &run, t).unwrap();
+    assert_eq!(at(None)["threshold"], 0.5);
+    assert!(at(None)["findings"].as_array().unwrap().is_empty());
+    let low = at(Some(0.25));
+    assert_eq!(low["threshold"], 0.25);
+    assert!(!low["findings"].as_array().unwrap().is_empty());
+    assert!(analyze::findings(&db, &run, Some(1.5)).is_err());
+}
+
+#[test]
+fn resuming_rejects_options_that_differ_from_the_run() {
+    let p = Scripted::new(0.3, 0, None);
+    let config = Config::new(
+        &p,
+        Selection {
+            only: vec!["CWE-89".into()],
+            exclude: vec![],
+        },
+        0.7,
+        0.15,
+        false,
+    )
+    .unwrap();
+    let same = analyze::Resume {
+        selection: Selection {
+            only: vec!["cwe_89".into()],
+            exclude: vec![],
+        },
+        threshold: Some(0.7),
+        gate_threshold: Some(0.15),
+        ..Default::default()
+    };
+    same.check(&config).unwrap();
+    analyze::Resume::default().check(&config).unwrap();
+    let differ = |r: analyze::Resume, flag: &str| {
+        let e = r.check(&config).unwrap_err().to_string();
+        assert!(e.contains(flag), "{e}");
+    };
+    differ(
+        analyze::Resume {
+            threshold: Some(0.95),
+            ..Default::default()
+        },
+        "--threshold",
+    );
+    differ(
+        analyze::Resume {
+            selection: Selection {
+                only: vec!["CWE-79".into()],
+                exclude: vec![],
+            },
+            ..Default::default()
+        },
+        "--weakness",
+    );
+    differ(
+        analyze::Resume {
+            exhaustive: true,
+            ..Default::default()
+        },
+        "--exhaustive",
+    );
+    differ(
+        analyze::Resume {
+            traits: true,
+            ..Default::default()
+        },
+        "--traits",
+    );
+    differ(
+        analyze::Resume {
+            max_rounds: Some(2),
+            ..Default::default()
+        },
+        "--max-rounds",
+    );
+}
+
+#[test]
+fn refreshing_the_cache_replaces_stale_answers() {
+    let (_t, mut db, m) = persisted();
+    let probabilities = |db: &rusqlite::Connection| -> Vec<f64> {
+        db.prepare("SELECT DISTINCT probability FROM decision_cache")
+            .unwrap()
+            .query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap()
+    };
+    let old: Arc<dyn Provider> = Arc::new(Scripted::new(0.1, 0, None));
+    let run = create_run(&mut db, &m.snapshot_id, old.as_ref());
+    analyze::drain(&mut db, &run, old, exec(4)).unwrap();
+    // Same configuration, different answers: a model updated behind its alias.
+    let new = Arc::new(Scripted::new(0.9, 0, None));
+    let run = create_run(&mut db, &m.snapshot_id, new.as_ref());
+    analyze::drain(&mut db, &run, new.clone(), exec(4)).unwrap();
+    assert_eq!(new.requests.load(Ordering::SeqCst), 0, "all cached");
+    assert_eq!(probabilities(&db), [0.1]);
+    let run = create_run(&mut db, &m.snapshot_id, new.as_ref());
+    analyze::drain(
+        &mut db,
+        &run,
+        new.clone(),
+        Exec {
+            refresh_cache: true,
+            ..exec(4)
+        },
+    )
+    .unwrap();
+    assert!(new.requests.load(Ordering::SeqCst) > 0);
+    assert_eq!(probabilities(&db), [0.9]);
+}
+
+#[test]
+fn analysis_run_creation_is_atomic() {
+    let (_t, mut db, m) = persisted();
+    let p = Scripted::new(0.1, 0, None);
+    let config = Config::new(&p, Selection::default(), 0.5, 0.15, false).unwrap();
+    // A plan insert that fails after the dispatch run was written must roll it back.
+    db.execute_batch(
+        "CREATE TEMP TRIGGER fail_plan BEFORE INSERT ON weakness_plan BEGIN SELECT RAISE(ABORT,'boom'); END;",
+    )
+    .unwrap();
+    assert!(analyze::create(&mut db, &m.snapshot_id, &config).is_err());
+    let runs: u32 = db
+        .query_row("SELECT count(*) FROM dispatch_runs", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(runs, 0);
 }

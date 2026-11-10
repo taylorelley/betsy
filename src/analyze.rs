@@ -71,6 +71,64 @@ impl Config {
         identity(&self.provider)
     }
 }
+/// Reporting threshold used when `--threshold` is not given; tuned on labelled code.
+pub const DEFAULT_THRESHOLD: f64 = 0.7;
+/// Gate threshold used when `--gate-threshold` is not given; set low for recall.
+pub const DEFAULT_GATE_THRESHOLD: f64 = 0.15;
+/// Result-affecting options repeated when resuming a run. A run's configuration is fixed when
+/// it is created, so each one given must match it; otherwise it would be silently ignored.
+#[derive(Debug, Clone, Default)]
+pub struct Resume {
+    pub selection: Selection,
+    pub threshold: Option<f64>,
+    pub gate_threshold: Option<f64>,
+    pub exhaustive: bool,
+    pub max_rounds: Option<u32>,
+    pub traits: bool,
+}
+impl Resume {
+    pub fn check(&self, config: &Config) -> Result<()> {
+        let mut differs = vec![];
+        if self.threshold.is_some_and(|t| t != config.threshold) {
+            differs.push(format!("--threshold (run uses {})", config.threshold));
+        }
+        if self
+            .gate_threshold
+            .is_some_and(|t| t != config.gate_threshold)
+        {
+            differs.push(format!(
+                "--gate-threshold (run uses {})",
+                config.gate_threshold
+            ));
+        }
+        if self.exhaustive && !config.exhaustive {
+            differs.push("--exhaustive (run is gated)".into());
+        }
+        if self.max_rounds.is_some() && self.max_rounds != config.max_rounds {
+            differs.push(format!("--max-rounds (run uses {:?})", config.max_rounds));
+        }
+        if self.traits && config.traits.is_none() {
+            differs.push("--traits (run has no trait filter)".into());
+        }
+        let ids = weakness::resolve_ids;
+        if !self.selection.only.is_empty()
+            && ids(&self.selection.only)? != ids(&config.selection.only)?
+        {
+            differs.push("--weakness".into());
+        }
+        if !self.selection.exclude.is_empty()
+            && ids(&self.selection.exclude)? != ids(&config.selection.exclude)?
+        {
+            differs.push("--exclude-weakness".into());
+        }
+        anyhow::ensure!(
+            differs.is_empty(),
+            "a run's configuration is fixed when it is created, and these options differ from it: {}. Omit them when resuming, or create a new run with --snapshot",
+            differs.join(", ")
+        );
+        Ok(())
+    }
+}
 /// Throughput controls; these do not affect results, so they are not part of the run identity.
 #[derive(Debug, Clone, Copy)]
 pub struct Exec {
@@ -79,6 +137,11 @@ pub struct Exec {
     /// Provider requests in flight across all functions.
     pub max_inflight: usize,
     pub retry_failed: bool,
+    /// Requeue items left claimed by an interrupted invocation before draining. Only safe
+    /// when no other process is working on the run.
+    pub recover_claimed: bool,
+    /// Ignore cached answers and overwrite them with fresh ones.
+    pub refresh_cache: bool,
 }
 
 /// A language's plan with its questions rendered once.
@@ -108,9 +171,10 @@ fn prepare(language: &str, selection: &Selection) -> Result<Arc<Prepared>> {
 
 pub fn create(db: &mut Connection, snapshot: &str, config: &Config) -> Result<Value> {
     let analyzer = serde_json::to_string(config)?;
-    let created = dispatch::create(db, snapshot, &analyzer)?;
+    // One transaction: a run is never left without its analysis configuration.
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    let created = dispatch::create_in(&tx, snapshot, &analyzer)?;
     let run = created["run_id"].as_str().context("run id")?.to_string();
-    let tx = db.transaction()?;
     tx.execute(
         "INSERT INTO analysis_runs(run_id,config_json) VALUES(?,?)",
         params![run, analyzer],
@@ -203,6 +267,13 @@ impl Semaphore {
 }
 
 type Batch = Result<(Vec<Answer>, Usage), ProviderError>;
+/// Answers of one round in question order; `None` where its chunk failed. Answers already
+/// paid for are kept even when another chunk fails, so a retry does not buy them again.
+struct Round {
+    answers: Vec<Option<Answer>>,
+    usage: Usage,
+    error: Option<ProviderError>,
+}
 /// Asks the uncached questions of one round. The first chunk goes alone so it can write the
 /// provider's prefix cache for this function; the remaining chunks then run concurrently.
 fn ask_round(
@@ -210,13 +281,37 @@ fn ask_round(
     state: &State,
     questions: &[&Question],
     sem: &Semaphore,
-) -> Batch {
+) -> Round {
     let size = provider.max_questions().max(1);
     let chunks: Vec<&[&Question]> = questions.chunks(size).collect();
-    let Some((first, rest)) = chunks.split_first() else {
-        return Ok((vec![], Usage::default()));
+    let mut round = Round {
+        answers: vec![],
+        usage: Usage::default(),
+        error: None,
     };
-    let (mut answers, mut usage) = sem.with(|| decide_splitting(provider, state, first))?;
+    let Some((first, rest)) = chunks.split_first() else {
+        return round;
+    };
+    let take = |round: &mut Round, len: usize, r: Batch| match r {
+        Ok((a, u)) => {
+            round.answers.extend(a.into_iter().map(Some));
+            round.usage.add(&u);
+        }
+        Err(e) => {
+            round.answers.extend(std::iter::repeat_n(None, len));
+            round.error.get_or_insert(e);
+        }
+    };
+    take(
+        &mut round,
+        first.len(),
+        sem.with(|| decide_splitting(provider, state, first)),
+    );
+    if round.error.is_some() {
+        let remaining = questions.len() - first.len();
+        round.answers.extend(std::iter::repeat_n(None, remaining));
+        return round;
+    }
     let results: Vec<Batch> = std::thread::scope(|s| {
         let handles: Vec<_> = rest
             .iter()
@@ -227,12 +322,10 @@ fn ask_round(
             .map(|h| h.join().expect("provider thread"))
             .collect()
     });
-    for r in results {
-        let (a, u) = r?;
-        answers.extend(a);
-        usage.add(&u);
+    for (c, r) in rest.iter().zip(results) {
+        take(&mut round, c.len(), r);
     }
-    Ok((answers, usage))
+    round
 }
 
 /// Asks the uncached questions among `indices` and returns every answer with its origin.
@@ -258,16 +351,20 @@ fn ask_cached(
         }
     }
     let qs: Vec<&Question> = pending.iter().map(|&i| &questions[i]).collect();
-    let (got, u) = ask_round(provider, state, &qs, sem)?;
-    tally.usage.add(&u);
+    let round = ask_round(provider, state, &qs, sem);
+    tally.usage.add(&round.usage);
     tally.asked += pending.len();
-    for (&i, a) in pending.iter().zip(got) {
+    for (&i, a) in pending.iter().zip(round.answers) {
+        let Some(a) = a else { continue };
         if let Answer::Probability(p) = a {
             tally.fresh.push((questions[i].hash.clone(), p));
         }
         answers.insert(i, (a, "provider"));
     }
-    Ok(answers)
+    match round.error {
+        Some(e) => Err(e),
+        None => Ok(answers),
+    }
 }
 #[derive(Default)]
 struct Tally {
@@ -277,6 +374,12 @@ struct Tally {
     usage: Usage,
 }
 
+/// A function that could not be evaluated, with the answers it had already paid for.
+pub struct Failed {
+    pub error: ProviderError,
+    pub fresh: Vec<(String, f64)>,
+    pub usage: Usage,
+}
 fn evaluate(
     provider: &dyn Provider,
     prepared: &Prepared,
@@ -285,13 +388,33 @@ fn evaluate(
     cached: &HashMap<String, f64>,
     config: &Config,
     sem: &Semaphore,
+) -> Result<Outcome, Failed> {
+    let mut tally = Tally::default();
+    walk(
+        provider, prepared, function, features, cached, config, sem, &mut tally,
+    )
+    .map_err(|error| Failed {
+        error,
+        fresh: std::mem::take(&mut tally.fresh),
+        usage: std::mem::take(&mut tally.usage),
+    })
+}
+#[allow(clippy::too_many_arguments)]
+fn walk(
+    provider: &dyn Provider,
+    prepared: &Prepared,
+    function: &Function,
+    features: &Features,
+    cached: &HashMap<String, f64>,
+    config: &Config,
+    sem: &Semaphore,
+    tally: &mut Tally,
 ) -> Result<Outcome, ProviderError> {
     let plan = &prepared.plan;
     let state = State { function, features };
     let traits = weakness::traits();
     let mut frontier = plan.roots.clone();
     let mut decisions = vec![];
-    let mut tally = Tally::default();
     let (mut gated_subtrees, mut gated_total) = (0, 0);
     let (mut trait_subtrees, mut trait_total) = (0, 0);
     let mut round = 0;
@@ -315,7 +438,7 @@ fn evaluate(
             &unproven,
             cached,
             sem,
-            &mut tally,
+            tally,
         )?;
         let mut mask = proven;
         for (i, t) in traits.traits.iter().enumerate() {
@@ -387,7 +510,7 @@ fn evaluate(
             &asked,
             cached,
             sem,
-            &mut tally,
+            tally,
         )?;
         let mut next = vec![];
         // Nodes in this round whose own answer and every in-round ancestor's answer passed.
@@ -470,7 +593,7 @@ fn evaluate(
         from_cache,
         fresh,
         usage,
-    } = tally;
+    } = std::mem::take(tally);
     let mut positives: Vec<&Decision> = decisions
         .iter()
         .filter(|d| d.role == Role::Finding && d.probability.is_some_and(|p| p >= config.threshold))
@@ -517,28 +640,45 @@ fn cached(db: &Connection, config: &Config, f: &Function) -> Result<HashMap<Stri
         .collect::<Result<_, _>>()?;
     Ok(rows)
 }
+/// Stores a function's decisions, its fresh answers and its completion in one transaction.
 fn persist(
     db: &mut Connection,
     run: &str,
     config: &Config,
     f: &Function,
-    outcome: &Outcome,
+    outcome: Outcome,
+    refresh: bool,
 ) -> Result<()> {
-    let tx = db.transaction()?;
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
     for d in &outcome.decisions {
         tx.execute(
             "INSERT OR REPLACE INTO weakness_decisions(run_id,function_id,weakness_id,role,round,origin,probability,question_hash,reason) VALUES(?,?,?,?,?,?,?,?,?)",
             params![run, f.id, d.weakness_id, if d.role == Role::Gate { "gate" } else { "finding" }, d.round, d.origin, d.probability, d.question_hash, d.reason],
         )?;
     }
-    let key = config.provider_key();
-    for (h, p) in &outcome.fresh {
-        tx.execute(
-            "INSERT OR IGNORE INTO decision_cache(provider_key,language,source_hash,question_hash,probability) VALUES(?,?,?,?,?)",
-            params![key, f.language, f.source_hash, h, p],
-        )?;
-    }
+    remember(&tx, config, f, &outcome.fresh, refresh)?;
+    dispatch::complete_in(&tx, run, &f.id, outcome.summary)?;
     tx.commit()?;
+    Ok(())
+}
+/// Adds fresh answers to the decision cache; `refresh` overwrites existing entries.
+fn remember(
+    db: &Connection,
+    config: &Config,
+    f: &Function,
+    fresh: &[(String, f64)],
+    refresh: bool,
+) -> Result<()> {
+    let key = config.provider_key();
+    let sql = if refresh {
+        "INSERT OR REPLACE INTO decision_cache(provider_key,language,source_hash,question_hash,probability) VALUES(?,?,?,?,?)"
+    } else {
+        "INSERT OR IGNORE INTO decision_cache(provider_key,language,source_hash,question_hash,probability) VALUES(?,?,?,?,?)"
+    };
+    let mut q = db.prepare_cached(sql)?;
+    for (h, p) in fresh {
+        q.execute(params![key, f.language, f.source_hash, h, p])?;
+    }
     Ok(())
 }
 
@@ -561,6 +701,9 @@ pub fn drain(
         config.provider == provider.config(),
         "provider configuration differs from the run's; create a new run"
     );
+    if exec.recover_claimed {
+        dispatch::recover_all(db, run)?;
+    }
     if exec.retry_failed {
         let ids: Vec<String> = db
             .prepare("SELECT function_id FROM dispatch_items WHERE run_id=? AND status='failed_retryable'")?
@@ -574,7 +717,10 @@ pub fn drain(
     let concurrency = exec.concurrency.max(1);
     let (job_tx, job_rx) = mpsc::channel::<Job>();
     let job_rx = Mutex::new(job_rx);
-    let (res_tx, res_rx) = mpsc::channel::<(Function, Result<Outcome, ProviderError>)>();
+    let (res_tx, res_rx) = mpsc::channel::<(Function, Result<Outcome, Failed>)>();
+    // A configuration error (bad key, unknown model) stops the run instead of failing every
+    // remaining function; the functions it hit go back to pending.
+    let mut fatal: Option<ProviderError> = None;
     let mut totals = BTreeMap::<&str, u64>::new();
     let mut usage = Usage::default();
     std::thread::scope(|s| -> Result<()> {
@@ -603,7 +749,7 @@ pub fn drain(
             let mut plans: HashMap<String, Arc<Prepared>> = HashMap::new();
             let (mut inflight, mut exhausted) = (0usize, false);
             loop {
-                while !exhausted && inflight < concurrency {
+                while !exhausted && fatal.is_none() && inflight < concurrency {
                     match dispatch::next(db, run)? {
                         Some(function) => {
                             let prepared = match plans.get(&function.language) {
@@ -614,7 +760,11 @@ pub fn drain(
                                     p
                                 }
                             };
-                            let cached = cached(db, &config, &function)?;
+                            let cached = if exec.refresh_cache {
+                                HashMap::new()
+                            } else {
+                                cached(db, &config, &function)?
+                            };
                             let features = contract::features(db, &function)?;
                             job_tx
                                 .send(Job {
@@ -636,18 +786,28 @@ pub fn drain(
                 inflight -= 1;
                 match result {
                     Ok(outcome) => {
-                        persist(db, run, &config, &function, &outcome)?;
                         usage.add(&outcome.usage);
                         *totals.entry("completed").or_default() += 1;
                         *totals.entry("positives").or_default() += outcome.summary["positives"]
                             .as_array()
                             .map_or(0, |a| a.len())
                             as u64;
-                        dispatch::complete(db, run, &function.id, outcome.summary)?;
+                        persist(db, run, &config, &function, outcome, exec.refresh_cache)?;
                     }
-                    Err(e) => {
-                        *totals.entry("failed").or_default() += 1;
-                        dispatch::fail(db, run, &function.id, e.code, &e.message, e.retryable)?;
+                    Err(Failed {
+                        error: e,
+                        fresh,
+                        usage: paid,
+                    }) => {
+                        usage.add(&paid);
+                        remember(db, &config, &function, &fresh, exec.refresh_cache)?;
+                        if e.fatal() {
+                            dispatch::requeue(db, run, &function.id, true)?;
+                            fatal.get_or_insert(e);
+                        } else {
+                            *totals.entry("failed").or_default() += 1;
+                            dispatch::fail(db, run, &function.id, e.code, &e.message, e.retryable)?;
+                        }
                     }
                 }
             }
@@ -656,19 +816,33 @@ pub fn drain(
         drop(job_tx);
         r
     })?;
-    let status = dispatch::status(db, run)?;
-    Ok(
-        json!({"run_id":run,"status":status["status"],"counts":status["counts"],"this_invocation":totals,"usage":usage}),
-    )
+    if let Some(e) = fatal {
+        anyhow::bail!(
+            "provider rejected the configuration ({e}); stopped without failing any function. Fix the key, model or URL and resume with --run {run}"
+        );
+    }
+    let status = dispatch::summary(db, run)?;
+    let mut out = json!({"run_id":run,"status":status["status"],"counts":status["counts"],"this_invocation":totals,"usage":usage});
+    if status["counts"]["claimed"].as_u64().unwrap_or(0) > 0 {
+        out["hint"] = json!("items are still claimed, probably by an interrupted invocation; once no other process is working on this run, resume with --recover-claimed");
+    }
+    Ok(out)
 }
 /// Above-threshold findings for a run, strongest first.
-pub fn findings(db: &Connection, run: &str) -> Result<Value> {
+/// `threshold` overrides the run's reporting threshold; every probability is stored, so a
+/// lower one gives a recall-heavy view without asking again.
+pub fn findings(db: &Connection, run: &str, threshold: Option<f64>) -> Result<Value> {
     let config = load_config(db, run)?;
+    let threshold = threshold.unwrap_or(config.threshold);
+    anyhow::ensure!(
+        (0.0..=1.0).contains(&threshold),
+        "threshold must be within [0, 1]"
+    );
     let mut q = db.prepare(
         "SELECT d.function_id,d.weakness_id,d.probability,d.origin,f.path,f.kind,f.name,f.qualified_name,f.record_json FROM weakness_decisions d JOIN functions f ON f.id=d.function_id WHERE d.run_id=? AND d.role='finding' AND d.probability>=? ORDER BY d.probability DESC,f.path COLLATE BINARY,f.start_byte,d.weakness_id",
     )?;
     let rows = q
-        .query_map(params![run, config.threshold], |r| {
+        .query_map(params![run, threshold], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
@@ -689,7 +863,7 @@ pub fn findings(db: &Connection, run: &str) -> Result<Value> {
         let w = cat.get(&wid);
         out.push(json!({"function_id":fid,"path":path,"start_line":rec["start_line"],"end_line":rec["end_line"],"kind":kind,"name":name,"qualified_name":qname,"weakness_id":wid,"weakness_name":w.map(|w|&w.name),"catalog":w.map(|w|&w.catalog),"probability":p,"origin":origin}));
     }
-    Ok(json!({"run_id":run,"threshold":config.threshold,"findings":out}))
+    Ok(json!({"run_id":run,"threshold":threshold,"findings":out}))
 }
 
 /// Compares a pruned run with a baseline over the same snapshot. Each baseline finding the

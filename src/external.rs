@@ -171,7 +171,7 @@ pub fn drain(db: &mut Connection, run: &str, a: &Analyzer, limit: Option<usize>)
             }
         }
     }
-    let status = dispatch::status(db, run)?;
+    let status = dispatch::summary(db, run)?;
     Ok(
         json!({"run_id":run,"status":status["status"],"counts":status["counts"],"this_invocation":totals}),
     )

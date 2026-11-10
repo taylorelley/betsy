@@ -20,6 +20,20 @@ pub fn extract(
     };
     let adapter = Adapter(lang.into());
     let file_hash = hash(source);
+    // Byte offsets of line starts, so positions are a binary search rather than a rescan.
+    let line_starts: Vec<usize> = std::iter::once(0)
+        .chain(
+            source
+                .iter()
+                .enumerate()
+                .filter(|(_, &b)| b == b'\n')
+                .map(|(i, _)| i + 1),
+        )
+        .collect();
+    let line_col = |offset: usize| {
+        let line = line_starts.partition_point(|&s| s <= offset);
+        (line, offset - line_starts[line - 1])
+    };
     let mut stack = vec![tree.root_node()];
     let mut seen = 0;
     while let Some(n) = stack.pop() {
@@ -62,18 +76,8 @@ pub fn extract(
             if let Some(d) = adapter.classify(n, source) {
                 let start = d.definition.start;
                 let end = d.definition.end;
-                let before = &source[..start];
-                let end_before = &source[..end];
-                let line_col = |b: &[u8]| {
-                    (
-                        1 + b.iter().filter(|&&x| x == b'\n').count(),
-                        b.iter()
-                            .rposition(|&x| x == b'\n')
-                            .map_or(b.len(), |i| b.len() - i - 1),
-                    )
-                };
-                let (start_line, start_column) = line_col(before);
-                let (end_line, end_column) = line_col(end_before);
+                let (start_line, start_column) = line_col(start);
+                let (end_line, end_column) = line_col(end);
                 out.push(Function {
                     schema_version: 1,
                     snapshot_id: String::new(),
