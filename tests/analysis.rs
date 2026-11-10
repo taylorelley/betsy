@@ -1104,8 +1104,11 @@ impl Provider for Scripted {
     ) -> Result<(Vec<Answer>, Usage), ProviderError> {
         self.requests.fetch_add(1, Ordering::SeqCst);
         if let Some((code, retryable)) = self.error {
-            let left = self.ok_requests.load(Ordering::SeqCst);
-            if left == 0 {
+            // One atomic decrement per success: concurrent chunks cannot share a permit.
+            let permit = self
+                .ok_requests
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
+            if permit.is_err() {
                 return Err(ProviderError {
                     code,
                     message: "scripted".into(),
@@ -1113,7 +1116,6 @@ impl Provider for Scripted {
                     split: false,
                 });
             }
-            self.ok_requests.store(left - 1, Ordering::SeqCst);
         }
         self.answered.fetch_add(q.len(), Ordering::SeqCst);
         let usage = Usage {
