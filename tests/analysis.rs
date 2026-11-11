@@ -84,7 +84,7 @@ fn decisions(db: &rusqlite::Connection, run: &str) -> Vec<(String, String, Strin
 }
 
 #[test]
-fn catalogs_copied_intact_and_ids_normalize() {
+fn cards_are_the_whole_catalog_and_ids_normalize() {
     let c = weakness::catalog();
     let count = |cat: &str| c.entries.iter().filter(|w| w.catalog == cat).count();
     assert_eq!(
@@ -93,27 +93,23 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213 + 93, 10 + 18)
+        (754, 306, 28)
     );
-    // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
-    // entries live in the betsy_ files.
+    // The cards are the only weakness definitions, and PROVENANCE.md records their hash.
     let provenance = include_str!("../data/weaknesses/PROVENANCE.md");
-    for bytes in [
-        &include_bytes!("../data/weaknesses/cwe_database.json")[..],
-        include_bytes!("../data/weaknesses/reliability_weaknesses.json"),
-        include_bytes!("../data/weaknesses/performance_weaknesses.json"),
-    ] {
-        let digest = hash(bytes);
-        assert!(provenance.contains(&digest["sha256:".len()..]), "{digest}");
-    }
+    let digest = hash(include_bytes!("../data/weaknesses/cards.json"));
+    assert!(provenance.contains(&digest["sha256:".len()..]), "{digest}");
+    let definitions: Vec<String> = std::fs::read_dir("data/weaknesses")
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter(|f| f.ends_with(".json") && f != "cards.json" && f != "traits.json")
+        .collect();
+    assert!(definitions.is_empty(), "{definitions:?}");
     assert_eq!(c.get("cwe_89").unwrap().id, "CWE-89");
     assert_eq!(c.get("89").unwrap().id, "CWE-89");
     assert_eq!(c.get("REL-1").unwrap().id, "REL-001");
     assert_eq!(c.get("perf 2").unwrap().id, "PERF-002");
     assert!(c.get("CWE-0").is_none() && c.get("nope").is_none());
-    let metadata: Value =
-        serde_json::from_str(include_str!("../data/weaknesses/cwe_metadata.json")).unwrap();
-    assert_eq!(metadata["entry_count"], 969);
 }
 
 #[test]
@@ -182,7 +178,7 @@ fn plans_account_for_every_weakness_and_match_golden() {
 }
 
 #[test]
-fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
+fn reliability_entries_hang_under_listed_parents_and_only_children_are_spliced() {
     let c = weakness::catalog();
     let p = weakness::plan("c", &Selection::default()).unwrap();
     let rel = p.nodes.iter().filter(|n| n.id.starts_with("REL-"));
@@ -190,15 +186,8 @@ fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
     assert!(attached > 100, "{attached} REL entries attached");
     for n in rel.filter(|n| n.parent.is_some()) {
         let parent = &p.nodes[n.parent.unwrap()].id;
-        let peers: Vec<&str> = c
-            .get(&n.id)
-            .unwrap()
-            .related_weaknesses
-            .iter()
-            .filter(|r| r.nature == "PeerOf")
-            .map(|r| r.cwe_id.as_str())
-            .collect();
-        assert!(peers.contains(&parent.as_str()), "{} under {parent}", n.id);
+        let parents = &c.get(&n.id).unwrap().parents;
+        assert!(parents.contains(parent), "{} under {parent}", n.id);
     }
     for n in &p.nodes {
         let siblings = n.parent.map(|q| p.nodes[q].children.len());

@@ -7,14 +7,14 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --locked --offline --all-targets -- -D warnings` | Passed, no warnings |
-| `cargo test --locked --offline` | Passed: 69 tests (26 unit, 16 integration, 21 analysis, 6 external analyzer), 0 failures. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
-| `cargo test --locked --offline --release` | Not re-run for detection cards |
-| `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Not re-run for detection cards |
+| `cargo test --locked --offline` | Passed: 75 tests (22 unit, 16 integration, 31 analysis, 6 external analyzer), 0 failures; re-run 2026-11-11 after the catalog files were removed. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
+| `cargo test --locked --offline --release` | Not re-run since the weakness cards were added |
+| `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Not re-run since the weakness cards were added |
 | `cargo deny check licenses bans sources` (cargo-deny 0.20.2, all target platforms) | bans ok, licenses ok, sources ok |
 | `strace -f -e trace=network -o <scratch>/net.trace cargo test --locked --offline` | Passed: 61 tests; every connect was to 127.0.0.1, the local HTTP test server; no external addresses |
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
-| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 48,211 naive questions; 28,066 after prefilter; hierarchical lower bound 1,341 |
+| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 40,256 naive questions (1,088 cards for each of 37 functions); 28,066 after prefilter; hierarchical lower bound 1,341 |
 | `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function) |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
@@ -48,8 +48,8 @@ pack and remain unchanged. No extraction result was used to generate an acceptan
 ## v0.2 weakness decisions
 
 Analysis tests use the offline mock provider and a loopback HTTP server. They exercise
-catalog integrity and ID normalisation, plan accounting against a golden, REL/PERF
-attachment under peer CWEs and only-child splicing, flat explicit selection, hierarchical
+that the cards are the only weakness definitions, ID normalisation, plan accounting against a golden, REL/PERF
+attachment under listed parent CWEs and only-child splicing, flat explicit selection, hierarchical
 gating and subtree opening, `--max-rounds`, provider chunk limits, decision cache reuse
 across runs and duplicate bodies, determinism under concurrency, interrupted claims,
 retryable provider failures, Jev and OpenAI request/response wire shapes, HTTP retry on
@@ -81,18 +81,23 @@ file, whole-file reads for each function's source, and a rollback journal create
 on every commit. A single file of 20,000 functions now scans in 0.8 s. Timings depend on the
 disk; these are indicative only.
 
-## Question wording and detection cards
+## Question wording and weakness cards
 
-Unit tests check that sentences ruling cases out are moved from the true criterion to the false
-one, while abbreviations, "acceptable for ..." and sentences that point back at earlier ones
-stay put; that cards are rejected for unknown IDs, languages or fields, missing parts,
-self-references and duplicate IDs; that card criteria read per-language patterns (C++ reads C)
-and stay within 1,500 characters for every card and language; and that uncheckable cards are
-skipped by the prefilter but still asked when named explicitly; that every planned entry has a
-card; that BETSY-authored entries are gated under a planned peer CWE; and that no card copies ten
-consecutive words of its entry's description. All 1,082 cards load and render within the limit
-for all seven languages. They have not been run against a provider or labelled
-code.
+Unit tests check that cards are rejected for unknown IDs, catalog prefixes, languages or fields,
+missing names or parts, unknown or self-referencing parents and `distinguish_from` IDs, and
+duplicate IDs; that a card's catalog and planning order come from its ID; that `languages`
+restricts a card only when listed; that parents are tried in order; that card criteria read
+per-language patterns (C++ reads C) and stay within 1,500 characters for every card and
+language; that uncheckable cards are skipped by the prefilter and refused when named
+explicitly; that only `gate` cards are planned as gates; and that REL and PERF cards with
+parents are gated rather than asked as roots. All 1,088 cards load, and the 1,008 checkable ones
+render within the limit for all seven languages. They have not been run against a provider or
+labelled code.
+
+When the catalog files the cards were first laid over were removed, the plan for each of the
+seven languages (roles, parents, splicing, rounds, trait tags and skips) and all 5,393 planned
+questions (wording and hashes) were compared before and after. They were identical apart from
+the order of entries, which now follows catalog and ID number.
 
 ## Unit tests
 
@@ -100,8 +105,8 @@ Unit tests cover the pure helpers without a database: HTTP status classification
 `Retry-After` parsing (including a non-finite value, which previously panicked), request
 splitting and answer-count checks, probability bounds and refusals, usage accounting, state
 rendering, every accepted OpenAI response container, Jev refusals and range checks, weakness
-ID normalisation, language, hardware and mode-of-introduction prefilters, CWE-1000 parent
-selection, text compaction, question keys and hashes, and trait masks.
+ID normalisation, the language prefilter, parent selection, question keys and hashes, and
+trait masks.
 
 ## External analyzers and request contract
 

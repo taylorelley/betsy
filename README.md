@@ -209,13 +209,11 @@ its idempotency key.
 
 ## Weakness decisions
 
-`data/weaknesses/` embeds the scorpius-cli catalogs: 969 MITRE CWEs, 213 reliability (`REL-`)
-and 10 performance (`PERF-`) weaknesses, copied unchanged. BETSY adds its own entries in
-`betsy_reliability_weaknesses.json` (REL-214 to REL-306) and `betsy_performance_weaknesses.json`
-(PERF-011 to PERF-028): function-level JavaScript, TypeScript, Python, C++ and Rust reliability
-bugs and common performance mistakes that the copied catalogs lack. They use the same schema and
-ID sequences, so they behave like any other REL or PERF entry. Provenance and hashes are in
-`PROVENANCE.md`.
+`data/weaknesses/cards.json` is the only weakness definition: 1,088 weakness cards, embedded at
+build time. 754 are MITRE CWEs (security), 306 are reliability (`REL-`) and 28 are performance
+(`PERF-`) weaknesses. A card names its weakness, places it in the hierarchy and says how to
+decide it from one function; see [weakness cards](#weakness-cards). Provenance and the file's
+hash are in `data/weaknesses/PROVENANCE.md`.
 
 ```sh
 betsy weaknesses list --language rust            # deterministic plan: nodes, roots, skips with reasons
@@ -248,24 +246,22 @@ leads to verify, not proof.
 
 ### Question wording
 
-The catalogs were written for people reading a catalogue, not for a yes/no check on one
-function, so questions are built in two ways:
+Every question is built from the weakness's card: its `question`, the `present_when` patterns
+for the function's language as the true criterion, and the `not_present_when` patterns and
+`distinguish_from` notes as the false criterion, ending with "it would only arise outside this
+function". A change to a card changes the question's hash, so the decision cache never reuses
+an answer to different wording.
 
-- **From catalog prose**, when an entry has no usable detection card. Sentences that rule cases out ("... do not count",
-  "... are fine", "... are not this weakness") are moved from the description into the false
-  criterion, ahead of the generic "does not exhibit this weakness, or it would only arise
-  outside this function". Otherwise they usually fell after the 600-character cut: of the 128
-  entries with such sentences, 84 lost them entirely and 39 in part.
-- **From a detection card**, when `data/weaknesses/cards.json` has one for the entry. It
-  replaces the prose; see [detection cards](#detection-cards).
+### Weakness cards
 
-Both change question hashes, so the decision cache never reuses an answer to different wording.
+`data/weaknesses/cards.json` is keyed by weakness ID. The ID prefix gives the catalog (`CWE-`
+security, `REL-` reliability, `PERF-` performance) and the key's spelling is the one used in
+output. Each card has:
 
-### Detection cards
-
-`data/weaknesses/cards.json` is an overlay keyed by weakness ID; the MITRE and REL source files
-are untouched. Each card has:
-
+- `name`, and optionally `abstraction`;
+- `gate`: when true, the card is asked only to route the hierarchy and is never reported;
+- `languages`: the languages the weakness can occur in; when absent, it applies to all;
+- `parents`: the cards it hangs under, in order of preference;
 - `question`: one question about the function's own code;
 - `present_when`: observable code patterns, under `any` or a language (`c`, `cpp`,
   `javascript`, `typescript`, `tsx`, `python`, `rust`). C++ also reads `c` patterns, and
@@ -273,15 +269,13 @@ are untouched. Each card has:
 - `not_present_when`: guards, constants and safe APIs that rule the weakness out;
 - `distinguish_from`: sibling weakness IDs, each with what tells it apart. They go into the
   false criterion, to stop one pattern being reported under several related CWEs;
-- `function_checkable`: when false, a `reason` is required and the prefilter skips the entry
-  unless it is named with `--weakness`.
+- `function_checkable`: when false, a `reason` is required, the prefilter skips the card and
+  naming it with `--weakness` is an error.
 
 Cards are validated when loaded: unknown IDs, languages or fields, missing parts and
-self-references are errors. They are part of the catalog hash, so editing a card changes the
-run identity. Every entry that any language plans has a card (1,082, of which 74 are marked not
-function-checkable); the catalog prose is now used only for entries named explicitly with
-`--weakness` whose card is uncheckable. Status, review notes and the validation plan are in
-[docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
+self-references are errors. The file's hash is the catalog hash, so editing a card changes the
+run identity. Of the 1,088 cards, 80 are marked not function-checkable. Status, review notes
+and the validation plan are in [docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
 
 For DECISION SERVER and other Jev-compatible servers whose models accept only a string state
 or short answer options, `--text-state` sends the function's text rendering as the state and
@@ -290,20 +284,18 @@ configuration when set.
 
 To keep this fast and cheap, BETSY layers six measures:
 
-1. **Deterministic prefilter** (profile `function-v6`). Entries are skipped, each with a
+1. **Deterministic prefilter** (profile `function-v6`). Cards are skipped, each with a
    recorded reason, when:
-   - their explicit language platforms don't match the function's language;
-   - they are hardware-only;
-   - every mode of introduction lies outside source code;
-   - their [detection card](#detection-cards) marks them as not checkable within one function.
+   - their `languages` do not include the function's language;
+   - they are marked as not checkable within one function.
 
-   MITRE `Prohibited`/`Discouraged` entries and Pillars are asked only as hierarchy gates and
-   are never reported. Fixtures go from 1,303 questions per function to 705–938, depending on
-   the language.
-2. **Hierarchical early exit.** CWEs form a forest over their primary `ChildOf` edges in view
-   CWE-1000. REL and PERF entries hang under the first planned CWE they name as `PeerOf`;
-   the rest are roots. Entries in `weakness::DETACHED` (CWE-617 and REL-026) are roots too,
-   since a low answer for their catalog parent says little about them. Round 1 asks the roots. Children are asked only when the parent's
+   Cards marked `gate` are asked only as hierarchy gates and are never reported. Fixtures go
+   from 1,088 questions per function to 705–938, depending on the language.
+2. **Hierarchical early exit.** Cards form a forest: each hangs under the first of its
+   `parents` that is planned for the language, and the rest are roots. For CWEs the parent is
+   the primary `ChildOf` edge in MITRE view CWE-1000; REL and PERF cards list related CWEs.
+   Cards in `weakness::DETACHED` (CWE-617 and REL-026) are roots too, since a low answer for
+   their parent says little about them. Round 1 asks the roots. Children are asked only when the parent's
    probability reaches `--gate-threshold` (default 0.15, set low for recall); a refusal also
    descends. Unasked subtrees are recorded as `gated` with the parent's probability.
    - An only child is *spliced*: it is asked in its parent's round, since gating it alone

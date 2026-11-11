@@ -44,7 +44,7 @@ impl Config {
             (0.0..=1.0).contains(&threshold) && (0.0..=1.0).contains(&gate_threshold),
             "thresholds must be within [0, 1]"
         );
-        weakness::resolve_ids(&selection.only)?;
+        weakness::resolve_only(&selection.only)?;
         weakness::resolve_ids(&selection.exclude)?;
         Ok(Self {
             provider: provider.config(),
