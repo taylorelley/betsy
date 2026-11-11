@@ -408,10 +408,14 @@ pub fn scan_traits(language: &str, source: &str) -> Syntax {
     'walk: loop {
         let node = cursor.node();
         let kind = node.kind();
-        // Identifier-like leaves only: a name inside a string or comment proves nothing.
+        // Identifier-like leaves only: a name inside a string or comment proves nothing. Any
+        // use counts, not only a call, since a function can be passed by name and then called;
+        // an unrelated identifier of the same name only costs a question. A Rust raw
+        // identifier such as `r#div` names the same item as `div`.
         let name = (node.child_count() == 0 && kind.ends_with("identifier"))
             .then(|| node.utf8_text(source.as_bytes()).ok())
-            .flatten();
+            .flatten()
+            .map(|n| n.strip_prefix("r#").unwrap_or(n));
         for (bit, kinds, names) in &wanted {
             if kinds.iter().any(|k| k == kind) || name.is_some_and(|n| names.iter().any(|x| x == n))
             {
@@ -1167,6 +1171,11 @@ mod tests {
             "a.rem_euclid(b)",
             "std::ops::Div::div(a, b)",
             "a.wrapping_rem(b)",
+            "a.checked_div(b).unwrap()",
+            "a.strict_rem_euclid(b)",
+            "a.r#div_euclid(b)",
+            // Passed by name rather than called here.
+            "[b].into_iter().fold(a, i32::div_euclid)",
         ] {
             let s = scan_traits("rust", &format!("fn f(a: i32, b: i32) -> i32 {{ {call} }}"));
             assert!(
@@ -1174,8 +1183,10 @@ mod tests {
                 "{call}"
             );
         }
-        let shifted = scan_traits("rust", "fn f(a: u32, b: u32) -> u32 { a.wrapping_shl(b) }");
-        assert!(shifted.found & bit("shift") != 0);
+        for call in ["a.wrapping_shl(b)", "a.strict_shr(b)"] {
+            let s = scan_traits("rust", &format!("fn f(a: u32, b: u32) -> u32 {{ {call} }}"));
+            assert!(s.found & bit("shift") != 0, "{call}");
+        }
         let text = scan_traits("rust", "fn f() -> &'static str { \"div_euclid\" }");
         assert!(text.absent & bit("division") != 0);
     }

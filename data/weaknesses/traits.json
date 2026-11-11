@@ -272,7 +272,7 @@
         "rust": ["/", "%", "/=", "%="]
       },
       "present_if_names": {
-        "rust": ["div", "rem", "div_euclid", "rem_euclid", "div_ceil", "div_floor", "div_assign", "rem_assign", "wrapping_div", "wrapping_rem", "wrapping_div_euclid", "wrapping_rem_euclid", "overflowing_div", "overflowing_rem", "overflowing_div_euclid", "overflowing_rem_euclid", "saturating_div", "unchecked_div", "unchecked_rem", "next_multiple_of"]
+        "rust": ["div", "rem", "div_euclid", "rem_euclid", "div_ceil", "div_floor", "div_assign", "rem_assign", "wrapping_div", "wrapping_rem", "wrapping_div_euclid", "wrapping_rem_euclid", "overflowing_div", "overflowing_rem", "overflowing_div_euclid", "overflowing_rem_euclid", "saturating_div", "unchecked_div", "unchecked_rem", "next_multiple_of", "checked_div", "checked_div_euclid", "checked_rem", "checked_rem_euclid", "strict_div", "strict_div_euclid", "strict_rem", "strict_rem_euclid"]
       }
     },
     {
@@ -282,7 +282,7 @@
         "rust": ["<<", ">>", "<<=", ">>="]
       },
       "present_if_names": {
-        "rust": ["shl", "shr", "shl_assign", "shr_assign", "wrapping_shl", "wrapping_shr", "overflowing_shl", "overflowing_shr", "unchecked_shl", "unchecked_shr"]
+        "rust": ["shl", "shr", "shl_assign", "shr_assign", "wrapping_shl", "wrapping_shr", "overflowing_shl", "overflowing_shr", "unchecked_shl", "unchecked_shr", "strict_shl", "strict_shr"]
       }
     },
     {

@@ -15,7 +15,7 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
 | `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 40,441 naive questions (1,093 cards for each of 37 functions); 28,179 after prefilter; hierarchical lower bound 1,239, before syntax traits |
-| `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function), 1,085 questions asked and 154 subtrees ruled out by the parser |
+| `./target/release/betsy analyze --db <scratch>/smoke.sqlite --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function), 1,085 questions asked and 154 subtrees ruled out by the parser |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
 | `./target/debug/betsy weaknesses audit --strict` | Exit 0; `errors` empty |
