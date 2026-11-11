@@ -1,0 +1,2928 @@
+{
+  "cards": {
+    "CWE-202": {
+      "name": "Exposure of Sensitive Information Through Data Queries",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1230"
+      ],
+      "function_checkable": true,
+      "question": "Does this function answer aggregate or statistical queries over confidential records in a way that lets a caller infer individual values?",
+      "present_when": {
+        "any": [
+          "counts, sums, averages or other aggregates are returned for caller-chosen filters with no minimum group size",
+          "repeated narrow queries could be differenced to isolate one record's value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "small groups are suppressed, results are rounded or noised, or the query set is restricted",
+          "the underlying data is not confidential"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-612": "the leak comes from a search index over private documents"
+      }
+    },
+    "CWE-250": {
+      "name": "Execution with Unnecessary Privileges",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform an operation while holding elevated privileges (root, administrator, a broad role) that the operation does not need?",
+      "present_when": {
+        "any": [
+          "the function runs as or switches to root or an administrator identity and then does work, such as parsing input or writing files, that needs no elevation",
+          "it requests or uses a broader role, scope or capability set than the actions it performs require"
+        ],
+        "c": [
+          "privileged work and unprivileged processing happen in the same function without setuid or a capability drop between them"
+        ],
+        "python": [
+          "subprocess commands prefixed with sudo, or work done after os.setuid(0), for tasks that do not need it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "privileges are dropped immediately after the one operation that needs them, on every path",
+          "the function never runs with elevated privileges or requests only the minimum scope it uses"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-272": "elevation is needed for one step such as chroot or binding a low port but is not dropped straight after it",
+        "CWE-271": "the code tries to drop privileges but does it wrongly or ignores the result"
+      }
+    },
+    "CWE-256": {
+      "name": "Plaintext Storage of a Password",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-522"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store a password in plain text, for example in a file, database, log or long-lived memory?",
+      "present_when": {
+        "any": [
+          "a password value is written as is to a database column, file, config or log",
+          "a user's password is kept in a struct, cache or global for later use instead of a hash"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only a salted slow hash of the password is stored",
+          "the password is used once to verify or derive a key and then discarded or wiped"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-257": "the password is encrypted or encoded rather than stored as is",
+        "CWE-260": "the plain password sits in a configuration file"
+      }
+    },
+    "CWE-257": {
+      "name": "Storing Passwords in a Recoverable Format",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-522"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store passwords encrypted or encoded so they can be turned back into the original, rather than hashed one way?",
+      "present_when": {
+        "any": [
+          "a password is encrypted with a reversible cipher, encoded, or obfuscated before being saved",
+          "a function decrypts stored passwords to compare or display them"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "passwords are stored only as salted slow one-way hashes",
+          "the stored secret is a credential the program must replay to another service and is kept in a protected secret store"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-261": "the encoding is trivial, like Base64 or ROT13",
+        "CWE-256": "the password is stored in clear text"
+      }
+    },
+    "CWE-258": {
+      "name": "Empty Password in Configuration File",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-260"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set or accept an empty password for an account, service or connection in configuration?",
+      "present_when": {
+        "any": [
+          "configuration written or defaulted by the function sets a password to an empty string",
+          "a connection or login is made with an empty password read from config, and accepted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "empty passwords are rejected or a strong value is required",
+          "the empty string is a placeholder that forces set-up before use"
+        ]
+      }
+    },
+    "CWE-259": {
+      "name": "Use of Hard-coded Password",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-798"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a hard-coded password that it checks users against or uses to log in to another system?",
+      "present_when": {
+        "any": [
+          "an input password is compared for equality with a string literal to grant access",
+          "a literal password is passed to a database connect, SSH, SMTP, LDAP or HTTP basic-auth call",
+          "a password field in a connection string or options object is set to a literal"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the password comes from configuration, environment, a vault or the user, with no literal fallback",
+          "the literal is a test fixture against a mock or a clearly fake example",
+          "the string is a prompt, label or field name such as 'password', not a secret value"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-321": "the embedded secret is a cryptographic key rather than a password",
+        "CWE-1393": "the password is a default that configuration is expected to replace"
+      }
+    },
+    "CWE-260": {
+      "name": "Password in Configuration File",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-522"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read a password from, or write one to, a configuration file in a form readable by anyone who can see the file?",
+      "present_when": {
+        "any": [
+          "a password, database credential or API secret is written to an ini, json, yaml, env or properties file in clear text",
+          "the function reads a plain password from such a file and uses it directly"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the secret comes from a protected secret store, keyring or environment injected at deploy time",
+          "the file holds only a reference to the secret, not the secret itself"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-258": "the password stored in the configuration is empty",
+        "CWE-256": "the plain password is stored somewhere other than configuration"
+      }
+    },
+    "CWE-261": {
+      "name": "Weak Encoding for Password",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-522"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hide a password with a trivial, reversible encoding such as Base64, hex, XOR or ROT13 and treat that as protection?",
+      "present_when": {
+        "any": [
+          "a password is Base64, hex, ROT13 or XOR encoded before being stored or sent, with no real encryption or hashing"
+        ],
+        "python": [
+          "base64.b64encode on a password before saving it"
+        ],
+        "javascript": [
+          "btoa or Buffer.from(pw).toString('base64') on a password before saving or sending it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the encoding only wraps an already hashed or encrypted value",
+          "Base64 is used as a transport format required by a protocol, such as HTTP Basic over TLS, and not for storage"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-257": "a real cipher is used, but the password remains recoverable"
+      }
+    },
+    "CWE-262": {
+      "name": "Not Using Password Aging",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function authenticate users or set passwords without recording or enforcing any password age or expiry?",
+      "present_when": {
+        "any": [
+          "a password is set without storing when it was changed, where the surrounding code expects expiry",
+          "login accepts a password with no check of its age when a maximum age field exists or is required"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the password change time is stored and checked at login",
+          "authentication is delegated to an external identity provider"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-309": "the concern is relying on passwords at all"
+      }
+    },
+    "CWE-266": {
+      "name": "Incorrect Privilege Assignment",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function give a user, account, process or object a privilege, role or right that it should not receive?",
+      "present_when": {
+        "any": [
+          "a role, admin flag, scope or permission is set from a request field or other caller-controlled value without checking the caller may grant it",
+          "new accounts, tokens or child processes are given an elevated role or capability by default",
+          "the role or privilege granted is wider than the one the code path is meant to grant"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the granted role is fixed by server-side logic and limited to what the action needs",
+          "the caller's right to grant the role is checked before it is assigned"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-842": "the defect is putting a user into the wrong group",
+        "CWE-1022": "the extra capability is a linked page's access to window.opener"
+      }
+    },
+    "CWE-267": {
+      "name": "Privilege Defined With Unsafe Actions",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let a role or permission it checks perform a dangerous action beyond what that role is meant to allow?",
+      "present_when": {
+        "any": [
+          "a check for a limited permission (for example read, upload or edit-own) then allows an action with wider effect such as running commands, changing other users or writing arbitrary paths",
+          "a low-privilege role is accepted for an operation that also exposes configuration, code execution or administration features"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each action checks a permission that matches its own effect",
+          "the operations reachable under the checked role are narrow and cannot reach unsafe actions"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-268": "harm comes only from combining two separate permissions",
+        "CWE-863": "the check itself tests the wrong condition rather than the permission being too powerful"
+      }
+    },
+    "CWE-268": {
+      "name": "Privilege Chaining",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function allow two separately granted permissions or roles to combine into an action that neither should allow alone?",
+      "present_when": {
+        "any": [
+          "an action is allowed when the caller holds either of two rights, though its effect needs both or a stronger one",
+          "one granted right lets the caller assign or obtain a second right, and the code then honours the combination for a sensitive action"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the sensitive action checks one specific right that covers its whole effect",
+          "rights cannot be granted or chained by the same caller within this code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-267": "a single permission on its own already allows the unsafe action"
+      }
+    },
+    "CWE-269": {
+      "name": "Improper Privilege Management",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function raise, lower, assign, switch or rely on privileges, roles or capabilities for a process or user?",
+      "present_when": {
+        "any": [
+          "the function grants, revokes or changes a user's role, rights or capabilities",
+          "it runs work as root, administrator or another elevated identity, or impersonates another account",
+          "it changes the process identity or capabilities and later performs further operations"
+        ],
+        "c": [
+          "calls such as setuid, seteuid, setgid, setgroups, initgroups, chroot, cap_set_proc or prctl that change privilege state"
+        ],
+        "python": [
+          "os.setuid, os.setgid, os.seteuid, os.chroot or subprocess calls through sudo"
+        ],
+        "rust": [
+          "nix or libc calls such as setuid, setgid or chroot"
+        ],
+        "javascript": [
+          "process.setuid, process.setgid, process.setgroups or spawning commands through sudo"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function neither reads nor changes any privilege, role, capability or process identity",
+          "role names appear only as display text or test data"
+        ]
+      }
+    },
+    "CWE-270": {
+      "name": "Privilege Context Switching Error",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function switch between privilege or security contexts and keep, leak or misuse privileges or resources from the other context?",
+      "present_when": {
+        "any": [
+          "the function impersonates or switches to another user or context and does not revert on every path, including error paths",
+          "handles, credentials or file descriptors opened under a privileged context stay usable after switching to a less trusted one"
+        ],
+        "c": [
+          "seteuid or impersonation calls without a matching revert on early returns, or file descriptors left open across exec into a less trusted program"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the context switch is reverted on every path, for example with a guard object, finally block or scoped helper",
+          "resources from the privileged context are closed or marked close-on-exec before the switch"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-271": "the code is dropping privileges and the drop itself is incomplete or unchecked"
+      }
+    },
+    "CWE-271": {
+      "name": "Privilege Dropping / Lowering Errors",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function fail to drop, or drop incorrectly, elevated privileges before handing control or resources to less trusted code or users?",
+      "present_when": {
+        "any": [
+          "control passes to user input processing, a child process or a callback while the process still runs with elevated rights",
+          "the result of a privilege-dropping call is not checked"
+        ],
+        "c": [
+          "setgid is called after setuid, supplementary groups are not cleared with setgroups, or only the effective ID is dropped with seteuid where a permanent drop is needed",
+          "the return value of setuid or setgid is ignored"
+        ],
+        "python": [
+          "os.setuid is called before os.setgid, or os.setgroups is not used to clear supplementary groups"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "groups are dropped before the user ID, both real and effective IDs are changed, and every call's result is checked",
+          "the function never holds elevated privileges"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-272": "the problem is how long the elevation is held after the operation that needed it",
+        "CWE-250": "the privilege is never needed at all for the work done"
+      }
+    },
+    "CWE-272": {
+      "name": "Least Privilege Violation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-271"
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep elevated privileges after the specific operation that needed them, such as chroot or binding a low port, has finished?",
+      "present_when": {
+        "any": [
+          "after the privileged step, the function goes on to read input, open files or run other code without first dropping privileges"
+        ],
+        "c": [
+          "chroot, bind to a port below 1024 or opening a protected device is followed by other work with no setuid or capability drop in between"
+        ],
+        "python": [
+          "os.chroot or a low-port bind is followed by further processing without os.setgid and os.setuid"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "privileges are dropped immediately after the privileged step, before any other work",
+          "the function never acquires elevated privileges"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-271": "a drop is attempted but done in the wrong order or without checking its result"
+      }
+    },
+    "CWE-276": {
+      "name": "Incorrect Default Permissions",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": true,
+      "question": "Does this install, set-up or initialisation function create files or directories whose default permissions let any user modify them?",
+      "present_when": {
+        "any": [
+          "install or first-run code writes program files, config or data directories with world-writable modes",
+          "the function sets a permissive umask such as 0 before creating files"
+        ],
+        "c": [
+          "umask(0), or mkdir or open with 0777 or 0666 during set-up"
+        ],
+        "cpp": [
+          "std::filesystem::permissions sets perms::all or others_write on installed files or directories"
+        ],
+        "python": [
+          "os.umask(0), or os.makedirs or os.chmod with 0o777 during set-up"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "created files and directories are writable only by their owner or an administrator group",
+          "the function does not create or install anything"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-279": "the permissions are set wrongly at run time, not as install defaults"
+      }
+    },
+    "CWE-277": {
+      "name": "Insecure Inherited Permissions",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set up a permission default, such as a umask, ACL or parent directory mode, that objects it later creates will inherit insecurely?",
+      "present_when": {
+        "any": [
+          "a parent directory is created world-writable, or with inheritable access for everyone, and files are then created inside it",
+          "a permissive umask or default ACL is set before creating child objects"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the inherited defaults restrict access to the owner",
+          "each created object has its mode set explicitly to a restrictive value"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-278": "the insecure permissions come from an existing source such as an archive and are kept"
+      }
+    },
+    "CWE-278": {
+      "name": "Insecure Preserved Inherited Permissions",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": true,
+      "question": "Does this function copy or extract objects, for example from an archive or upload, and keep their original permissions even when they are insecure?",
+      "present_when": {
+        "any": [
+          "archive extraction restores stored modes, setuid bits or ownership as they are",
+          "a copy routine preserves source permissions taken from an untrusted source"
+        ],
+        "python": [
+          "tarfile extractall without a restricting filter, or shutil.copy2 or copystat on untrusted files"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "extracted or copied files receive fresh restrictive permissions",
+          "setuid, setgid and world-writable bits are stripped before writing"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-281": "the copy loses or loosens permissions instead of keeping insecure ones"
+      }
+    },
+    "CWE-279": {
+      "name": "Incorrect Execution-Assigned Permissions",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": true,
+      "question": "While running, does this function set an object's permissions differently from the restrictive permissions the user or caller asked for?",
+      "present_when": {
+        "any": [
+          "a mode or access argument supplied by the caller is ignored, widened or replaced with a more permissive value",
+          "permissions are set looser than requested, for example by OR-ing in group or other bits"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the requested mode is applied as given or further restricted",
+          "the function does not set permissions on any object"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-276": "the permissive mode is an install or set-up default"
+      }
+    },
+    "CWE-281": {
+      "name": "Improper Preservation of Permissions",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": true,
+      "question": "When copying, restoring, moving or sharing an object, does this function fail to keep its restrictive permissions, leaving the new copy more open?",
+      "present_when": {
+        "any": [
+          "a sensitive file is copied or restored and the copy is written with default or permissive permissions instead of the source's",
+          "a temporary copy is created before its mode is restricted, leaving a window where it is readable by others"
+        ],
+        "python": [
+          "shutil.copyfile or open-and-write copies of private files without copying or restricting mode"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the copy is created with the source's mode or a restrictive one from the start",
+          "the object is not sensitive"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-278": "insecure permissions from the source are kept"
+      }
+    },
+    "CWE-282": {
+      "name": "Improper Ownership Management",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function assign an owner to a file, record or object, or rely on ownership, without setting or verifying that owner correctly?",
+      "present_when": {
+        "any": [
+          "an owner field, user ID or group is set from caller-controlled input",
+          "an object is acted on as if it belonged to the caller without comparing its owner to the caller"
+        ],
+        "c": [
+          "chown, fchown or lchown with IDs taken from input, or acting on a file without checking st_uid from stat"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the owner is set from the authenticated identity on the server side",
+          "the object's owner is compared with the current user before any use or change"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-283": "ownership is never checked before the resource is trusted",
+        "CWE-708": "the owner assigned is outside the intended control sphere"
+      }
+    },
+    "CWE-283": {
+      "name": "Unverified Ownership",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-282"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust or act on a file, record or other critical resource without verifying that it is owned by the expected user?",
+      "present_when": {
+        "any": [
+          "a record fetched by ID is changed or returned without comparing its owner with the current user",
+          "a config, key, socket or lock file is trusted without checking that its owner is the expected account"
+        ],
+        "c": [
+          "a file is opened and used for security decisions without checking st_uid from fstat against the expected owner"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the owner is compared with the expected identity before the resource is used",
+          "the lookup is already scoped to the current user, for example a query filtered by owner ID"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-639": "a user-supplied key selects another user's record and the code shows no owner filter on the lookup",
+        "CWE-708": "ownership is assigned wrongly rather than left unchecked"
+      }
+    },
+    "CWE-284": {
+      "name": "Improper Access Control",
+      "abstraction": "Pillar",
+      "gate": true,
+      "requires": [
+        "security_logic",
+        "sensitive_data",
+        "filesystem",
+        "network",
+        "crypto",
+        "resources"
+      ],
+      "function_checkable": true,
+      "question": "Does this function decide or enforce who may use a resource, action, account, privilege or identity, so that a missing or wrong restriction could let the wrong actor through?",
+      "present_when": {
+        "any": [
+          "the function handles a request, route, command or API call that reads or changes protected data or performs a privileged action",
+          "it checks or assigns permissions, roles, ownership, file modes, privileges or user and group membership",
+          "it authenticates a user, peer or certificate, or handles passwords, tokens, sessions or credentials",
+          "it changes process privileges (setuid, capabilities, impersonation) or exposes an entry point to other processes or sites"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is pure computation, formatting, parsing or data structure code that touches no protected resource, identity or permission",
+          "it only works on data already owned by the caller with no security boundary involved"
+        ]
+      }
+    },
+    "CWE-285": {
+      "name": "Improper Authorization",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function serve a request or perform an action on a resource where the caller's permission should be checked, or set permissions on a resource?",
+      "present_when": {
+        "any": [
+          "a request handler or API method reads, changes or deletes records, files or settings that belong to particular users or roles",
+          "the function checks roles, scopes, ownership or access lists, or should do so before a sensitive action",
+          "it sets file modes, ACLs, cookie flags, cross-origin policy or other access settings",
+          "it exposes data, search results, metadata or aggregates derived from protected records"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function touches no resource whose access depends on who the caller is",
+          "it is internal computation with no request, user or permission involved"
+        ]
+      }
+    },
+    "CWE-286": {
+      "name": "Incorrect User Management",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create, change, disable or delete user accounts or their attributes in a way that leaves them with the wrong rights or state?",
+      "present_when": {
+        "any": [
+          "account creation, update or deactivation sets roles, groups, status or flags from untrusted input or leaves stale rights in place",
+          "a disabled or deleted user keeps active sessions, tokens or group memberships"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "account changes are limited to authorised callers and update all related rights, sessions and memberships",
+          "the function does not manage user accounts"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-842": "the specific defect is adding the user to the wrong group",
+        "CWE-266": "the defect is granting a privilege rather than managing the account record"
+      }
+    },
+    "CWE-287": {
+      "name": "Improper Authentication",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function verify, or rely on, a claimed identity of a user, client, server or peer?",
+      "present_when": {
+        "any": [
+          "the function checks passwords, tokens, API keys, sessions, cookies, signatures or certificates",
+          "it handles login, logout, password change, account recovery or multi-factor steps",
+          "it trusts identity from headers, IP addresses, host names, referrers or client-side flags",
+          "it sets up a TLS or other secure connection, or stores or sends credentials"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function has nothing to do with identity, credentials, sessions or peer verification",
+          "it runs only after identity has been established elsewhere and makes no identity decisions itself"
+        ]
+      }
+    },
+    "CWE-288": {
+      "name": "Authentication Bypass Using an Alternate Path or Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-306"
+      ],
+      "function_checkable": true,
+      "question": "Does this function provide a second route to an authenticated feature, such as a debug path, alternate port, legacy API or special header, that skips the authentication check?",
+      "present_when": {
+        "any": [
+          "a branch serves the protected operation when a debug flag, internal header, localhost origin or legacy parameter is present, without authenticating",
+          "the same action is reachable through another handler or method that lacks the check present elsewhere"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every branch reaching the operation performs the same authentication",
+          "the alternate path is removed or itself requires authentication"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-306": "no path to the function requires authentication at all"
+      }
+    },
+    "CWE-289": {
+      "name": "Authentication Bypass by Alternate Name",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function grant or deny access by matching a user or resource name without handling other names for the same thing?",
+      "present_when": {
+        "any": [
+          "a block or allow list is compared with the raw name, so case changes, aliases, short names, trailing dots or encoded forms slip past",
+          "user names are matched before normalising Unicode, case or whitespace"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "names are canonicalised once, or resolved to a unique ID, before comparison",
+          "decisions use a stable identifier rather than a name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-647": "the name is a URL path used for authorisation"
+      }
+    },
+    "CWE-290": {
+      "name": "Authentication Bypass by Spoofing",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function authenticate a caller using information an attacker can forge, such as a source address, host name, header or unsigned message field?",
+      "present_when": {
+        "any": [
+          "trust is granted because of the source IP, host name, referrer, user agent, or a header such as X-Forwarded-For",
+          "an unsigned field in a message or token states who the sender is and is believed"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "identity is proven by a secret, signature or verified certificate",
+          "the spoofable value is used only for logging or rate limiting, not to grant access"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-291": "the forged value is specifically an IP address",
+        "CWE-293": "the forged value is the Referer header",
+        "CWE-350": "the trust comes from a reverse DNS lookup"
+      }
+    },
+    "CWE-291": {
+      "name": "Reliance on IP Address for Authentication",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-290"
+      ],
+      "function_checkable": true,
+      "question": "Does this function grant access or trust based on the caller's IP address?",
+      "present_when": {
+        "any": [
+          "the remote address, or an address from X-Forwarded-For or similar header, is compared with an allow-list to skip authentication or grant privileges",
+          "requests from localhost or an internal range are treated as authenticated"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "IP checks are an extra layer on top of real authentication",
+          "the address is used only for logging, rate limiting or geolocation display"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-350": "the address is turned into a host name by reverse DNS and that name is trusted"
+      }
+    },
+    "CWE-293": {
+      "name": "Using Referer Field for Authentication",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-290"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the HTTP Referer header to decide whether a request is authorised or genuine?",
+      "present_when": {
+        "any": [
+          "access or a state change is allowed when the Referer matches a trusted page or domain",
+          "Referer checking is the only defence for a sensitive action"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the Referer is read only for logging or analytics",
+          "a session check or anti-forgery token is the actual control"
+        ]
+      }
+    },
+    "CWE-294": {
+      "name": "Authentication Bypass by Capture-replay",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept an authentication message or token that could be captured and replayed, because it has no nonce, timestamp or one-time check?",
+      "present_when": {
+        "any": [
+          "a fixed credential hash, signature or token is accepted repeatedly with no nonce, counter, expiry or used-token record",
+          "a signed request is verified without checking a timestamp window or rejecting duplicates",
+          "a one-time code or reset link is not invalidated after use"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a server-issued nonce or challenge is bound into the response and used once",
+          "tokens carry a short expiry and a unique ID that is recorded and rejected on reuse"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-301": "the attacker sends the server's own challenge back to it"
+      }
+    },
+    "CWE-295": {
+      "name": "Improper Certificate Validation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-287"
+      ],
+      "function_checkable": true,
+      "question": "Does this function turn off or weaken TLS certificate checks, or accept a peer certificate without proper validation?",
+      "present_when": {
+        "any": [
+          "certificate verification is disabled or a verification callback always returns success",
+          "host name checking is turned off or the certificate is accepted whatever its subject"
+        ],
+        "c": [
+          "SSL_CTX_set_verify with SSL_VERIFY_NONE, curl CURLOPT_SSL_VERIFYPEER or CURLOPT_SSL_VERIFYHOST set to 0"
+        ],
+        "cpp": [
+          "boost::asio::ssl::context::set_verify_mode(verify_none), or a set_verify_callback lambda that always returns true"
+        ],
+        "python": [
+          "verify=False in requests, ssl._create_unverified_context, CERT_NONE or check_hostname = False"
+        ],
+        "javascript": [
+          "rejectUnauthorized: false, NODE_TLS_REJECT_UNAUTHORIZED set to 0, or a checkServerIdentity that returns undefined for everything"
+        ],
+        "rust": [
+          "danger_accept_invalid_certs(true), danger_accept_invalid_hostnames(true) or a custom verifier that always accepts"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the default verifying TLS configuration is used with host name checking on",
+          "pinning or a custom verifier still checks chain, host name and validity"
+        ],
+        "cpp": [
+          "verify_peer is set with ssl::host_name_verification or rfc2818_verification on the stream"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-296": "verification runs but the chain to a trusted root is not followed",
+        "CWE-298": "only the expiry check is missing or wrong",
+        "CWE-599": "OpenSSL is used and SSL_get_verify_result is never consulted"
+      }
+    },
+    "CWE-296": {
+      "name": "Improper Following of a Certificate's Chain of Trust",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-295"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept a certificate without correctly following its issuer chain back to a trusted root?",
+      "present_when": {
+        "any": [
+          "the code checks only the leaf certificate's fields, or trusts any certificate the peer supplies as an intermediate or root",
+          "a custom chain walk skips signature checks, CA or basic-constraints checks, or stops before reaching a configured trust anchor",
+          "self-signed certificates are accepted without pinning"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "chain building and verification are left to the TLS library with a proper trust store",
+          "the peer is pinned to a known certificate or public key that is compared exactly"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-295": "verification is switched off entirely",
+        "CWE-599": "OpenSSL verification results are never read"
+      }
+    },
+    "CWE-297": {
+      "name": "Improper Validation of Certificate with Host Mismatch",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-923"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept a TLS certificate without checking that it was issued for the host being contacted?",
+      "present_when": {
+        "any": [
+          "hostname verification is turned off or replaced with a check that always passes"
+        ],
+        "c": [
+          "OpenSSL code verifies the chain but never sets the expected host (for example with SSL_set1_host or X509_check_host)",
+          "a custom check compares only part of the subject name or accepts any wildcard"
+        ],
+        "cpp": [
+          "an Asio ssl::stream uses verify_peer but no host_name_verification, rfc2818_verification or SSL_set1_host for the target"
+        ],
+        "javascript": [
+          "checkServerIdentity is overridden to return undefined, or rejectUnauthorized is false"
+        ],
+        "python": [
+          "ssl context check_hostname is set to False, or verify=False is passed to requests"
+        ],
+        "rust": [
+          "danger_accept_invalid_hostnames(true) or a custom verifier that ignores the server name"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the library's default TLS settings are used, which verify both the chain and the hostname",
+          "the hostname is checked against the certificate's subject alternative names before data is sent",
+          "the connection is to a pinned certificate or public key for that exact host"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-941": "the hostname is checked but the destination itself was chosen wrongly or by an attacker"
+      }
+    },
+    "CWE-298": {
+      "name": "Improper Validation of Certificate Expiration",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-295"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept a certificate without checking, or while wrongly checking, that it is within its validity period?",
+      "present_when": {
+        "any": [
+          "custom validation ignores notBefore and notAfter, or compares them with the wrong clock or wrong operator",
+          "an expiry error from the verifier is treated as acceptable"
+        ],
+        "c": [
+          "a verify callback returns 1 when the error is X509_V_ERR_CERT_HAS_EXPIRED or X509_V_ERR_CERT_NOT_YET_VALID"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the TLS library's standard verification is used and its errors are not overridden",
+          "custom code compares both validity dates against the current time"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-299": "the missing check is revocation status rather than dates"
+      }
+    },
+    "CWE-299": {
+      "name": "Improper Check for Certificate Revocation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-295"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept a certificate without checking, or while wrongly checking, whether it has been revoked?",
+      "present_when": {
+        "any": [
+          "certificate validation configures no CRL or OCSP check where revocation matters",
+          "a failed or unreachable revocation check is treated as success",
+          "revocation is checked only for the leaf and not the intermediates, or with stale cached data"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "CRL or OCSP checking is enabled and a failure rejects the certificate",
+          "the certificate is pinned and short-lived, so revocation is handled by other means"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-370": "revocation is checked once but not again during a long-lived session",
+        "CWE-298": "the gap is in checking validity dates"
+      }
+    },
+    "CWE-301": {
+      "name": "Reflection Attack in an Authentication Protocol",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's challenge-response authentication let a peer obtain the correct answer by sending the same challenge back to it?",
+      "present_when": {
+        "any": [
+          "both sides compute the response in the same way from a shared key and the challenge, with no role or direction marker",
+          "the function answers any incoming challenge, even one it issued itself in another session"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "responses include the sender's identity or direction, or use different keys per direction",
+          "the function refuses challenges it generated itself"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-294": "a whole captured exchange is replayed rather than a challenge being reflected"
+      }
+    },
+    "CWE-302": {
+      "name": "Authentication Bypass by Assumed-Immutable Data",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust identity or role data, such as a cookie, hidden field, parameter or unsigned token, that the client can change?",
+      "present_when": {
+        "any": [
+          "values like isAdmin, role, userId or authenticated are read from cookies, form fields, query parameters or local storage and trusted",
+          "a token's claims are read without verifying its signature"
+        ],
+        "javascript": [
+          "jwt.decode used instead of jwt.verify before trusting claims"
+        ],
+        "typescript": [
+          "a JWT payload from jwt.decode or a cookie value is cast as a typed claims interface and its role or user id trusted without signature verification"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "identity and role come from server-side session state or a verified signed token",
+          "client-supplied values are only hints that are rechecked on the server"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-603": "the whole authentication check runs in client code",
+        "CWE-290": "the trusted value is a network attribute such as an IP or host name"
+      }
+    },
+    "CWE-303": {
+      "name": "Incorrect Implementation of Authentication Algorithm",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function implement a standard authentication algorithm or protocol incorrectly, for example in comparisons, encoding or verification logic?",
+      "present_when": {
+        "any": [
+          "a hand-written password, HMAC, token or signature check compares the wrong values, truncates them, or returns success on an error path",
+          "the comparison only checks a prefix or length, or treats an empty value as a match"
+        ],
+        "c": [
+          "strncmp or memcmp limited by the supplied length, so a short or empty input matches"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a well-known library routine performs the check with its intended parameters",
+          "full-length constant-time comparison of correctly computed values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-304": "one required step of the algorithm is left out entirely"
+      }
+    },
+    "CWE-304": {
+      "name": "Missing Critical Step in Authentication",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-303"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's authentication skip a required step, such as verifying a signature, checking a nonce or confirming the second factor?",
+      "present_when": {
+        "any": [
+          "a token is parsed and trusted without signature verification, issuer check or expiry check",
+          "a multi-step login marks the user authenticated before every step has succeeded",
+          "a challenge is issued but the response is never compared"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all steps of the protocol are performed and each failure stops the login",
+          "verification is delegated to a library that performs all steps"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-303": "every step is present but one is implemented wrongly"
+      }
+    },
+    "CWE-305": {
+      "name": "Authentication Bypass by Primary Weakness",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Can this function's sound authentication check be bypassed because of a separate flaw in it, such as an injection, overflow or logic error?",
+      "present_when": {
+        "any": [
+          "the credential lookup builds an SQL or LDAP query from input, so the check can be forced to succeed",
+          "a buffer overflow, type confusion or uninitialised variable can set the authenticated flag",
+          "an exception or error path leaves the user treated as logged in"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "inputs reach the check only through parameterised queries and bounded copies, and errors deny access",
+          "the authenticated state is set only after a successful verification"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-303": "the authentication algorithm itself is implemented wrongly"
+      }
+    },
+    "CWE-306": {
+      "name": "Missing Authentication for Critical Function",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-287"
+      ],
+      "function_checkable": true,
+      "question": "Does this function expose a critical or costly operation, such as an admin action, data change or resource-heavy job, without establishing who the caller is?",
+      "present_when": {
+        "any": [
+          "a request handler or socket command performs admin, configuration, account or destructive actions with no session, token or credential check",
+          "an expensive operation can be triggered by an anonymous caller"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the caller is authenticated on every path before the operation, for example by decorator, middleware or an explicit token check",
+          "the operation is harmless and intended to be public"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-862": "the caller is authenticated but their permission is not checked",
+        "CWE-288": "authentication exists on the main path but another entry point skips it"
+      }
+    },
+    "CWE-307": {
+      "name": "Improper Restriction of Excessive Authentication Attempts",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check passwords, codes or other credentials with no limit, delay or lockout on repeated failed attempts?",
+      "present_when": {
+        "any": [
+          "a login, PIN, one-time code or API key check returns failure and can be retried immediately without counting attempts",
+          "failure counters exist but are never compared with a limit or are reset by the caller"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "failed attempts are counted per account or source and further tries are delayed or blocked",
+          "the route is protected by visible rate-limiting middleware or decorator"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-645": "a lockout exists but is too easy to trigger against real users"
+      }
+    },
+    "CWE-308": {
+      "name": "Use of Single-factor Authentication",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function authenticate access to a sensitive or high-privilege operation using only a single factor such as a password?",
+      "present_when": {
+        "any": [
+          "admin, payment or account-recovery access is granted after one password or key check with no second factor",
+          "a second-factor step exists but is optional or skipped on some path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a second factor such as a one-time code, hardware key or signed device token is required on every path",
+          "the operation is low-risk and not meant to need more than one factor"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-309": "the concern is relying on passwords as the main mechanism, whatever the operation"
+      }
+    },
+    "CWE-309": {
+      "name": "Use of Password System for Primary Authentication",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely solely on a user-chosen password as the primary way to authenticate?",
+      "present_when": {
+        "any": [
+          "login succeeds when a user name and password match, with no other proof such as a key, certificate or second factor",
+          "a shared password is the only access control for a service or API"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "authentication uses keys, certificates, tokens from an identity provider or a second factor",
+          "the password only unlocks a local key and is not itself the access check"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-308": "the issue is only one factor guarding a sensitive operation"
+      }
+    },
+    "CWE-321": {
+      "name": "Use of Hard-coded Cryptographic Key",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-798"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a cryptographic key or IV-like secret that is fixed in the code?",
+      "present_when": {
+        "any": [
+          "a string, byte array or hex literal is passed as the key to an encryption, decryption, HMAC or signing call",
+          "a key variable is initialised from a literal and later used for cryptography",
+          "a JWT or session signing secret is a literal"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the key is loaded from a keystore, KMS, configuration or environment, or derived with a KDF from a secret",
+          "the key is generated at run time with a cryptographically secure generator",
+          "the literal is a public key, a test vector checked against a known answer, or a non-secret algorithm constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-259": "the embedded secret is a password used to log in",
+        "CWE-1394": "the key is a default that configuration is expected to replace"
+      }
+    },
+    "CWE-322": {
+      "name": "Key Exchange without Entity Authentication",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-306"
+      ],
+      "function_checkable": true,
+      "question": "Does this function run a key exchange such as Diffie-Hellman without authenticating the other party?",
+      "present_when": {
+        "any": [
+          "public keys are exchanged and a shared secret derived without verifying a signature, certificate or pre-shared key",
+          "anonymous cipher suites or unauthenticated ECDH are used for the session"
+        ],
+        "c": [
+          "OpenSSL cipher lists that enable aNULL, ADH or AECDH suites"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the peer's key is signed and the signature or certificate is verified",
+          "the exchange runs inside an already authenticated channel"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-295": "a certificate is offered but not validated"
+      }
+    },
+    "CWE-350": {
+      "name": "Reliance on Reverse DNS Resolution for a Security-Critical Action",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-290"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make a security decision from the host name returned by a reverse DNS lookup without confirming it with a forward lookup?",
+      "present_when": {
+        "any": [
+          "an IP address is resolved to a host name and the name is checked against a trusted domain to grant access"
+        ],
+        "c": [
+          "gethostbyaddr or getnameinfo result is compared with a trusted name, with no forward lookup to confirm the address"
+        ],
+        "python": [
+          "socket.gethostbyaddr result used for an access decision"
+        ],
+        "javascript": [
+          "dns.reverse or dns.lookupService result used for an access decision"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is resolved forward again and the resulting addresses must include the original IP",
+          "the host name is only logged or displayed"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-291": "the IP address itself is trusted without any DNS lookup"
+      }
+    },
+    "CWE-370": {
+      "name": "Missing Check for Certificate Revocation after Initial Check",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-299"
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep trusting a certificate for privileged actions long after its one initial revocation check?",
+      "present_when": {
+        "any": [
+          "revocation status is checked once at connection or login time and later privileged operations rely on that result indefinitely",
+          "a cached 'certificate is good' flag is reused without expiry or recheck"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "revocation is rechecked before sensitive operations or the cached result has a short expiry",
+          "the session or connection is short-lived and reauthenticated"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-299": "revocation is never checked, or the initial check itself is wrong"
+      }
+    },
+    "CWE-419": {
+      "name": "Unprotected Primary Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-923"
+      ],
+      "function_checkable": true,
+      "question": "Does this function handle an administrative or restricted channel (endpoint, port, socket or command interface) without authenticating callers or protecting the traffic?",
+      "present_when": {
+        "any": [
+          "an admin, management or control endpoint accepts and executes requests with no authentication or permission check",
+          "a listener for restricted functions binds to all interfaces or uses plaintext transport for credentials or commands",
+          "a control socket, pipe or port is created with permissions that let any local user connect"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every request on the channel is authenticated and authorised before it is acted on",
+          "the channel uses TLS or an equivalent protected transport and is bound to a restricted interface",
+          "the function serves only public, non-privileged functionality"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-420": "the main channel is protected but a second route to the same function is not"
+      }
+    },
+    "CWE-420": {
+      "name": "Unprotected Alternate Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-923"
+      ],
+      "function_checkable": true,
+      "question": "Does this function offer a second route (debug endpoint, legacy API, local socket, file drop) to protected functionality without the checks the main route applies?",
+      "present_when": {
+        "any": [
+          "a secondary handler performs the same privileged action as a protected one but skips its authentication, authorisation or encryption",
+          "a legacy, debug, internal or fallback endpoint bypasses middleware that guards the primary path",
+          "data accepted through an alternate input such as a watched directory, local socket or environment variable is trusted as if authenticated"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every entry point to the functionality calls the same authentication and authorisation checks",
+          "the alternate route is disabled in production or restricted to the same identities",
+          "the function is the single, protected entry point"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-419": "the only channel is the primary one and it is unprotected",
+        "CWE-421": "the alternate channel is meant for an authorised user but others can reach it first",
+        "CWE-422": "the alternate channel is the Windows message queue of a privileged process"
+      }
+    },
+    "CWE-421": {
+      "name": "Race Condition During Access to Alternate Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-420"
+      ],
+      "function_checkable": true,
+      "question": "Does this function open a channel (socket, pipe, temporary file, port) for one authorised party that another actor could connect to first?",
+      "present_when": {
+        "any": [
+          "a listening socket, named pipe or FIFO is opened for a specific peer and the first connection is accepted without verifying who it is",
+          "a temporary file, port or shared memory region is created with a predictable name or open permissions before the intended party uses it",
+          "a callback or data connection is opened and its address is shared, with any connector accepted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the peer is authenticated after connecting, for example with a nonce, credentials or peer process ID check",
+          "the channel is created with exclusive, owner-only permissions or is inherited directly by the intended process",
+          "the resource name is unpredictable and creation fails if it already exists"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-420": "the alternate channel has weaker protection but there is no window where an outsider can claim it first"
+      }
+    },
+    "CWE-422": {
+      "name": "Unprotected Windows Messaging Channel ('Shatter')",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-420"
+      ],
+      "function_checkable": true,
+      "question": "Does this window procedure or message handler in a privileged process act on Windows messages without checking where they came from?",
+      "present_when": {
+        "c": [
+          "a window procedure in an elevated or service process acts on WM_TIMER callback addresses, WM_COPYDATA or custom messages that carry pointers or commands",
+          "a message handler copies data or calls a function pointer supplied in wParam or lParam"
+        ],
+        "any": [
+          "a handler for operating system window messages performs privileged actions on message content alone"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the process runs without elevated rights or its windows are not reachable from other desktop processes",
+          "the handler validates message content and ignores messages carrying pointers or commands from outside"
+        ],
+        "c": [
+          "the process filters messages with ChangeWindowMessageFilterEx or relies on UIPI to block lower-integrity senders"
+        ],
+        "javascript": [
+          "ordinary browser or Node code, which does not run a Windows message loop"
+        ],
+        "python": [
+          "code that does not register a Windows window procedure"
+        ],
+        "rust": [
+          "code that does not register a Windows window procedure"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-940": "the unverified source is a network or IPC channel rather than the Windows message queue"
+      }
+    },
+    "CWE-425": {
+      "name": "Direct Request ('Forced Browsing')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-862"
+      ],
+      "function_checkable": true,
+      "question": "Does this web handler serve a restricted page, file or script to anyone who requests its URL directly, without enforcing authorisation?",
+      "present_when": {
+        "any": [
+          "a route for an admin, report, download or internal page renders or returns content without checking the session or permission",
+          "files are served from a directory that includes restricted content, based only on the requested path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler checks the session and permission before returning content",
+          "the route sits behind authorisation middleware or a decorator visible in the code",
+          "the content is public"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-639": "access is to another user's record chosen by an ID parameter"
+      }
+    },
+    "CWE-520": {
+      "name": ".NET Misconfiguration: Use of Impersonation",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-266"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns impersonation settings in a .NET application's configuration, which no function in the planned languages contains."
+    },
+    "CWE-521": {
+      "name": "Weak Password Requirements",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1391"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept or set a user's new password without checking it meets basic strength rules?",
+      "present_when": {
+        "any": [
+          "a registration, password change or reset handler stores a new password with no check on minimum length",
+          "the only check is trivial, such as non-empty or a minimum of a few characters, with no rejection of common or breached passwords",
+          "a strength check exists but its result is ignored or only produces a warning before saving"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the new password passes through a validator enforcing length and rejecting common values before it is stored",
+          "the function only verifies an existing password at login, where strength rules do not apply",
+          "the secret is generated by the system rather than chosen by a user"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-620": "the password change does not ask for the current password",
+        "CWE-798": "the weak password is a literal embedded in the code"
+      }
+    },
+    "CWE-522": {
+      "name": "Insufficiently Protected Credentials",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store or send passwords, keys or tokens in a way that others could read or recover?",
+      "present_when": {
+        "any": [
+          "credentials are written to files, logs, databases, cookies or local storage in plain or reversible form",
+          "credentials are sent over plain HTTP or another unencrypted channel, or placed in URLs"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "passwords are stored only as salted slow hashes such as bcrypt, scrypt or Argon2",
+          "credentials go only over TLS and are kept in a protected secret store"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-256": "a password is stored in clear text",
+        "CWE-523": "the problem is sending credentials without transport protection",
+        "CWE-257": "passwords are stored encrypted or encoded so they can be recovered"
+      }
+    },
+    "CWE-523": {
+      "name": "Unprotected Transport of Credentials",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-522"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send or accept a user name and password over a channel without encryption?",
+      "present_when": {
+        "any": [
+          "a login request or form posts credentials to an http:// URL or over a plain socket",
+          "credentials are placed in a URL query string",
+          "a server accepts login on a non-TLS listener without redirecting to HTTPS"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "credentials are sent only over HTTPS or another TLS connection",
+          "the URL is a fixed https endpoint"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-256": "the password is stored, not transmitted, in clear text"
+      }
+    },
+    "CWE-549": {
+      "name": "Missing Password Field Masking",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-522"
+      ],
+      "function_checkable": true,
+      "question": "Does this function display or collect a password in a field that shows the typed characters?",
+      "present_when": {
+        "any": [
+          "a password input is rendered as type=\"text\" or with masking turned off by default",
+          "a terminal prompt reads a password with echo left on"
+        ],
+        "c": [
+          "a password is read with fgets or scanf from a terminal without disabling echo"
+        ],
+        "python": [
+          "input() used for a password instead of getpass.getpass()"
+        ],
+        "tsx": [
+          "a JSX <input> for a password with type=\"text\" or secureTextEntry false"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the field uses type=\"password\" or the prompt disables echo",
+          "an explicit show-password toggle starts masked"
+        ],
+        "python": [
+          "getpass is used"
+        ]
+      }
+    },
+    "CWE-551": {
+      "name": "Incorrect Behavior Order: Authorization Before Parsing and Canonicalization",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-863"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make an access decision on a request path or URL before decoding and normalising it, then use the decoded form?",
+      "present_when": {
+        "any": [
+          "an allow or deny check runs on the raw path, and URL decoding, dot-segment removal or case folding happens afterwards",
+          "the value checked differs from the value later used to locate the resource"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is fully decoded and normalised once, and the same normalised value is both checked and used",
+          "access is decided on a resolved identifier rather than the path text"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-647": "the path is never canonicalised before the decision, rather than canonicalised too late"
+      }
+    },
+    "CWE-599": {
+      "name": "Missing Validation of OpenSSL Certificate",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-295"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use an OpenSSL connection's peer certificate without confirming that verification succeeded?",
+      "present_when": {
+        "c": [
+          "SSL_get_peer_certificate or SSL_get1_peer_certificate is used, or data is exchanged, without checking SSL_get_verify_result equals X509_V_OK",
+          "verify mode is SSL_VERIFY_NONE and the code never checks the verification result itself"
+        ],
+        "python": [
+          "an OpenSSL binding such as pyOpenSSL is used and the peer certificate is accepted without a verify callback or result check"
+        ],
+        "rust": [
+          "openssl crate code sets SslVerifyMode::NONE or ignores verify_result()"
+        ],
+        "javascript": [
+          "the socket's authorized flag or authorizationError is not checked when verification failures are allowed"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the verification result is checked and failure ends the connection",
+          "verify mode SSL_VERIFY_PEER is set so the handshake fails on a bad certificate"
+        ],
+        "javascript": [
+          "the code uses Node's TLS with the default rejectUnauthorized: true"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-295": "verification is disabled outright with no OpenSSL result involved"
+      }
+    },
+    "CWE-603": {
+      "name": "Use of Client-Side Authentication",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform an authentication check in client-side code that the server does not repeat?",
+      "present_when": {
+        "any": [
+          "client code compares a password, PIN or licence key locally and then unlocks features or calls APIs without the server verifying",
+          "the client sends an 'authenticated' or role flag that the server then trusts"
+        ],
+        "javascript": [
+          "browser or app code checks credentials against a hard-coded or downloaded value and sets a logged-in state"
+        ],
+        "tsx": [
+          "a route guard or conditional render decides access from a client-held role, flag or password comparison, and that is the only check before the action runs"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the client only collects credentials and the server verifies them and issues a session or token",
+          "the local check is a convenience and the server enforces the same rule"
+        ],
+        "tsx": [
+          "the client check only hides UI, and the action is a request whose server handler checks authorisation itself"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-302": "server code trusts a client-modifiable value as identity"
+      }
+    },
+    "CWE-612": {
+      "name": "Improper Authorization of Index Containing Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1230"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build or search an index of private documents without limiting results to what the caller is allowed to read?",
+      "present_when": {
+        "any": [
+          "documents from several users or access levels go into one index and queries are run without filtering by the caller's rights",
+          "search results, snippets or hit counts are returned for documents the caller cannot open"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "results are filtered by the caller's permissions before being returned",
+          "the index holds only public documents or is separated per user"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-202": "inference comes from statistical aggregates rather than search results"
+      }
+    },
+    "CWE-618": {
+      "name": "Exposed Unsafe ActiveX Method",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-749"
+      ],
+      "function_checkable": true,
+      "question": "Does this function implement an ActiveX or COM scriptable method that lets web content perform actions outside the browser's sandbox?",
+      "present_when": {
+        "any": [
+          "a method exposed through IDispatch or marked safe for scripting runs programs, writes files, reads the registry or downloads and executes content"
+        ],
+        "c": [
+          "a COM object implementing IObjectSafety reports safe for scripting while offering file, process or registry operations"
+        ],
+        "javascript": [
+          "script calls a method on an ActiveXObject or embedded control that performs file, registry or process actions"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the method checks the hosting site or zone before acting, or is not exposed for scripting",
+          "the method only manipulates the control's own display or in-memory state"
+        ],
+        "python": [
+          "ordinary Python code, which does not implement browser ActiveX controls"
+        ],
+        "rust": [
+          "the function does not implement a COM scriptable interface"
+        ]
+      }
+    },
+    "CWE-620": {
+      "name": "Unverified Password Change",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function change a user's password without requiring the current password or another proof of identity?",
+      "present_when": {
+        "any": [
+          "a password update sets the new hash from request input with no check of the old password, reset token or re-authentication",
+          "the user whose password is changed comes from a request parameter rather than the session"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the current password is verified, or a valid single-use reset token is checked, before the change",
+          "an administrator reset path checks the caller's admin permission"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-639": "the flaw is changing another user's record via a supplied ID"
+      }
+    },
+    "CWE-623": {
+      "name": "Unsafe ActiveX Control Marked Safe For Scripting",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-267"
+      ],
+      "function_checkable": true,
+      "question": "Does this function declare a restricted-use ActiveX control safe for scripting or initialisation by untrusted web pages?",
+      "present_when": {
+        "any": [
+          "the function tells a browser host that a COM or ActiveX control may be scripted or initialised by any page, while that control has powerful methods"
+        ],
+        "cpp": [
+          "an IObjectSafety implementation reports INTERFACESAFE_FOR_UNTRUSTED_CALLER or INTERFACESAFE_FOR_UNTRUSTED_DATA for a control that exposes file, process, registry or other powerful methods",
+          "registration code adds the safe-for-scripting or safe-for-initialising component categories for such a control"
+        ],
+        "c": [
+          "COM registration code writes the safe-for-scripting component category for a control with powerful methods"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the control is not marked safe for scripting, or exposes only harmless methods"
+        ],
+        "javascript": [
+          "the code is JavaScript, which does not implement or register ActiveX controls"
+        ],
+        "python": [
+          "the code is Python, which does not implement or register ActiveX controls"
+        ],
+        "rust": [
+          "the function has no COM object safety or category registration code"
+        ],
+        "cpp": [
+          "the control restricts the safe-for-scripting claim to approved sites, for example via a site lock"
+        ]
+      }
+    },
+    "CWE-639": {
+      "name": "Authorization Bypass Through User-Controlled Key",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-863"
+      ],
+      "function_checkable": true,
+      "question": "Does this function fetch or change a record using an ID or key from the request without checking that the record belongs to, or is allowed for, the caller?",
+      "present_when": {
+        "any": [
+          "a record, file or account is looked up by an ID from the URL, query, body or cookie and returned or changed with no owner or permission check",
+          "the query filters only by the supplied ID, not also by the current user or tenant"
+        ],
+        "typescript": [
+          "a @Param('id') or @Body() id is passed straight to findOne, update or delete on a repository or Prisma model, with no filter on the current user"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the lookup also filters by the authenticated user, tenant or allowed set",
+          "the record's owner or access list is compared with the caller before use",
+          "the ID is taken from the server-side session, not from the request"
+        ],
+        "typescript": [
+          "the where clause also matches the owner or tenant id taken from the authenticated request user"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-862": "the action needs no particular record and simply has no permission check",
+        "CWE-283": "the resource is a file or system object whose owner is not verified"
+      }
+    },
+    "CWE-640": {
+      "name": "Weak Password Recovery Mechanism for Forgotten Password",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function implement a password reset or recovery step that lets someone other than the account owner take over the account?",
+      "present_when": {
+        "any": [
+          "a reset token is generated with a predictable source such as a timestamp, counter, user ID or non-cryptographic random number",
+          "the reset is accepted on a security answer or username alone, or the token is not checked for expiry, single use or the matching account",
+          "the reset link or new password is sent to an address taken from the request rather than the one stored for the account",
+          "the user's existing password is retrieved and sent back instead of issuing a new temporary credential"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the token comes from a cryptographically secure generator, is stored hashed, expires, is single use and is bound to the account",
+          "the recovery message goes only to the contact address already stored for the account",
+          "the function only renders a form or forwards to a recovery service without deciding anything itself"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-620": "a logged-in user changes their password without supplying the current one, rather than a forgotten-password flow",
+        "CWE-307": "the only problem is that repeated reset or login attempts are not limited"
+      }
+    },
+    "CWE-645": {
+      "name": "Overly Restrictive Account Lockout Mechanism",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-287"
+      ],
+      "function_checkable": true,
+      "question": "Does this function lock an account so easily, or for so long, that an attacker could deliberately lock out real users?",
+      "present_when": {
+        "any": [
+          "an account is locked permanently, or until manual reset, after a small number of failed attempts",
+          "failures from any source count against the account, so a remote attacker can trigger the lock by knowing only the user name"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "lockout is temporary, uses increasing delays, or is tied to source as well as account",
+          "the function has no lockout logic"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-307": "there is no limit on failed attempts at all"
+      }
+    },
+    "CWE-647": {
+      "name": "Use of Non-Canonical URL Paths for Authorization Decisions",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-863"
+      ],
+      "function_checkable": true,
+      "question": "Does this function decide access by matching a URL or path string without first converting it to a single canonical form?",
+      "present_when": {
+        "any": [
+          "an access rule uses startsWith, prefix, equality or regex matching on the raw request path",
+          "variants such as different case, encoded characters, double slashes, trailing dots or path parameters could reach the same resource but fail the match"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is decoded and normalised, for example with realpath or a URL normaliser, before matching",
+          "the decision uses a resolved route or resource ID rather than the path text"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-551": "canonicalisation does happen but only after the decision"
+      }
+    },
+    "CWE-648": {
+      "name": "Incorrect Use of Privileged APIs",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-269"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a privileged API without meeting its requirements, such as checking its result, passing safe arguments or calling it in the required order?",
+      "present_when": {
+        "any": [
+          "a call that changes identity, impersonates, or acts with elevated rights has its return value ignored",
+          "arguments to a privileged API come from untrusted input without validation"
+        ],
+        "c": [
+          "chroot without a following chdir(\"/\"), or setuid, seteuid or impersonation calls whose failure is not handled"
+        ],
+        "python": [
+          "os.chroot without os.chdir('/') afterwards, or privileged subprocess calls built from unchecked input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every privileged call's result is checked and failure stops the operation",
+          "the function makes no calls that need extra privileges"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-271": "the misused call is specifically a privilege drop"
+      }
+    },
+    "CWE-708": {
+      "name": "Incorrect Ownership Assignment",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-282"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make an untrusted or unintended actor the owner of a resource?",
+      "present_when": {
+        "any": [
+          "the owner of a new record or file is taken from a request field rather than the authenticated user",
+          "a created file, directory or object is given to a user or group who should not control it"
+        ],
+        "c": [
+          "chown or fchown with a user or group ID derived from input or from the wrong account"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the owner is set from the authenticated identity or a fixed service account",
+          "ownership is inherited from a trusted parent and not changed"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-283": "ownership is assigned correctly but never checked before use"
+      }
+    },
+    "CWE-732": {
+      "name": "Incorrect Permission Assignment for Critical Resource",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-285"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create a file, directory, key, socket or other sensitive resource with permissions that let unintended users read or change it?",
+      "present_when": {
+        "any": [
+          "a sensitive file or directory is created or chmodded with world-readable or world-writable modes such as 0666, 0777 or 0644 for secrets",
+          "access settings on a resource are set to everyone, public or all users"
+        ],
+        "c": [
+          "open, creat, mkdir, chmod or umask with permissive mode bits for sensitive data"
+        ],
+        "cpp": [
+          "std::filesystem::permissions grants perms::all, others_read or others_write on a file or directory holding sensitive data"
+        ],
+        "python": [
+          "os.chmod, os.open, os.mkdir or os.umask with permissive modes, or files with secrets written without restricting mode"
+        ],
+        "javascript": [
+          "fs.writeFile, fs.mkdir or fs.chmod with mode 0o666 or 0o777, or a public ACL on a storage object"
+        ],
+        "rust": [
+          "set_permissions, OpenOptionsExt::mode or DirBuilderExt::mode with permissive bits for sensitive data"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the mode restricts access to the owner (such as 0600 or 0700) or the resource is not sensitive",
+          "the resource is intentionally public, such as static web content"
+        ],
+        "cpp": [
+          "std::filesystem::permissions limits the file to perms::owner_read | perms::owner_write"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-276": "the permissive mode is a default applied at install or first set-up",
+        "CWE-281": "permissions are lost or loosened while copying or restoring an object",
+        "CWE-1004": "the resource is a cookie missing the HttpOnly flag"
+      }
+    },
+    "CWE-749": {
+      "name": "Exposed Dangerous Method or Function",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function expose a dangerous operation (command execution, file access, code loading, privileged change) to external callers without restricting who can invoke it?",
+      "present_when": {
+        "any": [
+          "a handler registered for remote, IPC, RPC, scripting or plugin callers runs commands, evaluates code, reads or writes arbitrary paths, or changes privileges",
+          "a debug, admin or maintenance entry point is reachable from untrusted callers with no permission or origin check",
+          "an object or method is exported to a script engine or web content and performs actions outside that sandbox"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operation checks the caller's identity or permission on every path before acting",
+          "the function is internal, private or not registered with any externally reachable interface",
+          "the exposed operation is harmless or confined to fixed, validated arguments"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-782": "the exposed entry point is a device driver IOCTL handler",
+        "CWE-618": "the exposed method belongs to an ActiveX control"
+      }
+    },
+    "CWE-766": {
+      "name": "Critical Data Element Declared Public",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns access specifiers in a class or struct declaration, which lies outside any function body."
+    },
+    "CWE-782": {
+      "name": "Exposed IOCTL with Insufficient Access Control",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-749"
+      ],
+      "function_checkable": true,
+      "question": "Does this IOCTL or device-control handler carry out privileged operations without checking the caller's access rights?",
+      "present_when": {
+        "c": [
+          "an ioctl dispatch routine handles codes that read or write kernel or hardware memory, change settings or perform privileged actions with no capable(), privilege or access-mode check",
+          "the device is created with permissive access, such as world-writable or without a security descriptor, and its handler trusts all callers",
+          "IOCTL codes defined with FILE_ANY_ACCESS reach sensitive operations"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each sensitive IOCTL code checks the caller's privilege or required access before acting",
+          "the handled codes only return harmless, non-sensitive information",
+          "the function is not an IOCTL or device-control entry point"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-749": "the exposed dangerous operation is reached through an interface other than an IOCTL"
+      }
+    },
+    "CWE-798": {
+      "name": "Use of Hard-coded Credentials",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1391"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a hard-coded credential, such as a password, API key, token or cryptographic key, used for authentication or encryption?",
+      "present_when": {
+        "any": [
+          "a string or byte literal is passed as a password, secret, token or key to a login, connection, signing or encryption call",
+          "user input is compared against a literal password or token to grant access",
+          "a credential variable is assigned a literal value that is used outside tests"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the credential is read from environment, configuration, a secrets manager, a keystore or user input",
+          "the literal is an empty placeholder or a name of an environment variable, not the secret itself",
+          "the code is a unit test or example using an obviously fake value against a mock"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-259": "the embedded value is specifically a password",
+        "CWE-321": "the embedded value is specifically a cryptographic key",
+        "CWE-1392": "the value is a default that is meant to be changed by configuration"
+      }
+    },
+    "CWE-804": {
+      "name": "Guessable CAPTCHA",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-863"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create or check a CAPTCHA in a way that an automated client could predict, reuse or skip?",
+      "present_when": {
+        "any": [
+          "the CAPTCHA answer comes from a small fixed set, a weak random generator, or is sent to the client in the page, cookie or a hidden field",
+          "the same challenge can be answered repeatedly, or the check is skipped when the field is missing",
+          "the image or question is plain enough to read automatically, such as unobscured text or simple arithmetic"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the answer is kept server-side, used once, compared after normalisation and expires",
+          "verification is delegated to an established CAPTCHA service with its server-side check"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-307": "the issue is no limit on repeated login attempts"
+      }
+    },
+    "CWE-836": {
+      "name": "Use of Password Hash Instead of Password for Authentication",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function authenticate a user by comparing a password hash sent by the client directly with the stored hash?",
+      "present_when": {
+        "any": [
+          "a hash or digest field from the request is compared for equality with the hash loaded from the user store, with no server-side hashing of a secret",
+          "client-side code hashes the password and submits only the hash, and the server accepts that value as the credential"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the server receives the plaintext password over the request and hashes or verifies it itself, for example with bcrypt, scrypt or argon2 verify",
+          "the client value is a challenge response that mixes a fresh server nonce, so a stolen stored hash cannot be replayed",
+          "the compared hash is of a file or message for integrity, not a login credential"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-603": "the client decides whether authentication succeeded, rather than sending a hash for the server to compare",
+        "CWE-294": "a captured authentication message is replayed, rather than the stored hash itself being accepted"
+      }
+    },
+    "CWE-842": {
+      "name": "Placement of User into Incorrect Group",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-286"
+      ],
+      "function_checkable": true,
+      "question": "Does this function add a user to a group or team that gives them access they should not have?",
+      "present_when": {
+        "any": [
+          "the group or team ID comes from the request without checking the caller may add members to it",
+          "new users are placed in a default group with elevated rights",
+          "the wrong variable or ID is used when assigning group membership"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "group membership is chosen by server-side rules and the caller's right to change it is checked",
+          "the function does not change group membership"
+        ]
+      }
+    },
+    "CWE-862": {
+      "name": "Missing Authorization",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-285"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform a privileged action or return protected data without checking the caller's permission at all?",
+      "present_when": {
+        "any": [
+          "a handler reads, changes or deletes a resource with no role, ownership or permission check on the path",
+          "an admin or management operation runs for any authenticated or anonymous caller"
+        ],
+        "typescript": [
+          "a NestJS controller method that changes or returns protected data has no @UseGuards on it or its class, or is marked with a @Public()-style decorator"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a permission, role or ownership check guards every path before the action",
+          "the route or method is protected by an authorisation decorator, middleware or guard visible in the code",
+          "the data or action is public by design"
+        ],
+        "typescript": [
+          "a @UseGuards with an auth or roles guard is applied to the method or its controller class"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-863": "a permission check exists but tests the wrong condition",
+        "CWE-639": "the missing check concerns whether a user-supplied record ID belongs to the caller",
+        "CWE-306": "the function does not establish who the caller is at all"
+      }
+    },
+    "CWE-863": {
+      "name": "Incorrect Authorization",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-285"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check the caller's permission but check the wrong thing, so that callers who should be refused are allowed?",
+      "present_when": {
+        "any": [
+          "the check uses the wrong role, compares against the wrong user ID, or uses OR where AND is needed",
+          "a permission is taken from a client-supplied field such as a role parameter or header rather than server-side state",
+          "the check covers some actions or HTTP methods but the same path performs others unchecked",
+          "a check result is computed but not used, or a failure path falls through to the action"
+        ],
+        "typescript": [
+          "a @Roles() or similar metadata decorator names a broader role than the action needs, or the role checked is read from a typed request DTO"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the check tests the right permission against server-side identity and stops on failure, on every path",
+          "there is no permission check at all; that is a missing check, not an incorrect one"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-862": "no authorisation check appears on the path at all",
+        "CWE-639": "the flaw is trusting a user-supplied record key without tying it to the caller",
+        "CWE-647": "the check compares a request path that has not been canonicalised"
+      }
+    },
+    "CWE-923": {
+      "name": "Improper Restriction of Communication Channel to Intended Endpoints",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function exchange privileged or protected data over a channel without confirming the other end is the intended endpoint?",
+      "present_when": {
+        "any": [
+          "a TLS or secure connection is made with certificate or hostname verification disabled",
+          "an incoming message, request or IPC call is acted on without checking its origin, sender or signature",
+          "the destination host, URL or socket path comes from untrusted input or a default that an attacker could occupy",
+          "a sensitive cookie or token is set without restricting where the browser will send it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the connection uses default certificate and hostname verification, or a pinned certificate",
+          "the handler verifies the sender's identity, origin or signature before acting",
+          "the endpoint is a fixed, trusted address and the exchanged data is not sensitive"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-297": "certificate validation is on but the hostname is not matched to the certificate",
+        "CWE-940": "an incoming channel's origin is not verified",
+        "CWE-941": "an outgoing request is sent to the wrong or attacker-chosen destination"
+      }
+    },
+    "CWE-925": {
+      "name": "Improper Verification of Intent by Broadcast Receiver",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-940"
+      ],
+      "function_checkable": true,
+      "question": "Does this broadcast receiver act on a received Intent without checking that it came from the system or another authorised sender?",
+      "present_when": {
+        "any": [
+          "an onReceive-style handler acts on the Intent's extras or action without confirming the action string or sender permission",
+          "a receiver registered for a system broadcast performs sensitive work for any Intent delivered to it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler checks the action equals the expected protected system action before acting",
+          "the receiver is registered with a required permission, as non-exported, or with a local broadcast manager",
+          "the code does not implement an Android broadcast receiver, as with ordinary C, Python, Rust or web code"
+        ]
+      }
+    },
+    "CWE-926": {
+      "name": "Improper Export of Android Application Components",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-285"
+      ],
+      "function_checkable": false,
+      "reason": "Component export is declared in the Android manifest, not in function code in the planned languages."
+    },
+    "CWE-927": {
+      "name": "Use of Implicit Intent for Sensitive Communication",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-285"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send sensitive data to another Android app through an implicit intent or unprotected broadcast?",
+      "present_when": {
+        "any": [
+          "an intent is built with only an action or data URI and no explicit target component or package, and carries tokens, personal data or credentials as extras",
+          "a broadcast with sensitive extras is sent without a receiver permission"
+        ],
+        "javascript": [
+          "a React Native or similar bridge call such as sendIntent passes sensitive extras with no target package"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the intent names an explicit component or package, or the broadcast requires a permission",
+          "the intent carries no sensitive data"
+        ],
+        "python": [
+          "the function builds no Android intents, which is usual for Python code"
+        ],
+        "c": [
+          "the function makes no JNI calls that create or send Android intents"
+        ]
+      }
+    },
+    "CWE-939": {
+      "name": "Improper Authorization in Handler for Custom URL Scheme",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-862"
+      ],
+      "function_checkable": true,
+      "question": "Does this handler for a custom URL scheme or deep link act on the request without checking who sent it or whether the action is allowed?",
+      "present_when": {
+        "any": [
+          "a deep-link or custom-scheme handler performs a sensitive action, such as changing settings, sending data or logging in, directly from URL parameters",
+          "parameters from the incoming URL are trusted without confirming the source or asking the user"
+        ],
+        "javascript": [
+          "a Linking, protocol or open-url event handler acts on the URL's query parameters with no check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler only navigates to a screen and requires user confirmation or an authenticated session for any action",
+          "the incoming URL is validated against an allow-list and its source is verified"
+        ],
+        "c": [
+          "the function does not register or handle a URL scheme"
+        ]
+      }
+    },
+    "CWE-940": {
+      "name": "Improper Verification of Source of a Communication Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-923"
+      ],
+      "function_checkable": true,
+      "question": "Does this function act on an incoming request or message without verifying that it really comes from the expected origin?",
+      "present_when": {
+        "any": [
+          "a handler trusts a source IP, Origin, Referer or sender field to decide whether to act, without cryptographic verification",
+          "a webhook, callback or IPC message is processed without checking its signature, token or peer identity"
+        ],
+        "javascript": [
+          "a message event listener uses event.data without checking event.origin against an expected value"
+        ],
+        "typescript": [
+          "a handler typed (event: MessageEvent<Command>) acts on event.data; the generic asserts a shape but checks neither origin nor content"
+        ],
+        "python": [
+          "a webhook view processes the body without comparing an HMAC signature header"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the message signature, HMAC or mutual-TLS identity is verified before the content is used",
+          "the origin is compared exactly against a fixed allow-list, and the action is low risk",
+          "the handler only accepts public, unauthenticated data and grants nothing based on origin"
+        ],
+        "typescript": [
+          "event.origin is compared with an expected origin and event.data is parsed by a schema before it is acted on"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-925": "the receiver is an Android broadcast receiver handling an Intent",
+        "CWE-297": "an outgoing TLS connection does not match the certificate to the host"
+      }
+    },
+    "CWE-941": {
+      "name": "Incorrectly Specified Destination in a Communication Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-923"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send an outgoing request or data to a destination that is wrong, attacker-controlled or not pinned to the intended endpoint?",
+      "present_when": {
+        "any": [
+          "the host, URL, port or address for an outgoing connection is taken from request input, headers or untrusted data without an allow-list",
+          "sensitive data is sent to a broadcast, multicast or wildcard address rather than a specific recipient",
+          "a hard-coded destination is wrong, for example a test or third-party host used for production data"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the destination is a fixed, intended endpoint or chosen from a strict allow-list",
+          "the user-supplied part only selects among pre-configured destinations by key",
+          "the data sent is public and the destination has no trust implications"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-297": "the destination is correct but its certificate is not checked against the hostname"
+      }
+    },
+    "CWE-942": {
+      "name": "Permissive Cross-domain Security Policy with Untrusted Domains",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-863"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set a cross-origin or content security policy that trusts untrusted, wildcard or request-supplied origins?",
+      "present_when": {
+        "any": [
+          "Access-Control-Allow-Origin is set to * or echoes the request's Origin header without an allow-list, especially with credentials allowed",
+          "a Content-Security-Policy or crossdomain policy allows * or broad third-party domains for scripts or connections",
+          "origin checks use substring, suffix or regex matching that an attacker domain can satisfy"
+        ],
+        "javascript": [
+          "cors({ origin: true, credentials: true }) or a CORS origin callback that accepts any origin"
+        ],
+        "typescript": [
+          "a NestJS app.enableCors({ origin: true, credentials: true }) or an origin callback that accepts every origin"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "allowed origins are a fixed list compared exactly",
+          "the wildcard applies only to public, unauthenticated resources with credentials disabled"
+        ]
+      }
+    },
+    "CWE-1004": {
+      "name": "Sensitive Cookie Without 'HttpOnly' Flag",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-732"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set a cookie holding a session ID, token or other sensitive value without the HttpOnly flag?",
+      "present_when": {
+        "any": [
+          "a Set-Cookie header for a session, auth or token cookie is built without HttpOnly"
+        ],
+        "javascript": [
+          "res.cookie or cookie options for a sensitive cookie with httpOnly false or missing, or document.cookie used to set a session token"
+        ],
+        "python": [
+          "set_cookie for a session or auth cookie without httponly=True, or SESSION_COOKIE_HTTPONLY set to False"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cookie is set with HttpOnly",
+          "the cookie holds no sensitive value, such as a UI preference",
+          "the framework's session helper sets HttpOnly by default and the code does not turn it off"
+        ]
+      }
+    },
+    "CWE-1022": {
+      "name": "Use of Web Link to Untrusted Target with window.opener Access",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-266"
+      ],
+      "function_checkable": true,
+      "question": "Does this function open or render a link to an external or untrusted URL in a new window without cutting off that page's access to window.opener?",
+      "present_when": {
+        "any": [
+          "HTML output contains an anchor or form with target=\"_blank\" to a URL that may be external, without rel=\"noopener\" or rel=\"noreferrer\""
+        ],
+        "javascript": [
+          "window.open is called with an external or user-supplied URL and the returned window's opener is not set to null and no noopener feature is passed"
+        ],
+        "tsx": [
+          "a JSX <a target=\"_blank\"> with an external or user-supplied href and no rel containing noopener or noreferrer"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "rel includes noopener or noreferrer, or the window.open features include noopener",
+          "the link target is a fixed same-origin path",
+          "the link opens in the same window, with no target=\"_blank\""
+        ],
+        "c": [
+          "the function emits no HTML or browser links at all, which is usual for native code"
+        ]
+      }
+    },
+    "CWE-1191": {
+      "name": "On-Chip Debug and Test Interface With Improper Access Control",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns access control on a chip's physical JTAG or test interface, which is hardware, not function code."
+    },
+    "CWE-1220": {
+      "name": "Insufficient Granularity of Access Control",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function grant access using a permission or role so broad that it lets callers reach assets they should not, for example one flag guarding unrelated sensitive operations?",
+      "present_when": {
+        "any": [
+          "a single coarse check such as is_logged_in, is_staff or a shared group gates access to several assets with different sensitivity",
+          "a privilege region, scope or mask granted to a caller covers more objects or address ranges than the operation needs",
+          "the check confirms the caller's role but not that the specific object belongs to them"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each operation or object is checked against a specific permission or ownership",
+          "the protected assets share the same sensitivity, so one check is appropriate",
+          "the function makes no access decision"
+        ]
+      }
+    },
+    "CWE-1230": {
+      "name": "Exposure of Sensitive Information Through Metadata",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-285"
+      ],
+      "function_checkable": true,
+      "question": "Does this function guard direct access to sensitive data but return metadata derived from it, such as counts, sizes, timestamps, titles or existence, without the same check?",
+      "present_when": {
+        "any": [
+          "a listing, search or status endpoint returns names, sizes, counts or dates of records the caller cannot open",
+          "different responses or errors reveal whether a protected item exists"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the same authorisation filter applies to metadata as to the content",
+          "the metadata returned is public or reveals nothing about protected items"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-202": "the leak is through aggregate or statistical query results",
+        "CWE-612": "the leak is through a search index built over protected documents"
+      }
+    },
+    "CWE-1231": {
+      "name": "Improper Prevention of Lock Bit Modification",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns whether hardware lets a lock bit be changed after being set, which is decided by hardware design, not function code."
+    },
+    "CWE-1233": {
+      "name": "Security-Sensitive Hardware Controls with Missing Lock Bit Protection",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns which hardware registers a lock bit covers, which is decided by hardware design, not function code."
+    },
+    "CWE-1243": {
+      "name": "Sensitive Non-Volatile Information Not Protected During Debug",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1263"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware gating of fuse contents during debug modes, not function code."
+    },
+    "CWE-1262": {
+      "name": "Improper Access Control for Register Interface",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware enforcement of access to memory-mapped registers, which lies outside function code."
+    },
+    "CWE-1263": {
+      "name": "Improper Physical Access Control",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns physical protection of a device against someone with hands-on access, which no function's code can show."
+    },
+    "CWE-1267": {
+      "name": "Policy Uses Obsolete Encoding",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns how on-chip access-control policies encode agent identities, a hardware design matter outside function code."
+    },
+    "CWE-1268": {
+      "name": "Policy Privileges are not Assigned Consistently Between Control and Data Agents",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-266"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware access-control policy registers on a system-on-chip, not software function code."
+    },
+    "CWE-1270": {
+      "name": "Generation of Incorrect Security Tokens",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns security tokens generated by system-on-chip hardware for bus transactions, not function code."
+    },
+    "CWE-1274": {
+      "name": "Improper Access Control for Volatile Memory Containing Boot Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware protection of volatile memory holding boot code during secure boot, not function code."
+    },
+    "CWE-1275": {
+      "name": "Sensitive Cookie with Improper SameSite Attribute",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-923"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set a session or other sensitive cookie with SameSite missing or set to None?",
+      "present_when": {
+        "any": [
+          "a session, authentication or CSRF cookie is set with no SameSite attribute",
+          "a sensitive cookie is set with SameSite=None"
+        ],
+        "c": [
+          "a Set-Cookie header string for a session cookie is built without SameSite"
+        ],
+        "javascript": [
+          "res.cookie, cookie options or document.cookie set a session cookie without sameSite 'lax' or 'strict'"
+        ],
+        "python": [
+          "set_cookie for a session cookie omits samesite or passes samesite='None'"
+        ],
+        "rust": [
+          "a cookie builder for a session cookie has no same_site setting, or SameSite::None"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cookie is set with SameSite=Lax or Strict",
+          "the cookie holds non-sensitive data such as a display preference",
+          "SameSite=None is used only on a cookie that grants no authority, and requests are also protected by CSRF tokens"
+        ]
+      }
+    },
+    "CWE-1276": {
+      "name": "Hardware Child Block Incorrectly Connected to Parent System",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns how signals between hardware blocks are wired, which no software function can show."
+    },
+    "CWE-1283": {
+      "name": "Mutable Attestation or Measurement Reporting Data",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns whether hardware attestation registers can be written by an adversary, a hardware design matter."
+    },
+    "CWE-1304": {
+      "name": "Improperly Preserved Integrity of Hardware Configuration State During a Power Save/Restore Operation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware IP saving and restoring its configuration across power states, not function code."
+    },
+    "CWE-1312": {
+      "name": "Missing Protection for Mirrored Regions in On-Chip Fabric Firewall",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns on-chip fabric firewall coverage of mirrored address regions, which is hardware."
+    },
+    "CWE-1313": {
+      "name": "Hardware Allows Activation of Test or Debug Logic at Runtime",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware letting test or debug logic be activated at run time, not function code."
+    },
+    "CWE-1315": {
+      "name": "Improper Setting of Bus Controlling Capability in Fabric End-point",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns bus-controller bits in on-chip fabric end-points, a hardware design matter."
+    },
+    "CWE-1334": {
+      "name": "Unauthorized Error Injection Can Degrade Hardware Redundancy",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-284"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware redundancy blocks accepting injected errors, not function code."
+    },
+    "CWE-1390": {
+      "name": "Weak Authentication",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-287"
+      ],
+      "function_checkable": true,
+      "question": "Does this function authenticate a user or client in a way that does not properly prove the claimed identity?",
+      "present_when": {
+        "any": [
+          "identity is accepted from a spoofable source such as an IP address, header, cookie flag or referrer",
+          "credentials are compared wrongly, stored or sent unprotected, or a verification step is skipped",
+          "login has no limit on attempts, or password change needs no proof of the old password"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "identity is verified with a server-side check of a protected credential or signed token",
+          "the function performs no authentication"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-307": "the weakness is unlimited guessing of credentials",
+        "CWE-522": "the weakness is how credentials are stored or transmitted",
+        "CWE-290": "identity comes from a spoofable value such as an IP or header"
+      }
+    },
+    "CWE-1391": {
+      "name": "Use of Weak Credentials",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-1390"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use or accept a credential that an attacker could guess, derive or already know, such as a fixed, default or trivially weak password or key?",
+      "present_when": {
+        "any": [
+          "a password, API key, token or cryptographic key is written as a literal in the code or compared against a literal",
+          "a credential falls back to a well-known default value when none is configured",
+          "a key or password is derived from public or predictable data such as a username, serial number, MAC address or timestamp",
+          "a password is accepted or set with no check on length or complexity"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "credentials are read from configuration, environment, a secrets store or user input, with no literal fallback",
+          "keys come from a cryptographically secure generator or a proper key-derivation function over a secret",
+          "the literal is a placeholder in a test or an example that is never used for real authentication"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-798": "a password or key is embedded as a literal in the code",
+        "CWE-1392": "a default credential is used until someone changes it",
+        "CWE-521": "the function accepts a new password without enforcing strength rules"
+      }
+    },
+    "CWE-1392": {
+      "name": "Use of Default Credentials",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1391"
+      ],
+      "function_checkable": true,
+      "question": "Does this function fall back to, create or accept a default credential that works until someone changes it?",
+      "present_when": {
+        "any": [
+          "a password, key or token is read from configuration with a well-known literal used when the setting is missing",
+          "an initial admin or service account is created with a fixed password or key",
+          "login accepts a vendor default such as admin/admin alongside or instead of configured credentials"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a missing credential causes an error or forces the user to set one before use",
+          "the initial credential is randomly generated per installation and must be changed on first login",
+          "the default applies to a non-secret setting such as a port or username only"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1393": "the default is specifically a password",
+        "CWE-1394": "the default is specifically a cryptographic key",
+        "CWE-798": "the literal is the only credential and cannot be changed by configuration"
+      }
+    },
+    "CWE-1393": {
+      "name": "Use of Default Password",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1392"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use or create a default password that stays valid unless an administrator changes it?",
+      "present_when": {
+        "any": [
+          "a password setting falls back to a literal such as 'admin', 'password' or 'changeme' when not configured",
+          "an account is provisioned with a fixed initial password and nothing forces it to be changed",
+          "the login check accepts a known default password"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function refuses to start or log in when no password has been configured",
+          "the initial password is randomly generated and flagged for mandatory change",
+          "the default is only used in a test or development branch that cannot run in production builds"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1394": "the default secret is a cryptographic key rather than a password",
+        "CWE-259": "the password is a literal with no configuration path to change it"
+      }
+    },
+    "CWE-1394": {
+      "name": "Use of Default Cryptographic Key",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1392"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a default cryptographic key that remains in force unless it is replaced by configuration?",
+      "present_when": {
+        "any": [
+          "a key, signing secret or certificate key is read from configuration with a literal fallback when absent",
+          "a shipped constant key is used for encryption, signing or device authentication until provisioning overwrites it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a missing key causes an error or triggers secure generation of a unique key",
+          "the key is unique per device or installation and loaded from protected storage",
+          "the constant is a public key or a test vector"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1393": "the default secret is a password",
+        "CWE-321": "the key is a literal with no configuration path to replace it"
+      }
+    }
+  }
+}

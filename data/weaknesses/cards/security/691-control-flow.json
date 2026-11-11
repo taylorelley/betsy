@@ -1,0 +1,966 @@
+{
+  "cards": {
+    "CWE-179": {
+      "name": "Incorrect Behavior Order: Early Validation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-696"
+      ],
+      "function_checkable": true,
+      "question": "Does this function validate input and only afterwards apply a step that modifies it, so the value used differs from the value checked?",
+      "present_when": {
+        "any": [
+          "a check for forbidden characters, paths or patterns runs, then the value is URL-decoded, unescaped, normalised, stripped or filtered before use",
+          "validation inspects one representation and a later conversion (case folding, Unicode normalisation, path resolution) produces the value that is acted on"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all decoding, canonicalising and filtering are done first and the final value is the one validated",
+          "the value is not changed between the check and its use",
+          "the check is repeated after the final transformation"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-180": "the modification after the check is canonicalisation or decoding",
+        "CWE-181": "the modification after the check is a filter that removes or replaces content"
+      }
+    },
+    "CWE-180": {
+      "name": "Incorrect Behavior Order: Validate Before Canonicalize",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-179"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check input for bad content and only afterwards decode, normalise or resolve it into the form that is actually used?",
+      "present_when": {
+        "any": [
+          "a blacklist or pattern check runs on a path, URL or string, then the value is URL-decoded, HTML-unescaped, Unicode-normalised or case-folded",
+          "a path is checked for '..' or a prefix and then passed through realpath, path resolution or symlink following before use"
+        ],
+        "javascript": [
+          "a check precedes decodeURIComponent, path.normalize, path.resolve or String.prototype.normalize on the same value"
+        ],
+        "python": [
+          "a check precedes urllib.parse.unquote, os.path.normpath, os.path.realpath or unicodedata.normalize on the same value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is decoded and canonicalised first, and the canonical form is what is checked and used",
+          "the value used after the check is the identical, unmodified one that was checked"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-181": "the step after validation removes or replaces content rather than canonicalising it"
+      }
+    },
+    "CWE-181": {
+      "name": "Incorrect Behavior Order: Validate Before Filter",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-179"
+      ],
+      "function_checkable": true,
+      "question": "Does this function validate data and only afterwards run a filter that strips or replaces parts of it, so the filtered result is never re-checked?",
+      "present_when": {
+        "any": [
+          "a check approves the input, then a later replace, strip or sanitiser removes characters or tags, possibly joining fragments into forbidden content",
+          "a single-pass removal of a token such as '../' or '<script>' follows the validation step and its output is used directly"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "filtering happens first and validation runs on the filtered result",
+          "the filter is applied repeatedly until no change, then validated",
+          "nothing alters the data between the check and its use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-180": "the step after validation is decoding or canonicalisation rather than removing content"
+      }
+    },
+    "CWE-248": {
+      "name": "Uncaught Exception",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Can a C++ exception escape this function where nothing will catch it, such as from a destructor, a noexcept function, main or a thread entry point?",
+      "present_when": {
+        "cpp": [
+          "a destructor, move operation or noexcept function contains throw or calls code that can throw (new, at(), stoi, container growth) without a try/catch",
+          "main, a std::thread entry function or a C callback invokes throwing code with no catch around it",
+          "a throw statement whose exception type is not caught anywhere visible in the function and the function is a top-level entry"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the throwing calls are wrapped in try with a catch that handles or logs the exception",
+          "the function is an ordinary member or free function that lets the exception propagate to callers able to catch it",
+          "only non-throwing operations are used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "an exception is caught, but with an overly general catch clause"
+      }
+    },
+    "CWE-396": {
+      "name": "Declaration of Catch for Generic Exception",
+      "abstraction": "Base",
+      "languages": [
+        "cpp",
+        "python"
+      ],
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Does this function catch an overly general exception type, so unrelated failures are handled by the same code?",
+      "present_when": {
+        "cpp": [
+          "catch (...) or catch (const std::exception&) around code that can fail in several distinct ways, without re-throwing"
+        ],
+        "python": [
+          "a bare except:, except Exception: or except BaseException: that handles the error without re-raising"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the catch names the specific exception types the code can raise",
+          "the broad handler only logs and then re-throws or re-raises the exception",
+          "the broad handler is at a top-level boundary (main loop, request handler, thread entry) whose job is to stop the process crashing"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-397": "the function throws or declares a generic exception rather than catching one",
+        "CWE-248": "no catch exists and the exception escapes"
+      }
+    },
+    "CWE-397": {
+      "name": "Declaration of Throws for Generic Exception",
+      "abstraction": "Base",
+      "languages": [
+        "cpp",
+        "python"
+      ],
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Does this function throw or raise a generic, base exception type instead of a specific one that callers could handle?",
+      "present_when": {
+        "cpp": [
+          "throw std::exception(), throw std::runtime_error for unrelated failure kinds, or throw of a plain int or string literal",
+          "a dynamic exception specification or documentation comment declaring only a base type"
+        ],
+        "python": [
+          "raise Exception(...) or raise BaseException(...) rather than a specific subclass"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "thrown or raised exceptions are specific types such as ValueError, KeyError, std::invalid_argument or a project-defined subclass",
+          "the function only re-throws a caught exception unchanged"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "the function catches a generic exception rather than throwing one"
+      }
+    },
+    "CWE-408": {
+      "name": "Incorrect Behavior Order: Early Amplification",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-696"
+      ],
+      "function_checkable": true,
+      "question": "Does this function do costly work (heavy computation, large allocation, decompression, database or network calls) for a request before checking who is asking and whether they may?",
+      "present_when": {
+        "any": [
+          "the body parses, decompresses, hashes, queries or allocates large buffers from the request before the authentication or permission check runs",
+          "an expensive call such as key derivation, image processing or report generation precedes the session or token check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "authentication and authorisation are checked first, and failure returns before any costly step",
+          "the function is reached only after middleware or a decorator that authenticates (visible as an attribute or wrapper on the function)",
+          "the work done before the check is cheap and bounded, such as reading a header"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-799": "there is no limit on how often the caller may repeat the request at all"
+      }
+    },
+    "CWE-430": {
+      "name": "Deployment of Wrong Handler",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function route an object, file or request to a handler chosen from an unreliable or contradictory signal, so the wrong code processes it?",
+      "present_when": {
+        "any": [
+          "the handler, parser or renderer is picked from a file extension, sniffed content or client-supplied type that can disagree with the declared or verified type",
+          "a dispatch table or lookup falls back to a generic or raw handler (for example serving a script as plain source) when the expected one is not matched",
+          "an explicit type field is ignored in favour of guessing the type from the content"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler is selected from a fixed allow-list keyed on a verified type, and unknown types are rejected",
+          "the declared type and the detected type are compared and a mismatch is refused",
+          "there is only one handler and no dispatch decision is made"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-431": "no handler exists at all for the event or type, rather than the wrong one being chosen",
+        "CWE-434": "the issue is accepting an uploaded file of a dangerous type rather than which handler processes it"
+      }
+    },
+    "CWE-431": {
+      "name": "Missing Handler",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function leave an expected event, error, case or exception with no handler, so it goes unprocessed or is passed up unhandled?",
+      "present_when": {
+        "any": [
+          "a switch or match over an enum, message type or state has no default and omits values that can occur",
+          "an event, signal or callback registration expects a handler but none is supplied for a case the code can raise"
+        ],
+        "c": [
+          "a call whose failure must be handled (an error code, a signal) has no branch dealing with the failure case"
+        ],
+        "cpp": [
+          "a std::future from std::async is discarded or never get() is called, so a stored exception is never observed"
+        ],
+        "javascript": [
+          "a promise chain or async call has no catch and is not awaited inside a try, or an emitter's 'error' event has no listener"
+        ],
+        "python": [
+          "a thread, task or callback can raise but nothing catches or reports the exception"
+        ],
+        "rust": [
+          "a match uses a catch-all arm that silently does nothing for variants that need handling"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every possible case, event or error has an explicit branch, or a default branch that handles or reports it",
+          "the function deliberately lets the error propagate to its caller as part of its documented contract"
+        ],
+        "rust": [
+          "the match is exhaustive and the compiler forces every variant to be handled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-430": "a handler exists but the code dispatches to the wrong one",
+        "CWE-248": "a C++ exception escapes a function boundary where nothing can catch it"
+      }
+    },
+    "CWE-455": {
+      "name": "Non-exit on Failed Initialization",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Does this initialisation function carry on, perhaps with insecure defaults, after a security-relevant setup step fails?",
+      "present_when": {
+        "any": [
+          "loading a configuration, key, certificate, policy or crypto module fails and the code logs or ignores it, then continues with defaults or a disabled check",
+          "an initialisation error sets a flag or returns success anyway, so the program runs without the protection it set up"
+        ],
+        "c": [
+          "the return value of an init call such as SSL_CTX_use_certificate_file or a crypto library init is ignored or only printed"
+        ],
+        "cpp": [
+          "a constructor or init method catches the exception from loading a key, certificate or config and carries on with defaults"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a failed security setup step aborts start-up, returns an error to the caller or throws",
+          "the fallback taken on failure is the more restrictive behaviour (deny all, refuse connections)",
+          "the failing step is not security-relevant, such as an optional cosmetic setting"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-431": "the failure has no handling path at all rather than a path that continues"
+      }
+    },
+    "CWE-480": {
+      "name": "Use of Incorrect Operator",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-670"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the wrong operator in an expression, so a test or calculation means something different from what was intended?",
+      "present_when": {
+        "any": [
+          "& or | used where && or || was clearly meant (or the reverse), changing evaluation or result",
+          "a comparison operator that is reversed or off by one, such as < for <=, in a security or bounds check"
+        ],
+        "c": [
+          "= used inside an if or while condition where == was meant, or == used as a statement where = was meant"
+        ],
+        "javascript": [
+          "== used where strict === was needed so coercion lets unexpected values pass",
+          "a single = inside a condition"
+        ],
+        "python": [
+          "'is' used to compare strings or numbers where == was meant, or 'and'/'or' mixed up with & and |"
+        ],
+        "rust": [
+          "a bitwise & or | on bools where short-circuit && or || was needed to avoid evaluating the right side"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operator matches the evident intent and the surrounding code agrees",
+          "the unusual operator is deliberate and explained, such as bit flags tested with & or an assignment in a condition wrapped in extra parentheses and compared"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-481": "the specific mistake is = where == was meant",
+        "CWE-482": "the specific mistake is == where = was meant",
+        "CWE-783": "the operators are right but precedence groups them wrongly"
+      }
+    },
+    "CWE-481": {
+      "name": "Assigning instead of Comparing",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-480"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use an assignment (=) in a condition where a comparison (==) was evidently intended?",
+      "present_when": {
+        "c": [
+          "if (x = value) or while (x = value) where the variable is not otherwise used as the result of a call and the right side is a constant or another variable",
+          "an assignment inside a compound condition such as a && (b = c) that reads like an equality test"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the assignment captures a call result and is explicitly compared, such as if ((p = malloc(n)) != NULL) or while ((c = getc(f)) != EOF)",
+          "the condition uses == or another comparison operator",
+          "the idiom is clearly intentional, wrapped in double parentheses to capture a value that is then used"
+        ],
+        "cpp": [
+          "a C++17 if (auto p = lookup()) or if (auto x = f(); x == y) declaration, which deliberately tests the new variable"
+        ]
+      },
+      "distinguish_from": {
+        "REL-111": "the assignment's value is deliberately used as an operand and the concern is style or clarity, not a mistaken comparison",
+        "CWE-482": "the mistake is the reverse, a comparison where an assignment was meant"
+      }
+    },
+    "CWE-482": {
+      "name": "Comparing instead of Assigning",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-480"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a comparison (==) used as a stand-alone statement where an assignment was evidently intended?",
+      "present_when": {
+        "c": [
+          "an expression statement such as x == 0; whose result is discarded",
+          "a for-loop init or increment clause written with == instead of =, so the variable is never set"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the result of every comparison is used in a condition, return or assignment",
+          "the variable is assigned with = before use and the == appears only inside tests"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-481": "the mistake is an assignment where a comparison was meant"
+      }
+    },
+    "CWE-483": {
+      "name": "Incorrect Block Delimitation",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-670"
+      ],
+      "function_checkable": true,
+      "question": "Does this function have an if, else, loop or similar body without braces whose indentation shows several statements were meant to be controlled?",
+      "present_when": {
+        "c": [
+          "two or more indented lines follow an if, else, for or while with no braces, so only the first is conditional",
+          "a semicolon directly after if (...) or while (...) makes the intended body run unconditionally",
+          "a macro expanding to several statements is used as the unbraced body of an if"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every multi-statement body is wrapped in braces",
+          "an unbraced body is a single statement and the following line is visibly not indented as part of it",
+          "multi-statement macros are wrapped in do { ... } while (0)"
+        ]
+      },
+      "distinguish_from": {
+        "REL-123": "the body is a single unbraced statement and there is no sign that more were intended"
+      }
+    },
+    "CWE-584": {
+      "name": "Return Inside Finally Block",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Does this function return (or break or continue) from inside a finally block, discarding an exception or result from the try block?",
+      "present_when": {
+        "any": [
+          "a return, break or continue statement inside a finally clause"
+        ],
+        "c": [
+          "a return or goto leaving a Microsoft __finally block"
+        ],
+        "javascript": [
+          "return inside finally in a try/catch/finally, which overrides any thrown error or earlier return"
+        ],
+        "python": [
+          "return, break or continue inside finally:, which silences an in-flight exception"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the finally block only releases resources and has no return, break or continue",
+          "the return is in the try or except/catch block, not in finally"
+        ],
+        "c": [
+          "standard C and C++ have no finally clause; RAII destructors and cleanup labels cannot discard an exception this way"
+        ],
+        "rust": [
+          "Rust has no finally clause; Drop and explicit cleanup cannot swallow a panic this way"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-396": "an exception is swallowed by a broad catch clause rather than by finally"
+      }
+    },
+    "CWE-617": {
+      "name": "Reachable Assertion",
+      "abstraction": "Base",
+      "detached": "assertions are common in C, while its MITRE parent CWE-705 (control flow scoping) rarely applies",
+      "function_checkable": true,
+      "question": "Does this function contain an assertion that input from outside the program could make fail, ending the process or request?",
+      "present_when": {
+        "any": [
+          "an assert or abort-on-failure check tests a value that comes from a parameter fed by external input, a file, a network message or user data, and that value is not validated before the assertion"
+        ],
+        "c": [
+          "assert() or a project assertion macro checks a length, count, index or state read from input"
+        ],
+        "python": [
+          "assert checks request, file or message content (note that python -O removes these, which is a separate concern)"
+        ],
+        "rust": [
+          "assert!, panic!, unreachable!, unwrap() or expect() fires on a malformed input value rather than a programming error"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the assertion checks an internal invariant that only a programming error could violate, such as a pointer the function itself just set",
+          "the asserted value has already been validated on every path, with an error returned for bad input",
+          "the assertion only exists in debug builds and the same condition is handled at run time"
+        ],
+        "c": [
+          "static_assert or _Static_assert, which is checked at compile time"
+        ]
+      },
+      "distinguish_from": {
+        "REL-026": "the hazard is an unguarded division, dereference or index rather than an assertion"
+      }
+    },
+    "CWE-670": {
+      "name": "Always-Incorrect Control Flow Implementation",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a control-flow path that can never do what the surrounding code plainly intends, whatever the input?",
+      "present_when": {
+        "any": [
+          "a condition that is always true or always false because of a wrong operator, a stray semicolon or a typo, so a branch always or never runs",
+          "a loop, return or break placed so that the intended statements are skipped or repeated on every pass",
+          "a case falls through, or an else binds to the wrong if, so the wrong block runs every time"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the branching and loop structure matches the evident intent on every path",
+          "a constant condition is deliberate, such as while (true) with a clear break or a feature flag",
+          "the defect only appears for particular input values, which is a different class of logic error"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-480": "the root cause is a specific wrong operator such as = for ==",
+        "CWE-483": "the root cause is a missing pair of braces around a multi-statement body",
+        "CWE-783": "the root cause is operator precedence grouping an expression differently from the intent"
+      }
+    },
+    "CWE-674": {
+      "name": "Uncontrolled Recursion",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-834"
+      ],
+      "function_checkable": true,
+      "question": "Does this function recurse, directly or through callbacks, to a depth controlled by input or data with no depth limit?",
+      "present_when": {
+        "any": [
+          "a function calls itself on nested input (JSON, XML, trees, expressions, directories) without a depth counter or maximum",
+          "mutual recursion through helper functions or visitor callbacks driven by data structure depth",
+          "a recursive call whose base case may never be reached for some inputs, such as cycles in a graph without a visited set"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a depth parameter is checked against a fixed maximum before each recursive call",
+          "the recursion depth is bounded by a small constant or by the logarithm of the size, as in balanced divide and conquer",
+          "the algorithm uses an explicit stack or queue instead of recursion"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-776": "the unbounded recursion is XML entity expansion through a DTD",
+        "REL-133": "C or C++ code simply contains recursion, regardless of whether the depth is input-controlled",
+        "CWE-835": "an iterative loop, not recursion, never terminates"
+      }
+    },
+    "CWE-691": {
+      "name": "Insufficient Control Flow Management",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does the function have control flow that could go wrong: loops, error handling, ordering of steps, short-circuit logic, state machines or workflow checks?",
+      "present_when": {
+        "any": [
+          "loops whose exit depends on input or on values updated in the body, or recursion",
+          "exception handlers, error returns, signal handlers, goto or early returns that skip later steps",
+          "a sequence of steps whose order matters, such as validate then use, or a multi-step workflow or state machine",
+          "conditions with &&, || or side effects, or retries and repeated actions without limits"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is a straight-line accessor, constructor or simple wrapper with no loops, branches on input or error handling",
+          "the function only declares data or returns a constant"
+        ]
+      }
+    },
+    "CWE-696": {
+      "name": "Incorrect Behavior Order",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform related steps, such as checking, transforming, authorising or releasing, in an order that defeats their purpose?",
+      "present_when": {
+        "any": [
+          "input is validated and then changed (decoded, normalised, trimmed, filtered) before it is used",
+          "an expensive or state-changing operation runs before the authentication or permission check",
+          "a resource is used after the step that should have prepared it, or released before its last use in the same sequence",
+          "privileges are dropped after, rather than before, untrusted work begins"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every transformation happens before the check, and the checked value is exactly what is used",
+          "authorisation and validation precede any costly or side-effecting action on all paths",
+          "the steps are independent, so their order does not matter"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-179": "the order problem is specifically validating input before it is modified",
+        "CWE-408": "the order problem is specifically doing costly work before authenticating the caller"
+      }
+    },
+    "CWE-698": {
+      "name": "Execution After Redirect (EAR)",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send a redirect response and then keep executing code that should have been skipped?",
+      "present_when": {
+        "any": [
+          "a redirect (Location header, 302) is issued in an access check or error branch with no return, exit or throw after it, so sensitive work below still runs"
+        ],
+        "c": [
+          "a CGI or web handler prints a Location header and then continues to the protected code"
+        ],
+        "javascript": [
+          "res.redirect() or reply.redirect() inside an if, without a return, followed by further processing or res.send"
+        ],
+        "python": [
+          "redirect() or HttpResponseRedirect created in a branch but not returned, so the view continues"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the redirect is immediately followed by return, exit, die or a thrown exception on every path",
+          "the redirect is the last statement of the function"
+        ],
+        "python": [
+          "the redirect object is returned, or abort/raise is used, which stops the view"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-705": "control flow continues wrongly after something other than a redirect"
+      }
+    },
+    "CWE-705": {
+      "name": "Incorrect Control Flow Scoping",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function transfer control to the wrong place after finishing a task or detecting an error, such as continuing, swallowing an exception or jumping out without cleanup?",
+      "present_when": {
+        "any": [
+          "after an error or redirect is detected the function carries on with normal processing instead of returning",
+          "an exception is caught too broadly or swallowed, or a finally block overrides it with a return",
+          "control leaves the function abnormally (longjmp, exit, abort, process termination) without releasing what it holds"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every error path returns, throws or jumps to a cleanup label and stops normal processing",
+          "exceptions are caught narrowly and either handled or re-thrown"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-698": "processing continues after a redirect response is sent",
+        "CWE-584": "a return inside a finally block discards an exception",
+        "CWE-396": "the problem is catching an overly general exception type"
+      }
+    },
+    "CWE-768": {
+      "name": "Incorrect Short Circuit Evaluation",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put an operation with side effects in a later operand of && or ||, so it is skipped whenever the earlier operand decides the result?",
+      "present_when": {
+        "any": [
+          "a call that changes state, frees, logs, increments or assigns appears to the right of && or || in a condition",
+          "code after the condition assumes the right-hand side ran, such as using a variable it assigns"
+        ],
+        "python": [
+          "a state-changing call placed after 'and' or 'or' in a condition"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every operand after the first is a pure test with no side effects",
+          "the skipping is the intent, such as p != NULL && p->x or a guarded lazy initialisation",
+          "the side effect is performed in a separate statement before the condition"
+        ]
+      },
+      "distinguish_from": {
+        "REL-112": "the C or C++ code places a state-changing operation on the right of && or ||, the narrower rule for those languages"
+      }
+    },
+    "CWE-776": {
+      "name": "Improper Restriction of Recursive Entity References in DTDs ('XML Entity Expansion')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-674"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse XML with DTD processing and entity expansion enabled, without limits on entity expansion?",
+      "present_when": {
+        "any": [
+          "untrusted XML is parsed with a parser configured to load DTDs or expand internal entities"
+        ],
+        "c": [
+          "libxml2 called with XML_PARSE_NOENT or XML_PARSE_DTDLOAD on untrusted data, or with XML_PARSE_HUGE"
+        ],
+        "javascript": [
+          "libxmljs parseXml called with noent: true, or another parser with entity expansion switched on"
+        ],
+        "python": [
+          "xml.dom.minidom, xml.sax or lxml.etree used on untrusted input with resolve_entities enabled or without defusedxml"
+        ],
+        "rust": [
+          "an XML crate configured to expand custom DTD entities on untrusted input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "DTDs are disabled or rejected, or entity expansion is turned off",
+          "the parser enforces an entity expansion limit, or the XML comes only from a trusted constant"
+        ],
+        "python": [
+          "defusedxml is used, or lxml with resolve_entities=False"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-674": "recursion depth is uncontrolled in the program's own code rather than in XML entity expansion"
+      }
+    },
+    "CWE-783": {
+      "name": "Operator Precedence Logic Error",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-670"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain an expression whose operator precedence groups it differently from what the code evidently intends?",
+      "present_when": {
+        "any": [
+          "a bitwise test such as x & MASK == 0, where == binds before &",
+          "an assignment of a call result mixed with a comparison without parentheses, such as if (rc = f() != 0)",
+          "shift or arithmetic mixed without parentheses where the intended grouping differs, such as a << 1 + b"
+        ],
+        "c": [
+          "*p++ or *p.x used where (*p)++ or (*p).x was intended"
+        ],
+        "cpp": [
+          "std::cout << x & mask or std::cout << ok ? a : b, where << binds before & and ?: so the stream, not the value, is tested"
+        ],
+        "javascript": [
+          "a ternary or ?? combined with + or || without parentheses, such as 'a' + x ? y : z",
+          "!a instanceof B or !key in obj"
+        ],
+        "python": [
+          "not a == b or a & b == c where the grouping differs from intent"
+        ],
+        "rust": [
+          "a cast or unary minus combined with method calls or bit operators where the grouping is not what is wanted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "parentheses make the intended grouping explicit",
+          "the expression uses only operators whose standard precedence gives the obvious reading, such as a * b + c"
+        ]
+      },
+      "distinguish_from": {
+        "REL-104": "the grouping is correct but the mixed operators lack clarifying parentheses",
+        "CWE-480": "the wrong operator is used, not the right ones grouped wrongly"
+      }
+    },
+    "CWE-799": {
+      "name": "Improper Control of Interaction Frequency",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-691"
+      ],
+      "requires": [
+        "security_logic",
+        "network"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let a caller repeat an action (login attempt, request, message, code check) without any limit on how often or how many times?",
+      "present_when": {
+        "any": [
+          "a login, password reset, OTP or token verification handler with no attempt counter, lockout, delay or rate-limit call",
+          "a request handler that sends email or SMS, or performs paid or expensive work, with no throttle per user or address",
+          "a loop accepting messages or connections from one peer with no cap"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function consults a rate limiter, attempt counter or lockout before acting",
+          "a decorator, middleware or attribute applying a rate limit is visible on the function",
+          "the action is harmless to repeat and cheap"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-837": "an action meant to happen only once (vote, coupon, signup bonus) can be done more than once",
+        "CWE-408": "costly work precedes authentication rather than being unlimited"
+      }
+    },
+    "CWE-834": {
+      "name": "Excessive Iteration",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-691"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does it contain a loop or recursion whose number of iterations or depth is not clearly bounded?",
+      "present_when": {
+        "any": [
+          "a loop whose bound comes from input, a length field or a count read from data",
+          "while (true) or a loop whose exit depends on data, state changes or external events that may never occur",
+          "a function that calls itself directly or through a callback, or parses nested structures recursively",
+          "an event-loop callback or async handler that blocks in a loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function has no loops and no recursion",
+          "every loop iterates over a fixed-size collection or a constant range"
+        ]
+      }
+    },
+    "CWE-835": {
+      "name": "Loop with Unreachable Exit Condition ('Infinite Loop')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-834"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a loop whose exit condition can never become true for some reachable state or input?",
+      "present_when": {
+        "any": [
+          "the loop variable is never updated, or is updated in a way that moves away from the exit condition",
+          "a loop waits for data or a state change but treats an error, EOF or zero-length result as 'try again' forever",
+          "an unsigned counter compared with >= 0, or a narrow counter compared with a wider limit it can never reach",
+          "a continue skips the only statement that advances the loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the loop variable moves monotonically towards a reachable bound on every iteration",
+          "an intentional infinite server or event loop with a clear break, return or shutdown signal",
+          "the loop has a maximum iteration count or timeout"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-674": "the non-terminating construct is recursion, not a loop",
+        "CWE-1322": "the loop terminates but blocks a single-threaded event loop while it runs"
+      }
+    },
+    "CWE-837": {
+      "name": "Improper Enforcement of a Single, Unique Action",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-799"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform an action that should happen only once per user (vote, redeem, claim, confirm) without checking and recording that it already happened?",
+      "present_when": {
+        "any": [
+          "a coupon, voucher, reward, vote or one-time token is applied without checking a used flag or record",
+          "the 'already used' check and the update that marks it used are separate steps without a transaction, lock or unique constraint, so concurrent calls both pass",
+          "a one-time token is verified but never invalidated or deleted afterwards"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the code atomically checks and marks the action as done (conditional update, unique key, compare-and-set, transaction)",
+          "a one-time token is deleted or marked consumed in the same operation that accepts it",
+          "repeating the action is harmless and allowed"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-799": "the action may be repeated legitimately but there is no limit on frequency"
+      }
+    },
+    "CWE-841": {
+      "name": "Improper Enforcement of Behavioral Workflow",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-691"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform a step of a multi-step process (checkout, password reset, signup) without confirming the earlier required steps were completed?",
+      "present_when": {
+        "any": [
+          "a handler for a later step acts on a session or order without checking a state or stage field set by the previous step",
+          "the step to perform is taken from a client-supplied parameter, allowing steps to be skipped or replayed",
+          "a payment, confirmation or reset is completed without verifying the verification step succeeded"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function checks the stored state is exactly the expected predecessor before acting, and rejects otherwise",
+          "the process is a single atomic step with no required sequence",
+          "a state machine with explicit allowed transitions governs the change"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-696": "the function itself performs its internal steps in the wrong order"
+      }
+    },
+    "CWE-1322": {
+      "name": "Use of Blocking Code in Single-threaded, Non-blocking Context",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-834"
+      ],
+      "requires": [
+        "concurrency",
+        "resources",
+        "network",
+        "filesystem"
+      ],
+      "function_checkable": true,
+      "question": "Does this function, running inside a single-threaded event loop or async context, call something that blocks the thread?",
+      "present_when": {
+        "any": [
+          "an async function or event callback performs a busy-wait or long CPU loop on input-sized data"
+        ],
+        "c": [
+          "a libuv, libevent or epoll callback calls blocking read, write, sleep, connect or DNS lookup on a blocking descriptor"
+        ],
+        "cpp": [
+          "an Asio, Qt or coroutine handler calls std::this_thread::sleep_for, a blocking future get() or a synchronous socket read"
+        ],
+        "javascript": [
+          "a request handler or async function uses fs.readFileSync, execSync, child_process sync calls, or a synchronous crypto such as pbkdf2Sync"
+        ],
+        "python": [
+          "an async def calls time.sleep, requests, blocking socket or file I/O, or subprocess.run instead of awaiting an async equivalent"
+        ],
+        "rust": [
+          "an async fn calls std::thread::sleep, std::fs, blocking std::net I/O or a blocking mutex lock across an await"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only non-blocking or awaited async equivalents are used",
+          "blocking work is moved to a worker thread or pool, such as run_in_executor, spawn_blocking or a worker thread",
+          "the function is not called from an event loop, such as a start-up script or a CLI tool"
+        ],
+        "cpp": [
+          "the blocking work is posted to a thread pool, for example with asio::post or std::async, and the handler does not wait on it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-835": "the loop never ends at all"
+      }
+    }
+  }
+}

@@ -7,21 +7,22 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --locked --offline --all-targets -- -D warnings` | Passed, no warnings |
-| `cargo test --locked --offline` | Passed: 75 tests (22 unit, 16 integration, 31 analysis, 6 external analyzer), 0 failures; re-run 2026-11-11 after the catalog files were removed. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
+| `cargo test --locked --offline` | Passed: 81 tests (27 unit, 16 integration, 32 analysis, 6 external analyzer), 0 failures; re-run 2026-11-11 after the cards were restructured. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
 | `cargo test --locked --offline --release` | Not re-run since the weakness cards were added |
 | `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Not re-run since the weakness cards were added |
 | `cargo deny check licenses bans sources` (cargo-deny 0.20.2, all target platforms) | bans ok, licenses ok, sources ok |
 | `strace -f -e trace=network -o <scratch>/net.trace cargo test --locked --offline` | Passed: 61 tests; every connect was to 127.0.0.1, the local HTTP test server; no external addresses |
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
-| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 40,256 naive questions (1,088 cards for each of 37 functions); 28,066 after prefilter; hierarchical lower bound 1,341 |
-| `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function) |
+| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 40,441 naive questions (1,093 cards for each of 37 functions); 28,179 after prefilter; hierarchical lower bound 1,239, before syntax traits |
+| `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function), 1,071 questions asked and 168 subtrees ruled out by the parser |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
+| `./target/debug/betsy weaknesses audit --strict` | Exit 0; `errors` empty |
 | `cargo audit --version` | Not installed locally; audit not run. Separate CI job installs and runs cargo-audit. |
 
 Per-language plans for the fixtures (planned questions per function, after the prefilter):
-C 895, C++ 938, JavaScript 705, Python 713, Rust 730, TypeScript 706, each at most six
+C 895, C++ 938, JavaScript 709, Python 715, Rust 733, TypeScript 713, each at most six
 rounds deep.
 
 ## v0.1 inventory and dispatch
@@ -90,14 +91,29 @@ restricts a card only when listed; that parents are tried in order; that card cr
 per-language patterns (C++ reads C) and stay within 1,500 characters for every card and
 language; that uncheckable cards are skipped by the prefilter and refused when named
 explicitly; that only `gate` cards are planned as gates; and that REL and PERF cards with
-parents are gated rather than asked as roots. All 1,088 cards load, and the 1,008 checkable ones
-render within the limit for all seven languages. They have not been run against a provider or
+parents are gated rather than asked as roots; that card files merge, that a catalog directory
+holds only its catalog's cards and that the catalog hash covers file paths; that `requires`
+becomes a trait mask and unknown traits are rejected; that `sources` and `status` are
+validated; that a `detached` card has no parents; that traits are validated; and that the
+parser settles syntax traits as absent only for a clean parse and only for languages that list
+node kinds. All 1,093 cards load, and the 1,013 checkable ones render within the limit for all
+seven languages. They have not been run against a provider or
 labelled code.
 
 When the catalog files the cards were first laid over were removed, the plan for each of the
 seven languages (roles, parents, splicing, rounds, trait tags and skips) and all 5,393 planned
 questions (wording and hashes) were compared before and after. They were identical apart from
 the order of entries, which now follows catalog and ID number.
+
+When the cards were split into family files and trait requirements moved onto them, the same
+comparison was repeated before any behaviour changed: plans and questions were byte-identical.
+The later changes (syntax traits, new trait requirements, the language fixes and the five new
+cards) do change plans, so the profile is now `function-v7`. An analysis test checks that the
+audit reports no defects and that the findings asked of every function match
+`tests/expected/always_asked.json`; two others check that a gated run asks exactly the planned
+nodes the parser does not rule out. The effect of syntax traits on recall has not been measured
+against a provider: it rests on the argument that a construct absent from a cleanly parsed
+function cannot be shown by that function's code.
 
 ## Unit tests
 

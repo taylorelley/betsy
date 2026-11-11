@@ -1,6 +1,7 @@
 //! Weakness cards and the deterministic per-language selection and hierarchy used to plan
-//! per-function decision questions. `data/weaknesses/cards.json` is the only weakness
-//! definition: one card names a weakness, places it in the hierarchy and says how to decide it.
+//! per-function decision questions. The files under `data/weaknesses/cards/` are the only
+//! weakness definitions: one card names a weakness, places it in the hierarchy, says which
+//! functions it can apply to and how to decide it.
 //! Nothing here calls a model: selection is a pure function of the cards and the language.
 use crate::model::{hash, identity};
 use anyhow::{Context, Result};
@@ -9,11 +10,12 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::OnceLock;
 
 /// Bumped whenever plan shape or question wording changes, so cached run identities differ.
-pub const PROFILE: &str = "function-v6";
+pub const PROFILE: &str = "function-v7";
 const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
-const CARDS_FILE: &[u8] = include_bytes!("../data/weaknesses/cards.json");
+// `CARD_FILES`: every file under `data/weaknesses/cards/`, by relative path; see `build.rs`.
+include!(concat!(env!("OUT_DIR"), "/card_files.rs"));
 /// Languages a card may name in `languages` and, with `any`, as a pattern key.
-const LANGUAGES: [&str; 7] = [
+pub const LANGUAGES: [&str; 7] = [
     "c",
     "cpp",
     "javascript",
@@ -55,6 +57,22 @@ pub struct Card {
     /// language becomes its parent.
     #[serde(default)]
     pub parents: Vec<String>,
+    /// Why the card deliberately has no parent although a related card exists. A card with
+    /// this set is asked as a root.
+    #[serde(default)]
+    pub detached: String,
+    /// Trait keys of which at least one must be present for the card to be asked; inherited
+    /// by descendants that name none. Empty means no restriction of its own.
+    #[serde(default)]
+    pub requires: Vec<String>,
+    /// `requires` as a trait bitmask.
+    #[serde(skip)]
+    pub requires_mask: Option<u64>,
+    /// Published rules the card was written from, for cards outside MITRE CWE.
+    #[serde(default)]
+    pub sources: Vec<Source>,
+    #[serde(default)]
+    pub status: Status,
     /// False when the weakness cannot be seen in a single function; the prefilter skips it.
     pub function_checkable: bool,
     /// Why a card is not function-checkable.
@@ -72,31 +90,31 @@ pub struct Card {
     #[serde(default)]
     pub distinguish_from: BTreeMap<String, String>,
 }
+/// A rule in a published standard that a card was written from.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Source {
+    pub standard: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub rule: String,
+}
+/// How far a card has been checked. Every card starts as a draft.
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum Status {
+    /// Written and mechanically checked only.
+    #[default]
+    Draft,
+    /// Read and accepted by a person.
+    Reviewed,
+    /// Measured against labelled code with a decision provider.
+    Validated,
+}
 impl Card {
-    /// Parents to try, in order. Cards in [`DETACHED`] have none and are asked as roots.
-    fn parent_candidates(&self) -> &[String] {
-        if DETACHED.iter().any(|(id, _)| *id == self.id) {
-            return &[];
-        }
-        &self.parents
-    }
     fn language_applies(&self, language: &str) -> bool {
         self.languages.is_empty() || self.languages.iter().any(|l| l == language)
     }
 }
-
-/// Entries planned as roots because a low answer for their parent says little about them;
-/// measured with `betsy run recall` against exhaustive runs on SQLite functions.
-pub const DETACHED: &[(&str, &str)] = &[
-    (
-        "CWE-617",
-        "assertions are common in C, while its parent CWE-705 (control flow scoping) rarely applies",
-    ),
-    (
-        "REL-026",
-        "missing guards before any hazardous operation is broader than its parent CWE-369 (divide by zero)",
-    ),
-];
 
 #[derive(Deserialize)]
 struct CardFile {
@@ -105,24 +123,38 @@ struct CardFile {
 pub struct Catalog {
     /// Ordered by catalog, then by ID number.
     pub entries: Vec<Card>,
+    /// Identity of every card file's path and content.
     pub hash: String,
     index: HashMap<String, usize>,
 }
 impl Catalog {
-    fn load(bytes: &[u8]) -> Result<Self> {
-        let file: CardFile = serde_json::from_slice(bytes).context("parsing cards.json")?;
+    /// Loads card files given as (path relative to the cards directory, content). A file in
+    /// a directory may hold only cards of the catalog the directory is named after.
+    fn load(files: &[(&str, &[u8])], traits: &Traits) -> Result<Self> {
         let mut keyed = vec![];
-        for (raw, mut card) in file.cards {
-            let key = normalize_id(&raw).with_context(|| format!("invalid id {raw}"))?;
-            let (prefix, number) = key.split_once('-').expect("normalized ids have a prefix");
-            let rank = CATALOGS
-                .iter()
-                .position(|(p, _)| *p == prefix)
-                .with_context(|| format!("{raw}: unknown catalog prefix {prefix}"))?;
-            let number: u64 = number.parse().expect("normalized ids end in a number");
-            card.catalog = CATALOGS[rank].1.into();
-            card.id = raw;
-            keyed.push(((rank, number), key, card));
+        let mut hashes = vec![];
+        for (path, bytes) in files {
+            let file: CardFile =
+                serde_json::from_slice(bytes).with_context(|| format!("parsing {path}"))?;
+            hashes.push((*path, hash(bytes)));
+            let directory = path.split_once('/').map(|(d, _)| d);
+            for (raw, mut card) in file.cards {
+                let key = normalize_id(&raw).with_context(|| format!("invalid id {raw}"))?;
+                let (prefix, number) = key.split_once('-').expect("normalized ids have a prefix");
+                let rank = CATALOGS
+                    .iter()
+                    .position(|(p, _)| *p == prefix)
+                    .with_context(|| format!("{raw}: unknown catalog prefix {prefix}"))?;
+                let number: u64 = number.parse().expect("normalized ids end in a number");
+                card.catalog = CATALOGS[rank].1.into();
+                anyhow::ensure!(
+                    directory.is_none_or(|d| d == card.catalog),
+                    "{raw}: a {} card in {path}",
+                    card.catalog
+                );
+                card.id = raw;
+                keyed.push(((rank, number), key, card));
+            }
         }
         keyed.sort_by_key(|(order, ..)| *order);
         let mut index = HashMap::new();
@@ -172,6 +204,22 @@ impl Catalog {
                     "{id}: unknown language {l}"
                 );
             }
+            anyhow::ensure!(
+                card.detached.trim().is_empty() || card.parents.is_empty(),
+                "{id}: a detached card has no parents"
+            );
+            for source in &card.sources {
+                anyhow::ensure!(
+                    !source.standard.trim().is_empty(),
+                    "{id}: a source needs a standard"
+                );
+            }
+            let mut mask = 0;
+            for k in &card.requires {
+                mask |= traits
+                    .bit(k)
+                    .with_context(|| format!("{id} requires unknown trait {k}"))?;
+            }
             let parents = card
                 .parents
                 .iter()
@@ -182,15 +230,16 @@ impl Catalog {
                 .iter()
                 .map(|(other, note)| Ok((resolve(id, "distinguishes", other)?, note.clone())))
                 .collect::<Result<BTreeMap<_, _>>>()?;
-            resolved.push((parents, distinguish));
+            resolved.push((parents, distinguish, mask));
         }
-        for (card, (parents, distinguish)) in entries.iter_mut().zip(resolved) {
+        for (card, (parents, distinguish, mask)) in entries.iter_mut().zip(resolved) {
             card.parents = parents;
             card.distinguish_from = distinguish;
+            card.requires_mask = (mask != 0).then_some(mask);
         }
         Ok(Self {
             entries,
-            hash: identity(&[("cards.json", hash(bytes))]),
+            hash: identity(&hashes),
             index,
         })
     }
@@ -200,65 +249,89 @@ impl Catalog {
 }
 pub fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
-    CATALOG.get_or_init(|| Catalog::load(CARDS_FILE).expect("embedded weakness cards are valid"))
+    CATALOG.get_or_init(|| {
+        Catalog::load(CARD_FILES, traits()).expect("embedded weakness cards are valid")
+    })
 }
 
-/// An observable property of a function, asked once before any weakness so that weaknesses
+/// An observable property of a function, settled once before any weakness so that weaknesses
 /// which cannot apply without it are never asked.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Trait {
     pub key: String,
+    /// True when the parser alone settles the trait: present when a `present_if` node kind
+    /// occurs in the function, absent when none does and the function parses cleanly. Such a
+    /// trait is never asked, is not shown to the provider, and applies without `--traits`.
+    #[serde(default)]
+    pub syntax: bool,
+    #[serde(default)]
     pub question: String,
-    #[serde(rename = "true")]
+    #[serde(default, rename = "true")]
     pub criteria_true: String,
-    #[serde(rename = "false")]
+    #[serde(default, rename = "false")]
     pub criteria_false: String,
-    /// Per language, syntax node kinds whose presence proves the trait without asking.
-    /// Absence proves nothing: macros, callees and aliases can hide any construct.
+    /// Per language, syntax node kinds (named or anonymous) whose presence proves the trait.
+    /// For an asked trait absence proves nothing: macros, callees and aliases can hide it.
+    /// A syntax trait is undecided, and so counts as present, in a language it does not list.
     #[serde(default)]
     pub present_if: BTreeMap<String, Vec<String>>,
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TraitFile {
     traits: Vec<Trait>,
-    requires: BTreeMap<String, Vec<String>>,
 }
 pub struct Traits {
     pub traits: Vec<Trait>,
-    /// Weakness ID to the traits, as a bitmask, of which at least one must be present.
-    pub requires: HashMap<String, u64>,
     pub hash: String,
 }
 impl Traits {
-    fn load() -> Result<Self> {
-        let file: TraitFile = serde_json::from_slice(TRAITS_FILE).context("parsing traits.json")?;
+    fn load(bytes: &[u8]) -> Result<Self> {
+        let file: TraitFile = serde_json::from_slice(bytes).context("parsing traits.json")?;
         anyhow::ensure!(file.traits.len() <= 64, "at most 64 traits fit a mask");
-        let bit: HashMap<&str, u64> = file
-            .traits
-            .iter()
-            .enumerate()
-            .map(|(i, t)| (t.key.as_str(), 1u64 << i))
-            .collect();
-        anyhow::ensure!(bit.len() == file.traits.len(), "duplicate trait key");
-        let mut requires = HashMap::new();
-        for (id, keys) in &file.requires {
-            let w = catalog()
-                .get(id)
-                .with_context(|| format!("traits.json tags unknown weakness {id}"))?;
-            anyhow::ensure!(!keys.is_empty(), "{id} requires no traits");
-            let mut mask = 0;
-            for k in keys {
-                mask |= bit
-                    .get(k.as_str())
-                    .with_context(|| format!("{id} requires unknown trait {k}"))?;
+        let keys: BTreeSet<&str> = file.traits.iter().map(|t| t.key.as_str()).collect();
+        anyhow::ensure!(keys.len() == file.traits.len(), "duplicate trait key");
+        for t in &file.traits {
+            let key = &t.key;
+            for (language, kinds) in &t.present_if {
+                anyhow::ensure!(
+                    LANGUAGES.contains(&language.as_str()) && !kinds.is_empty(),
+                    "trait {key}: bad present_if for {language}"
+                );
             }
-            requires.insert(w.id.clone(), mask);
+            if t.syntax {
+                anyhow::ensure!(
+                    !t.present_if.is_empty(),
+                    "syntax trait {key} needs present_if"
+                );
+            } else {
+                anyhow::ensure!(
+                    [&t.question, &t.criteria_true, &t.criteria_false]
+                        .iter()
+                        .all(|s| !s.trim().is_empty()),
+                    "asked trait {key} needs a question and both criteria"
+                );
+            }
         }
         Ok(Self {
             traits: file.traits,
-            requires,
-            hash: hash(TRAITS_FILE),
+            hash: hash(bytes),
         })
+    }
+    fn bit(&self, key: &str) -> Option<u64> {
+        self.traits
+            .iter()
+            .position(|t| t.key == key)
+            .map(|i| 1 << i)
+    }
+    /// Mask of the traits the parser settles on its own.
+    pub fn syntax_mask(&self) -> u64 {
+        self.traits
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.syntax)
+            .fold(0, |m, (i, _)| m | 1 << i)
     }
     /// Mask of the named trait keys; unknown names are ignored.
     pub fn mask(&self, names: &[String]) -> u64 {
@@ -278,9 +351,18 @@ impl Traits {
             .collect()
     }
 }
-/// Traits whose `present_if` node kinds occur in the function's own syntax tree. A snippet that
-/// does not parse cleanly can still prove presence, since only presence is ever concluded.
-pub fn proven_traits(language: &str, source: &str) -> u64 {
+/// What the parser can say about one function's traits.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Syntax {
+    /// Traits one of whose `present_if` node kinds occurs in the function.
+    pub found: u64,
+    /// Syntax traits the parser has settled as absent: the language lists node kinds for
+    /// them, none occurs, and the function parsed without error.
+    pub absent: u64,
+}
+/// Scans the function's own syntax tree for trait node kinds. A snippet that does not parse
+/// cleanly can still prove presence, but never absence.
+pub fn scan_traits(language: &str, source: &str) -> Syntax {
     let t = traits();
     let wanted: Vec<(u64, &[String])> = t
         .traits
@@ -293,17 +375,17 @@ pub fn proven_traits(language: &str, source: &str) -> u64 {
         })
         .collect();
     if wanted.is_empty() {
-        return 0;
+        return Syntax::default();
     }
     let mut parser = tree_sitter::Parser::new();
     let Ok(grammar) = crate::languages::grammar(language) else {
-        return 0;
+        return Syntax::default();
     };
     if parser.set_language(&grammar).is_err() {
-        return 0;
+        return Syntax::default();
     }
     let Some(tree) = parser.parse(source, None) else {
-        return 0;
+        return Syntax::default();
     };
     let mut found = 0;
     let mut cursor = tree.walk();
@@ -326,11 +408,22 @@ pub fn proven_traits(language: &str, source: &str) -> u64 {
             }
         }
     }
-    found
+    let decidable = wanted.iter().fold(0, |m, (bit, _)| m | bit) & t.syntax_mask();
+    let absent = if tree.root_node().has_error() {
+        0
+    } else {
+        decidable & !found
+    };
+    Syntax { found, absent }
+}
+/// Asked traits whose syntax occurs in the function: the parser facts shown to the provider.
+/// Syntax traits are left out, since they only steer which cards are asked.
+pub fn proven_traits(language: &str, source: &str) -> u64 {
+    scan_traits(language, source).found & !traits().syntax_mask()
 }
 pub fn traits() -> &'static Traits {
     static TRAITS: OnceLock<Traits> = OnceLock::new();
-    TRAITS.get_or_init(|| Traits::load().expect("embedded traits are valid"))
+    TRAITS.get_or_init(|| Traits::load(TRAITS_FILE).expect("embedded traits are valid"))
 }
 
 /// Card pattern keys a language reads, broadest first: C++ code also shows C patterns, and
@@ -347,7 +440,7 @@ fn card_languages(language: &str) -> &'static [&'static str] {
         _ => &["any"],
     }
 }
-fn patterns_for<'a>(p: &'a Patterns, language: &str) -> Vec<&'a str> {
+pub fn patterns_for<'a>(p: &'a Patterns, language: &str) -> Vec<&'a str> {
     card_languages(language)
         .iter()
         .filter_map(|k| p.get(*k))
@@ -431,6 +524,12 @@ impl Plan {
     pub fn depth(&self) -> u32 {
         self.nodes.iter().map(|n| n.wave).max().unwrap_or(0)
     }
+    /// Mask of every trait some node requires; other traits never change what is asked.
+    pub fn traits_used(&self) -> u64 {
+        self.nodes
+            .iter()
+            .fold(0, |m, n| m | n.requires.unwrap_or(0))
+    }
     /// Questions asked in round 1 whatever the answers.
     pub fn first_wave(&self) -> usize {
         self.nodes.iter().filter(|n| n.wave == 1).count()
@@ -499,7 +598,7 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
             return None;
         }
         cat.get(id).and_then(|w| {
-            w.parent_candidates()
+            w.parents
                 .iter()
                 .map(String::as_str)
                 .find(|p| kept.contains_key(p))
@@ -569,10 +668,10 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
         .filter(|&i| nodes[i].parent.is_none())
         .collect();
     // An explicit selection is asked flat and unconditionally.
-    let tags = &traits().requires;
+    let tag = |id: &str| cat.get(id).and_then(|w| w.requires_mask);
     if only.is_empty() {
         for n in &mut nodes {
-            n.requires = tags.get(&n.id).copied();
+            n.requires = tag(&n.id);
         }
     }
     // Parents precede children only within a tree, so assign waves and inherit tags top-down.
@@ -584,7 +683,7 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
         for c in children {
             nodes[c].spliced = only_child;
             nodes[c].wave = if only_child { wave } else { wave + 1 };
-            if nodes[c].requires.is_none() && !tags.contains_key(&nodes[c].id) {
+            if nodes[c].requires.is_none() {
                 nodes[c].requires = requires;
             }
             stack.push(c);
@@ -721,7 +820,11 @@ mod tests {
     }
 
     fn load(cards: &str) -> Result<Catalog> {
-        Catalog::load(format!(r#"{{"cards":{{{cards}}}}}"#).as_bytes())
+        load_in("cards.json", cards)
+    }
+    fn load_in(path: &str, cards: &str) -> Result<Catalog> {
+        let file = format!(r#"{{"cards":{{{cards}}}}}"#);
+        Catalog::load(&[(path, file.as_bytes())], traits())
     }
     const OK: &str = r#""function_checkable":true,"question":"q?","present_when":{"c":["p"]},"not_present_when":{"any":["n"]}"#;
 
@@ -762,18 +865,117 @@ mod tests {
     }
 
     #[test]
+    fn files_merge_and_a_catalog_directory_holds_only_its_catalog() {
+        let card = |id: &str| format!(r#"{{"cards":{{"{id}":{{"name":"n",{OK}}}}}}}"#);
+        let (a, b, c) = (card("CWE-1"), card("REL-1"), card("CWE-1"));
+        let two = Catalog::load(
+            &[
+                ("security/a.json", a.as_bytes()),
+                ("reliability/b.json", b.as_bytes()),
+            ],
+            traits(),
+        )
+        .unwrap();
+        assert_eq!(two.entries.len(), 2);
+        let moved = Catalog::load(
+            &[
+                ("security/z.json", a.as_bytes()),
+                ("reliability/b.json", b.as_bytes()),
+            ],
+            traits(),
+        )
+        .unwrap();
+        assert_ne!(two.hash, moved.hash, "the hash covers file paths");
+        assert!(load_in(
+            "reliability/a.json",
+            &format!(r#""CWE-1":{{"name":"n",{OK}}}"#)
+        )
+        .is_err());
+        let duplicate = [
+            ("security/a.json", a.as_bytes()),
+            ("security/c.json", c.as_bytes()),
+        ];
+        assert!(Catalog::load(&duplicate, traits()).is_err());
+    }
+
+    #[test]
     fn parents_keep_their_order_and_detached_cards_have_none() {
         let c = load(&format!(
             r#""CWE-1":{{"name":"a",{OK}}},"CWE-2":{{"name":"b",{OK}}},
             "REL-5":{{"name":"c","parents":["2","cwe_1"],{OK}}},
-            "REL-026":{{"name":"d","parents":["CWE-1"],{OK}}}"#
+            "REL-026":{{"name":"d","detached":"broader than CWE-1",{OK}}}"#
         ))
         .unwrap();
+        assert_eq!(c.get("REL-5").unwrap().parents, ["CWE-2", "CWE-1"]);
+        assert!(load(&format!(
+            r#""CWE-1":{{"name":"a",{OK}}},
+            "REL-026":{{"name":"d","detached":"why","parents":["CWE-1"],{OK}}}"#
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn requires_become_a_trait_mask() {
+        let key = |i: usize| traits().traits[i].key.clone();
+        let c = load(&format!(
+            r#""CWE-1":{{"name":"a","requires":["{}","{}"],{OK}}},"CWE-2":{{"name":"b",{OK}}}"#,
+            key(0),
+            key(2)
+        ))
+        .unwrap();
+        assert_eq!(c.get("CWE-1").unwrap().requires_mask, Some(0b101));
+        assert_eq!(c.get("CWE-2").unwrap().requires_mask, None);
+        assert!(load(&format!(
+            r#""CWE-1":{{"name":"a","requires":["nope"],{OK}}}"#
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn sources_and_status_are_validated() {
+        let c = load(&format!(
+            r#""REL-1":{{"name":"a","status":"reviewed",
+            "sources":[{{"standard":"MISRA C:2012","rule":"Rule 1.3"}},{{"standard":"S"}}],{OK}}},
+            "REL-2":{{"name":"b",{OK}}}"#
+        ))
+        .unwrap();
+        let card = c.get("REL-1").unwrap();
+        assert_eq!(card.status, Status::Reviewed);
+        assert_eq!(card.sources[0].rule, "Rule 1.3");
+        assert!(card.sources[1].rule.is_empty());
+        assert_eq!(c.get("REL-2").unwrap().status, Status::Draft);
+        for bad in [
+            r#""status":"done""#,
+            r#""sources":[{"rule":"1"}]"#,
+            r#""sources":[{"standard":" "}]"#,
+            r#""sources":[{"standard":"S","url":"x"}]"#,
+        ] {
+            assert!(
+                load(&format!(r#""REL-1":{{"name":"a",{bad},{OK}}}"#)).is_err(),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn traits_are_validated() {
+        let ok = r#"{"traits":[{"key":"a","question":"q","true":"t","false":"f"},
+            {"key":"b","syntax":true,"present_if":{"c":["switch_statement"]}}]}"#;
+        let t = Traits::load(ok.as_bytes()).unwrap();
         assert_eq!(
-            c.get("REL-5").unwrap().parent_candidates(),
-            ["CWE-2", "CWE-1"]
+            (t.syntax_mask(), t.bit("a"), t.bit("z")),
+            (0b10, Some(1), None)
         );
-        assert!(c.get("REL-026").unwrap().parent_candidates().is_empty());
+        for bad in [
+            r#"{"traits":[{"key":"a"}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"go":["x"]}}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":[]}}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":["x"]}},{"key":"a","syntax":true,"present_if":{"c":["x"]}}]}"#,
+            r#"{"traits":[],"requires":{}}"#,
+        ] {
+            assert!(Traits::load(bad.as_bytes()).is_err(), "{bad}");
+        }
     }
 
     #[test]
@@ -790,13 +992,16 @@ mod tests {
     #[test]
     fn detached_entries_are_planned_as_roots() {
         let plan = plan("c", &Selection::default()).unwrap();
-        for (id, _) in DETACHED {
-            let node = plan
-                .nodes
-                .iter()
-                .find(|n| n.id == *id)
-                .expect("planned for C");
-            assert!(node.parent.is_none(), "{id} has a parent");
+        let detached: Vec<&Card> = catalog()
+            .entries
+            .iter()
+            .filter(|w| !w.detached.is_empty())
+            .collect();
+        assert!(!detached.is_empty());
+        for w in detached {
+            if let Some(node) = plan.nodes.iter().find(|n| n.id == w.id) {
+                assert!(node.parent.is_none(), "{} has a parent", w.id);
+            }
         }
     }
 
@@ -807,8 +1012,7 @@ mod tests {
             for n in &p.nodes {
                 let card = catalog().get(&n.id).unwrap();
                 assert_eq!(n.role == Role::Gate, card.gate, "{language}: {}", n.id);
-                let detached = DETACHED.iter().any(|(id, _)| *id == n.id);
-                if card.catalog != "security" && !card.parents.is_empty() && !detached {
+                if card.catalog != "security" && !card.parents.is_empty() {
                     assert!(n.parent.is_some(), "{language}: {} is a root", n.id);
                 }
             }
@@ -903,6 +1107,37 @@ mod tests {
             exclude: vec!["REL-035".into()],
         };
         assert!(super::plan("c", &exclude).is_ok());
+    }
+
+    #[test]
+    fn the_parser_settles_syntax_traits_only_for_clean_parses() {
+        let t = traits();
+        let bit = |k: &str| t.bit(k).unwrap();
+        let (switch, comma) = (bit("switch_construct"), bit("comma_operator"));
+        let with = scan_traits("c", "int f(int x) { switch (x) { default: return 1; } }");
+        assert!(with.found & switch != 0 && with.absent & switch == 0);
+        assert!(with.absent & comma != 0);
+        let without = scan_traits("c", "int f(int x) { return x, 1; }");
+        assert!(without.absent & switch != 0);
+        assert!(without.found & comma != 0 && without.absent & comma == 0);
+        // A snippet that does not parse can hide anything, so nothing is settled as absent.
+        let broken = scan_traits("c", "int f(int x) { return x");
+        assert_eq!(broken.absent, 0);
+        // A language a syntax trait lists no node kinds for leaves it unsettled.
+        let py = scan_traits("python", "def f(x):\n    return x\n");
+        assert!(py.absent & switch != 0 && py.absent & comma == 0);
+        // Asked traits are never settled as absent, and syntax traits are not shown to the
+        // provider.
+        assert_eq!(with.absent & !t.syntax_mask(), 0);
+        assert_eq!(
+            proven_traits("c", "int f(int x) { switch (x) { default: return 1; } }") & switch,
+            0
+        );
+        assert!(
+            scan_traits("rust", "fn f(a: u32, b: u32) -> u32 { a / b }").found & bit("division")
+                != 0
+        );
+        assert!(scan_traits("rust", "fn f(a: u32) -> u32 { a + 1 }").absent & bit("division") != 0);
     }
 
     #[test]

@@ -431,13 +431,32 @@ fn walk(
         config.exhaustive || !matches!(a, Answer::Probability(p) if p < config.gate_threshold)
     };
     let mut trait_report = BTreeMap::new();
-    let mut present: Option<u64> = None;
+    // `known` holds the traits that are settled for this function and `present` those found
+    // or answered present. The parser settles syntax traits for free, so they apply without
+    // `--traits`; an exhaustive run asks everything.
+    let used = plan.traits_used();
+    let (mut known, mut present) = (0u64, 0u64);
+    if !config.exhaustive && used & traits.syntax_mask() != 0 {
+        let syntax = function
+            .source
+            .as_deref()
+            .map(|source| weakness::scan_traits(&function.language, source))
+            .unwrap_or_default();
+        known = syntax.absent & used;
+        for (i, t) in traits.traits.iter().enumerate() {
+            if known & (1 << i) != 0 {
+                trait_report.insert(t.key.clone(), json!({"origin":"parser","present":false}));
+            }
+        }
+    }
     if config.traits.is_some() && !config.exhaustive && plan.nodes.iter().any(|n| n.reach.is_some())
     {
         round += 1;
         let proven = traits.mask(&features.syntax_traits);
+        // Only asked traits that some planned node requires can change what is asked.
+        let asked_traits = used & !traits.syntax_mask();
         let unproven: Vec<usize> = (0..traits.traits.len())
-            .filter(|i| proven & (1 << i) == 0)
+            .filter(|i| asked_traits & !proven & (1 << i) != 0)
             .collect();
         let answers = ask_cached(
             provider,
@@ -450,6 +469,9 @@ fn walk(
         )?;
         let mut mask = proven;
         for (i, t) in traits.traits.iter().enumerate() {
+            if asked_traits & (1 << i) == 0 {
+                continue;
+            }
             let entry = match answers.get(&i) {
                 None => json!({"origin":"parser"}),
                 Some(&(a, origin)) => {
@@ -464,9 +486,11 @@ fn walk(
             };
             trait_report.insert(t.key.clone(), entry);
         }
-        present = Some(mask);
+        known |= asked_traits;
+        present = mask;
     }
-    let absent = |m: Option<u64>| present.is_some_and(|p| m.is_some_and(|m| m & p == 0));
+    // A node is skipped only when every trait it could be asked for is settled and absent.
+    let absent = |m: Option<u64>| m.is_some_and(|m| m & !known == 0 && m & present == 0);
     while !frontier.is_empty() {
         round += 1;
         let last = config.max_rounds.is_some_and(|m| round >= m);

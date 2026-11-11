@@ -209,14 +209,16 @@ its idempotency key.
 
 ## Weakness decisions
 
-`data/weaknesses/cards.json` is the only weakness definition: 1,088 weakness cards, embedded at
-build time. 754 are MITRE CWEs (security), 306 are reliability (`REL-`) and 28 are performance
-(`PERF-`) weaknesses. A card names its weakness, places it in the hierarchy and says how to
-decide it from one function; see [weakness cards](#weakness-cards). Provenance and the file's
-hash are in `data/weaknesses/PROVENANCE.md`.
+The files under `data/weaknesses/cards/` are the only weakness definitions: 1,093 weakness
+cards, embedded at build time. 754 are MITRE CWEs (security), 311 are reliability (`REL-`) and
+28 are performance (`PERF-`) weaknesses. A card names its weakness, places it in the hierarchy,
+says which functions it can apply to and how to decide it; see
+[weakness cards](#weakness-cards). Provenance and the cards' hash are in
+`data/weaknesses/PROVENANCE.md`.
 
 ```sh
 betsy weaknesses list --language rust            # deterministic plan: nodes, roots, skips with reasons
+betsy weaknesses audit --strict                  # coverage, always-asked cards and card defects
 betsy weaknesses plan --snapshot <snapshot-id>   # dry-run question/request budget, no network
 JEV_API_KEY=... betsy analyze --snapshot <snapshot-id> --provider jev
 OPENAI_API_KEY=... betsy analyze --snapshot <snapshot-id> --provider openai
@@ -254,14 +256,24 @@ an answer to different wording.
 
 ### Weakness cards
 
-`data/weaknesses/cards.json` is keyed by weakness ID. The ID prefix gives the catalog (`CWE-`
-security, `REL-` reliability, `PERF-` performance) and the key's spelling is the one used in
-output. Each card has:
+Cards live in `data/weaknesses/cards/<catalog>/<family>.json`, each file a map keyed by
+weakness ID. Security cards are grouped by their top-level CWE, reliability cards by the
+standard they came from. A file in a catalog directory may hold only that catalog's cards;
+otherwise the grouping is for readers and moving a card between files changes nothing but the
+catalog hash. The ID prefix gives the catalog (`CWE-` security, `REL-` reliability, `PERF-`
+performance) and the key's spelling is the one used in output. Each card has:
 
 - `name`, and optionally `abstraction`;
 - `gate`: when true, the card is asked only to route the hierarchy and is never reported;
 - `languages`: the languages the weakness can occur in; when absent, it applies to all;
 - `parents`: the cards it hangs under, in order of preference;
+- `detached`: for a card deliberately left without a parent, the reason;
+- `requires`: [traits](#traits) of which at least one must be present for the card to be
+  asked. Descendants that name none inherit it;
+- `sources`: for `REL-` and `PERF-` cards, the published rules the card was written from, as
+  `standard` and `rule`;
+- `status`: `draft` (the default), `reviewed` once a person has accepted the card, or
+  `validated` once it has been measured against labelled code;
 - `question`: one question about the function's own code;
 - `present_when`: observable code patterns, under `any` or a language (`c`, `cpp`,
   `javascript`, `typescript`, `tsx`, `python`, `rust`). C++ also reads `c` patterns, and
@@ -272,10 +284,30 @@ output. Each card has:
 - `function_checkable`: when false, a `reason` is required, the prefilter skips the card and
   naming it with `--weakness` is an error.
 
-Cards are validated when loaded: unknown IDs, languages or fields, missing parts and
-self-references are errors. The file's hash is the catalog hash, so editing a card changes the
-run identity. Of the 1,088 cards, 80 are marked not function-checkable. Status, review notes
-and the validation plan are in [docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
+Cards are validated when loaded: unknown IDs, languages, traits or fields, missing parts and
+self-references are errors. The hash of every card file's path and content is the catalog
+hash, so editing a card changes the run identity. Of the 1,093 cards, 80 are marked not
+function-checkable. Status, review notes and the validation plan are in
+[docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
+
+### Auditing the cards
+
+`betsy weaknesses audit` reports, without contacting a provider:
+
+- card counts by catalog and by `status`, and the cards without `sources`;
+- for each language: planned findings by catalog, the round-1 questions and how many of them
+  the parser or the trait filter can rule out, the findings asked of every function, and the
+  roots whose listed parents are not planned for that language;
+- how many `distinguish_from` links are one-way, and how many cards have none;
+- cards limited to some languages although all their patterns are language-neutral, which
+  suggests the limit is narrower than the weakness;
+- `errors`: a planned card with no pattern its language reads, a gate or card no language
+  plans, a `requires` no language can settle, a `distinguish_from` link to a card never planned
+  alongside, and a card that applies to JavaScript but not TypeScript or TSX.
+
+`--strict` exits non-zero when `errors` is not empty; CI runs it. A test also pins the findings
+asked of every function (`tests/expected/always_asked.json`), so a new card that would cost one
+question per function has to be given a parent or a `requires`, or be added there on purpose.
 
 For DECISION SERVER and other Jev-compatible servers whose models accept only a string state
 or short answer options, `--text-state` sends the function's text rendering as the state and
@@ -284,18 +316,18 @@ configuration when set.
 
 To keep this fast and cheap, BETSY layers six measures:
 
-1. **Deterministic prefilter** (profile `function-v6`). Cards are skipped, each with a
+1. **Deterministic prefilter** (profile `function-v7`). Cards are skipped, each with a
    recorded reason, when:
    - their `languages` do not include the function's language;
    - they are marked as not checkable within one function.
 
    Cards marked `gate` are asked only as hierarchy gates and are never reported. Fixtures go
-   from 1,088 questions per function to 705–938, depending on the language.
+   from 1,093 questions per function to 709–938, depending on the language.
 2. **Hierarchical early exit.** Cards form a forest: each hangs under the first of its
    `parents` that is planned for the language, and the rest are roots. For CWEs the parent is
    the primary `ChildOf` edge in MITRE view CWE-1000; REL and PERF cards list related CWEs.
-   Cards in `weakness::DETACHED` (CWE-617 and REL-026) are roots too, since a low answer for
-   their parent says little about them. Round 1 asks the roots. Children are asked only when the parent's
+   Cards marked `detached` (CWE-617 and REL-026) are roots too, since a low answer for the
+   nearest related card says little about them. Round 1 asks the roots. Children are asked only when the parent's
    probability reaches `--gate-threshold` (default 0.15, set low for recall); a refusal also
    descends. Unasked subtrees are recorded as `gated` with the parent's probability.
    - An only child is *spliced*: it is asked in its parent's round, since gating it alone
@@ -305,22 +337,31 @@ To keep this fast and cheap, BETSY layers six measures:
      questions for latency. The C plan is six rounds deep.
    - `--exhaustive` turns gating off. Comparing it with a gated run using `betsy run recall`
      is how to tune the threshold.
-3. **Trait filter** (`--traits`, off by default until tuned). `data/weaknesses/traits.json`
-   defines observable function traits (buffer access, pointers, concurrency, file system,
-   network, crypto, iteration and so on) and tags weaknesses with the traits of which at least
-   one must be present.
-   - Tags are inherited down the hierarchy, and untagged entries are always asked, so a
-     missing tag can only cost questions, never a finding.
-   - Each node carries its own requirement and the union over its subtree, as bitmasks.
-   - An extra first round asks every trait. Syntax nodes listed under `present_if` prove a
-     trait present without asking; absence is never concluded from syntax, since macros,
-     callees and aliases can hide anything.
-   - A trait counts as present at or above `--gate-threshold`, or when refused. A subtree
-     with none of its traits present is recorded once with origin `trait`. A node whose own
-     traits are absent but whose descendants' are present is skipped, and its children are
-     considered in the same round.
-   - The trait round counts towards `--max-rounds`. Trait answers are cached like any other,
-     and the run identity includes the trait catalog hash.
+3. <a id="traits"></a>**Traits.** `data/weaknesses/traits.json` defines observable function
+   traits, and a card's `requires` names the traits of which at least one must be present.
+   - Requirements are inherited down the hierarchy, and cards without one are always asked,
+     so a missing `requires` can only cost questions, never a finding.
+   - Each node carries its own requirement and the union over its subtree, as bitmasks. A
+     node is skipped only when every trait in its requirement is settled and absent.
+   - **Syntax traits** (`"syntax": true`: a switch or match, the comma operator, `sizeof`,
+     an enumerator, conditional compilation, a macro definition, Rust division, shifts, `as`
+     casts and so on) are settled by the parser alone, at no cost, so they apply to every run
+     except `--exhaustive`. One is present when a `present_if` node kind occurs in the
+     function, and absent when none does and the function parses without error. A function
+     that does not parse cleanly, or a language the trait lists no node kinds for, leaves it
+     unsettled, and the card is asked. They are not shown to the provider.
+   - **Asked traits** (buffer access, pointers, concurrency, file system, network, crypto,
+     iteration and so on) need `--traits`, which is off by default until tuned. An extra first
+     round asks those some planned card requires. Syntax nodes under `present_if` prove one
+     present without asking; absence is never concluded from syntax, since macros, callees
+     and aliases can hide anything. A trait counts as present at or above `--gate-threshold`,
+     or when refused. The trait round counts towards `--max-rounds`, answers are cached like
+     any other, and the run identity includes the trait file's hash.
+   - A subtree with none of its traits present is recorded once with origin `trait`. A node
+     whose own traits are absent but whose descendants' are present is skipped, and its
+     children are considered in the same round.
+   - On the 37 fixture functions with every answer negative, syntax traits and the parent
+     fixes below take round 1 from 1,341 questions to 1,071; with `--traits` it is 560.
 4. **Batching.** All of a round's questions go into one request, or `ceil(n/limit)` requests
    (`--max-questions`; default 100 for Jev, 400 for OpenAI, its documented maximum). A 413 or
    422 halves the chunk and retries.

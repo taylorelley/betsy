@@ -1,0 +1,3379 @@
+{
+  "cards": {
+    "CWE-20": {
+      "name": "Improper Input Validation",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-707"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use input from outside, such as a quantity, index, type, structure or format, without checking it fully?",
+      "present_when": {
+        "any": [
+          "a length, count, index, offset or size from input drives allocation, loops, indexing or copying",
+          "parsed data such as JSON, XML or a binary record is used without checking its type, required fields, consistency or syntax",
+          "floating-point input or output is used without checking that it is finite",
+          "a validation framework or schema is present but bypassed or applied only to some fields"
+        ],
+        "typescript": [
+          "a request body, DTO or JSON.parse result is used under its declared interface or class type with no runtime check, as the type is erased when the code runs",
+          "a NestJS DTO carries class-validator decorators but no ValidationPipe applies to the route, so the decorators never execute"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function receives no external input, only values already validated or produced internally",
+          "all input is checked against explicit limits, types and formats before use on every path"
+        ],
+        "typescript": [
+          "the input goes through a zod, valibot, io-ts or ajv schema and only the parsed result is used",
+          "a ValidationPipe, global or on the route, validates a DTO whose class-validator decorators cover every field the function uses"
+        ]
+      }
+    },
+    "CWE-74": {
+      "name": "Improper Neutralization of Special Elements in Output Used by a Downstream Component ('Injection')",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "interpreter_output",
+        "filesystem",
+        "network",
+        "data_store",
+        "external_input"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a command, query, markup, expression or message for another component from data that could contain special characters?",
+      "present_when": {
+        "any": [
+          "strings from input are concatenated, interpolated or formatted into SQL, shell commands, HTML, XML, LDAP, XPath, templates, headers or code",
+          "data is passed to eval, an interpreter, a command runner or a query API as part of the code rather than as a bound parameter",
+          "a protocol message, log line or CRLF-delimited header is built from external values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only constants are used to build the command, query or markup",
+          "external values are passed solely through parameterised APIs, argument arrays or auto-escaping templates"
+        ]
+      }
+    },
+    "CWE-75": {
+      "name": "Failure to Sanitize Special Elements into a Different Plane (Special Element Injection)",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function place input into a context where some characters have control meaning, such as delimiters, quotes, escape characters or equivalents, without neutralising them?",
+      "present_when": {
+        "any": [
+          "input is embedded in a delimited format, protocol line or control channel where separators or escape characters change meaning",
+          "a filter removes some special characters but encodings or alternative forms of the same characters may remain",
+          "user data is written into a stream that a downstream component parses for commands or fields"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the data is encoded or escaped for the destination format, or carried in a separate field from control information",
+          "only constants or internal values reach the destination"
+        ]
+      }
+    },
+    "CWE-76": {
+      "name": "Improper Neutralization of Equivalent Special Elements",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-75"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter or escape some special characters but miss other forms that mean the same thing, such as encoded, alternate or Unicode variants?",
+      "present_when": {
+        "any": [
+          "a sanitiser strips or escapes a specific character or sequence, such as ../ or <script>, while equivalent forms such as ..\\, %2e%2e or upper-case tags remain",
+          "a deny list of special characters is applied before decoding, so encoded forms survive",
+          "one quote type is escaped while another that the destination also honours is not"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is canonicalised before filtering, or an allow list of safe characters is enforced",
+          "a library encoder for the exact destination context is used instead of a hand-written filter",
+          "the data does not reach an interpreter or parser"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1289": "the check is on a resource identifier compared with a forbidden value rather than on escaping special characters"
+      }
+    },
+    "CWE-77": {
+      "name": "Improper Neutralization of Special Elements used in a Command ('Command Injection')",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a command for an interpreter, shell or command processor from input without neutralising characters that change the command?",
+      "present_when": {
+        "any": [
+          "input is concatenated or interpolated into a command string that is passed to a shell, interpreter, command dispatcher or management interface",
+          "input supplies option or argument strings that could start with - or contain separators the command processor interprets",
+          "a prompt or instruction string for a language model or tool is built from untrusted text that is then executed as commands"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the command and its arguments are passed as a list to an API that does not use a shell, and input is restricted to an allow list",
+          "only constant command strings are used",
+          "input is quoted with a correct, context-specific escaping function before inclusion"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the command is specifically an operating system shell command",
+        "CWE-88": "input is passed as a separate argument but can inject extra options or arguments"
+      }
+    },
+    "CWE-78": {
+      "name": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-77"
+      ],
+      "function_checkable": true,
+      "question": "Does this function run an operating system command built from input in a way that lets shell metacharacters change what is executed?",
+      "present_when": {
+        "any": [
+          "a command string built with concatenation or formatting from parameters or input is run through a shell"
+        ],
+        "c": [
+          "system, popen or execl of /bin/sh -c is called with a string assembled using sprintf, strcat or similar from input"
+        ],
+        "cpp": [
+          "std::system or popen is called with a std::string assembled with +, std::format or std::ostringstream from input, passed as .c_str()"
+        ],
+        "python": [
+          "os.system, os.popen, or subprocess with shell=True is called with an f-string, format or concatenation including input"
+        ],
+        "javascript": [
+          "child_process.exec or execSync is called with a template string or concatenation including input, or spawn with shell: true"
+        ],
+        "rust": [
+          "Command::new(\"sh\") with an argument \"-c\" and a string built with format! from input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the program and arguments are passed as an array to an API that does not invoke a shell, such as execve, subprocess without shell, spawn or Command with separate args",
+          "the command string is a constant, or input is mapped to one of a fixed set of values",
+          "input is escaped with a correct shell quoting function, such as shlex.quote, before inclusion"
+        ],
+        "cpp": [
+          "execvp or posix_spawn receives an argv array built from separate std::string arguments"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-88": "no shell is involved but input can add options or arguments to the program",
+        "CWE-77": "the command goes to a non-OS interpreter or command processor"
+      }
+    },
+    "CWE-79": {
+      "name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put user-controlled data into HTML or page script without escaping it for that context?",
+      "present_when": {
+        "any": [
+          "request parameters, stored user data or other input is concatenated into HTML markup that is returned or rendered",
+          "the response is HTML but the input is written raw, or escaping is switched off for that value"
+        ],
+        "javascript": [
+          "innerHTML, outerHTML, insertAdjacentHTML, document.write or res.send of an HTML string receives input",
+          "dangerouslySetInnerHTML, v-html or a template's unescaped output syntax renders input"
+        ],
+        "typescript": [
+          "a DTO field typed string is treated as safe and interpolated into an HTML template literal or res.send; the type does not limit which characters it holds"
+        ],
+        "tsx": [
+          "dangerouslySetInnerHTML={{ __html: value }} where value comes from props, state, a URL or fetched data with no sanitiser",
+          "a ref's current.innerHTML or insertAdjacentHTML is written with such data inside an effect or handler"
+        ],
+        "python": [
+          "a Response, HttpResponse or f-string HTML body includes input, or mark_safe, Markup or |safe wraps input"
+        ],
+        "c": [
+          "printf or a write to the HTTP response emits HTML that contains a request value unescaped"
+        ],
+        "rust": [
+          "format! builds an HTML body containing input, or a template marks the value as safe or raw"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value passes through an HTML escaping function, or an auto-escaping template, right before output",
+          "the input is set with textContent, createTextNode or a framework's normal text binding",
+          "the response content type is not HTML, such as JSON or plain text"
+        ],
+        "tsx": [
+          "the value is rendered as a JSX child such as <p>{value}</p>, which React escapes",
+          "the __html value passes through DOMPurify.sanitize or another maintained sanitiser first"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-80": "the only issue is that < > & are not escaped in ordinary element content",
+        "CWE-83": "the input lands inside an event handler, style or href attribute value",
+        "CWE-1336": "the input is fed to a template engine as template source rather than as data"
+      }
+    },
+    "CWE-80": {
+      "name": "Improper Neutralization of Script-Related HTML Tags in a Web Page (Basic XSS)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function emit user input into HTML element content without escaping <, > and & so that script tags could be injected?",
+      "present_when": {
+        "any": [
+          "input is placed between HTML tags in generated markup with no escaping of angle brackets and ampersands",
+          "a filter strips or blocks only a literal '<script>' string while other tags such as <img> or <svg> pass through"
+        ],
+        "javascript": [
+          "innerHTML, document.write or an HTML string response includes input unescaped"
+        ],
+        "tsx": [
+          "props or state text reaches dangerouslySetInnerHTML or ref.current.innerHTML without escaping"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is HTML-escaped, or rendered via an auto-escaping template or text-node API",
+          "the output is not HTML, such as JSON or plain text with a matching content type"
+        ],
+        "tsx": [
+          "the text is rendered as a JSX expression child {text} or assigned to textContent, both of which escape markup"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-83": "the input lands inside a tag attribute such as onclick, href or style",
+        "CWE-81": "the input is echoed specifically into an error page or error message"
+      }
+    },
+    "CWE-81": {
+      "name": "Improper Neutralization of Script in an Error Message Web Page",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build an error page or error message for the browser that echoes user input without HTML escaping?",
+      "present_when": {
+        "any": [
+          "an error handler, 404 page or exception message returned as HTML includes the request path, parameter or other input unescaped",
+          "an exception's message text, which may contain input, is written into an HTML response"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the echoed value is HTML-escaped or rendered via an auto-escaping template",
+          "the error response is generic and contains no input, or is served as plain text or JSON"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-80": "the unescaped input appears in an ordinary page rather than an error response",
+        "CWE-209": "the problem is revealing internal details in the error, not injecting script"
+      }
+    },
+    "CWE-82": {
+      "name": "Improper Neutralization of Script in Attributes of IMG Tags in a Web Page",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-83"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put user input into an attribute of an <img> tag, such as src, without stopping script URIs or event handlers?",
+      "present_when": {
+        "any": [
+          "an <img> tag is built with src taken from input and no check that the URL scheme is http or https",
+          "input can close the src value and add attributes such as onerror to an <img> element"
+        ],
+        "javascript": [
+          "img.src, setAttribute('src', ...) or an image JSX/template binding uses input with no scheme check"
+        ],
+        "tsx": [
+          "an <img src={value}> or <img {...props}> where value or props come from input, with no scheme or host check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the image URL is validated against an allowed scheme or host before use",
+          "the src value is attribute-escaped in a quoted attribute, or is a constant or server-generated path"
+        ],
+        "tsx": [
+          "the src is a bundled import, a fixed path or a URL limited to https: on a known image host"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-83": "the attribute belongs to a tag other than <img>"
+      }
+    },
+    "CWE-83": {
+      "name": "Improper Neutralization of Script in Attributes in a Web Page",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function place user input inside an HTML attribute, such as an event handler, style or URL attribute, without blocking script there?",
+      "present_when": {
+        "any": [
+          "input is written into onclick, onload, onerror, onmouseover or another on* attribute value",
+          "input becomes an href, src, action or style value without rejecting javascript:, data: or expression() content",
+          "the attribute value is unquoted, or quotes in the input are not escaped, so the input can close it and add attributes"
+        ],
+        "javascript": [
+          "setAttribute or a JSX/template binding assigns input to an on* attribute or to href/src without a scheme check"
+        ],
+        "tsx": [
+          "a JSX href, src, action or formAction is bound to a prop, state or URL parameter with no scheme check, so a javascript: URL can run (React before 19 only warns)",
+          "an object from input is spread onto an element ({...attrs}), letting it set href, style or dangerouslySetInnerHTML"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the URL is parsed and its scheme checked against an allow-list such as http and https before use",
+          "input is attribute-escaped and placed in a quoted attribute that is not an event handler or style",
+          "the attribute values are constants"
+        ],
+        "tsx": [
+          "the URL is parsed with new URL() and only http: or https: is accepted before it reaches the attribute",
+          "input reaches only plain text attributes such as title, alt or aria-label, whose values React escapes"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-82": "the input is specifically the src or another attribute of an <img> tag",
+        "CWE-80": "the input lands in element content rather than an attribute"
+      }
+    },
+    "CWE-84": {
+      "name": "Improper Neutralization of Encoded URI Schemes in a Web Page",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter dangerous URI schemes such as javascript: from input but miss encoded forms of them?",
+      "present_when": {
+        "any": [
+          "a check for 'javascript:' or similar runs on the raw string, before HTML entity, percent or Unicode decoding happens downstream",
+          "the scheme check is case-sensitive or does not strip embedded whitespace and control characters"
+        ],
+        "tsx": [
+          "an href prop is screened with a raw string test such as url.startsWith('javascript:'), missing upper-case, whitespace, tab or entity variants"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the URL is fully decoded and parsed with a URL parser, then its scheme compared against an allow-list",
+          "the function does not filter or emit URIs taken from input"
+        ],
+        "tsx": [
+          "the href is parsed with new URL(value, base) and its protocol compared with an allow-list of http: and https:"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-83": "there is no scheme filter at all and the raw input goes into the attribute",
+        "CWE-177": "the encoding issue concerns URL decoding in general rather than script schemes in a page"
+      }
+    },
+    "CWE-85": {
+      "name": "Doubled Character XSS Manipulations",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function remove dangerous script text from input in a single pass, so that doubled or nested characters re-form it?",
+      "present_when": {
+        "any": [
+          "a replace or regex substitution deletes '<script', '<' or 'javascript:' once, so input like '<scr<scriptipt>' rebuilds the token",
+          "removed characters are not re-checked after removal, leaving doubled characters such as '<<' to form a tag"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the output is HTML-escaped rather than having tokens removed",
+          "the removal is repeated until the string stops changing, or input containing the token is rejected"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-793": "the removal handles only the first occurrence, not nested reconstruction",
+        "CWE-182": "the filtering collapses input into an unsafe value outside an HTML context"
+      }
+    },
+    "CWE-86": {
+      "name": "Improper Neutralization of Invalid Characters in Identifiers in Web Pages",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check tag names, attribute names or URI schemes in input without first removing invalid or control characters inside them?",
+      "present_when": {
+        "any": [
+          "a blocklist compares tag or scheme names such as 'script' or 'javascript' but does not strip NUL, tab, newline or other control bytes inside the name",
+          "the browser or parser downstream would ignore characters that this function's comparison treats as significant"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is rejected when it contains control or invalid characters, or is normalised before comparison",
+          "the output is HTML-escaped so names in input are never interpreted as markup"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-84": "the filter is fooled by encoded characters rather than invalid ones inserted into the name",
+        "CWE-158": "the problem is a NUL byte truncating data, not a markup name check"
+      }
+    },
+    "CWE-87": {
+      "name": "Improper Neutralization of Alternate XSS Syntax",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-79"
+      ],
+      "function_checkable": true,
+      "question": "Does this function try to block script in input with a blocklist that misses other ways to run script, such as other tags, events or syntax?",
+      "present_when": {
+        "any": [
+          "a filter blocks only a few forms such as '<script>' or 'javascript:' and lets <svg>, <iframe>, other on* handlers or data: URIs through",
+          "the filter is case-sensitive or assumes a fixed spacing or quoting style"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all output is HTML-escaped for its context instead of filtered",
+          "a maintained HTML sanitiser with an allow-list of tags and attributes processes the input"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-85": "the filter is beaten by doubled or nested characters",
+        "CWE-84": "the filter is beaten by encoded forms of the blocked text"
+      }
+    },
+    "CWE-88": {
+      "name": "Improper Neutralization of Argument Delimiters in a Command ('Argument Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-77"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a command line for another program from input such that the input could add extra arguments, options or switches?",
+      "present_when": {
+        "any": [
+          "input is concatenated or interpolated into a command string that is later split on spaces into arguments",
+          "an input value is passed as its own argument where a leading '-' or '--' would be read as an option, with no '--' separator before it"
+        ],
+        "c": [
+          "a command string for system, popen or an exec wrapper is assembled with sprintf or strcat from input"
+        ],
+        "javascript": [
+          "child_process exec or a spawn args array is built from input split on whitespace, or input can start with '-'"
+        ],
+        "python": [
+          "subprocess or os.system receives a string built from input, or shlex.split runs over a string that contains input"
+        ],
+        "rust": [
+          "Command::new(...).args(input.split_whitespace()) or arg(input) where input may begin with '-'"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each input value is passed as one element of an argument vector after a '--' end-of-options marker",
+          "the input is checked against a strict allow-list or rejected when it begins with '-'",
+          "the command and all arguments are constants"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "input can inject shell metacharacters such as ;, | or backticks that start a separate command",
+        "CWE-1427": "the input is placed into a prompt for a language model, not a command line"
+      }
+    },
+    "CWE-89": {
+      "name": "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-943"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build an SQL statement by inserting input into the SQL text instead of binding it as a parameter?",
+      "present_when": {
+        "any": [
+          "SQL text is built with concatenation, format, interpolation or template literals that include input",
+          "a table name, column name or ORDER BY clause is taken from input without an allow-list"
+        ],
+        "c": [
+          "sprintf or strcat builds the SQL passed to sqlite3_exec, sqlite3_prepare or mysql_query"
+        ],
+        "cpp": [
+          "SQL is assembled with std::string +, std::ostringstream << or std::format from input and run through sqlite3_exec or a C++ client's exec()"
+        ],
+        "python": [
+          "cursor.execute(f\"...{x}\"), execute('...' % x) or execute('...'.format(x)), or text()/raw() with input"
+        ],
+        "javascript": [
+          "query or raw called with a template literal or + concatenation containing input"
+        ],
+        "typescript": [
+          "a Prisma $queryRawUnsafe or $executeRawUnsafe, or a TypeORM where() or query() string, built with a template literal or + containing input"
+        ],
+        "rust": [
+          "format! builds SQL passed to execute or query instead of using bind parameters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the statement uses placeholders such as ?, $1 or :name with input passed as separate parameters",
+          "an ORM or query builder adds the values as bound parameters",
+          "dynamic identifiers come only from a fixed allow-list, and the rest of the SQL is constant"
+        ],
+        "typescript": [
+          "a Prisma $queryRaw used as a tagged template, which binds each interpolation, or TypeORM where('id = :id', { id }) with named parameters"
+        ],
+        "cpp": [
+          "values are bound through the C++ client, for example SOCI use() or libpqxx parameterised exec, and the SQL text is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-564": "the injection is through an ORM's HQL or similar query language",
+        "CWE-943": "the store is not SQL, such as a NoSQL filter object"
+      }
+    },
+    "CWE-90": {
+      "name": "Improper Neutralization of Special Elements used in an LDAP Query ('LDAP Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-943"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build an LDAP filter or distinguished name from input without escaping LDAP special characters?",
+      "present_when": {
+        "any": [
+          "an LDAP search filter such as (uid=...) is built by concatenating or formatting input",
+          "input with *, (, ), \\ or NUL in a filter, or , + \" \\ < > ; in a DN, is not escaped"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value passes through an LDAP filter or DN escaping function before insertion",
+          "input is checked against a strict pattern, such as alphanumerics only, or the filter is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-89": "the query is SQL",
+        "CWE-943": "the data store is neither LDAP nor a more specific query language"
+      }
+    },
+    "CWE-91": {
+      "name": "XML Injection (aka Blind XPath Injection)",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function insert untrusted input into an XML document or XML string without escaping XML special characters?",
+      "present_when": {
+        "any": [
+          "an XML document is built by string concatenation, format or templates that include input",
+          "input containing < > & ' \" could open tags, close elements or add attributes in the produced XML"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the XML is built with a DOM or XML writer API that escapes text and attribute values",
+          "the input passes through an XML escaping function before insertion, or is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-643": "the input is placed in an XPath query expression",
+        "CWE-652": "the input is placed in an XQuery expression",
+        "CWE-611": "the issue is a parser resolving external entities"
+      }
+    },
+    "CWE-93": {
+      "name": "Improper Neutralization of CRLF Sequences ('CRLF Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write input into a line- or record-based output without removing carriage return and line feed characters?",
+      "present_when": {
+        "any": [
+          "input is joined into a protocol line, mail header, log record or text record that is separated by CR or LF",
+          "input containing \\r or \\n could start a new line, header or record in the output"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "CR and LF are stripped, encoded or cause rejection before the value is written",
+          "the library used to write the field rejects or encodes newlines, or the value is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-113": "the CR or LF ends up in an HTTP request or response header",
+        "CWE-117": "the output is a log entry"
+      }
+    },
+    "CWE-94": {
+      "name": "Improper Control of Generation of Code ('Code Injection')",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build program code from input and then execute or compile it?",
+      "present_when": {
+        "any": [
+          "input is concatenated into source text that is then executed, compiled or loaded"
+        ],
+        "javascript": [
+          "eval, new Function, setTimeout or setInterval with a string, or vm.runInContext receives text that includes input"
+        ],
+        "python": [
+          "eval, exec, compile or importlib/__import__ receives text or a module name built from input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the evaluated code is a constant or comes only from trusted configuration",
+          "input is parsed as data, for example with JSON.parse or ast.literal_eval, rather than run as code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-95": "the input reaches a runtime eval-style call directly",
+        "CWE-96": "the input is written into a file or resource that will later be executed",
+        "CWE-1336": "the input is template source handed to a template engine"
+      }
+    },
+    "CWE-95": {
+      "name": "Improper Neutralization of Directives in Dynamically Evaluated Code ('Eval Injection')",
+      "abstraction": "Variant",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-94"
+      ],
+      "requires": [
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input, or a string containing input, to a dynamic evaluation call such as eval?",
+      "present_when": {
+        "javascript": [
+          "eval, new Function, setTimeout or setInterval with a string argument, or vm.runIn* receives text that includes input"
+        ],
+        "python": [
+          "eval, exec or compile receives a string that includes input, even with restricted globals"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the evaluated string is a constant or built only from trusted values",
+          "input is parsed as data instead of evaluated"
+        ],
+        "javascript": [
+          "JSON.parse or a dedicated expression parser handles the input"
+        ],
+        "python": [
+          "ast.literal_eval, json.loads or int/float conversion handles the input"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-96": "the input is saved into a file or resource that is executed later",
+        "CWE-1336": "the input reaches a template engine as template source"
+      }
+    },
+    "CWE-96": {
+      "name": "Improper Neutralization of Directives in Statically Saved Code ('Static Code Injection')",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-94"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write input into a file or resource that will later be run as code, such as a script, module or executable configuration?",
+      "present_when": {
+        "any": [
+          "input is written into a .py, .js, .php, .html with server directives, or other file that is later imported, included or executed",
+          "a configuration file in an executable format, such as a Python or JavaScript settings module, is generated with input inside it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the generated file is data only, such as JSON, CSV or plain text, and is parsed rather than executed",
+          "input is escaped for the target language's string literal syntax, or validated against a strict pattern, before writing"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-95": "the input is evaluated immediately by eval or a similar call",
+        "CWE-97": "the input lands in a web page as a server-side include directive"
+      }
+    },
+    "CWE-97": {
+      "name": "Improper Neutralization of Server-Side Includes (SSI) Within a Web Page",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-96"
+      ],
+      "requires": [
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write input into a web page or file that the server processes for server-side include directives, without neutralising them?",
+      "present_when": {
+        "any": [
+          "input is written into an .shtml or other SSI-processed file or response",
+          "input containing '<!--#' such as <!--#exec or <!--#include is not escaped or rejected before output"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the output is HTML-escaped so '<' and '!' sequences cannot form a directive",
+          "the content is not processed for server-side includes, or the value is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-79": "the injected content runs as script in the browser rather than as a server directive"
+      }
+    },
+    "CWE-99": {
+      "name": "Improper Control of Resource Identifiers ('Resource Injection')",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use input to name or select a resource, such as a file, port, class, table or URL, without restricting which ones it may pick?",
+      "present_when": {
+        "any": [
+          "an identifier from input chooses a file, socket, port, database, class, module or variable that is then opened or used",
+          "the identifier is used as given with no allow-list, prefix check or mapping to known values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the input is mapped through a fixed table or allow-list of permitted resources",
+          "the identifier is constant or generated by the program"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input is a file path that can escape a directory with '..' or absolute paths",
+        "CWE-641": "the issue is an unrestricted file or resource name built from input",
+        "CWE-914": "input chooses which program variable or attribute is read or written"
+      }
+    },
+    "CWE-112": {
+      "name": "Missing XML Validation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1286"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse and use untrusted XML without validating it against a schema or DTD?",
+      "present_when": {
+        "any": [
+          "an XML document from a request, file or peer is parsed and elements or attributes are read directly with no schema validation",
+          "a schema is available but validation is disabled or its result is ignored",
+          "the code assumes required elements exist and have the expected type after parsing"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the document is validated against an XSD, DTD or RelaxNG schema, and invalid documents are rejected before use",
+          "each element and value read is explicitly checked for presence, type and range",
+          "the XML is generated internally and never comes from an untrusted source"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-611": "the parser resolves external entities, which is a different hazard from missing validation"
+      }
+    },
+    "CWE-113": {
+      "name": "Improper Neutralization of CRLF Sequences in HTTP Headers ('HTTP Request/Response Splitting')",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-93"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put input into an HTTP header name or value without removing CR and LF characters?",
+      "present_when": {
+        "any": [
+          "a response or request header, cookie or redirect Location is set from input with no check for \\r or \\n",
+          "raw HTTP header text is assembled by concatenation that includes input"
+        ],
+        "javascript": [
+          "res.setHeader, res.writeHead, res.redirect or a raw socket write includes input"
+        ],
+        "python": [
+          "headers[...] assignment, set_cookie or a redirect URL uses input on a server that does not reject newlines"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "CR and LF are rejected or encoded before the value is used",
+          "the framework or HTTP library used rejects header values containing newlines",
+          "the header value is constant or generated internally"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-93": "the CR or LF lands in a non-HTTP line-based format",
+        "CWE-601": "the issue is an unvalidated redirect target, not header splitting"
+      }
+    },
+    "CWE-116": {
+      "name": "Improper Encoding or Escaping of Output",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "interpreter_output",
+        "network",
+        "parsing"
+      ],
+      "function_checkable": true,
+      "question": "Does this function produce structured output for another component, such as HTML, SQL, a URL, JSON, a log line or a command, without encoding or escaping embedded data correctly?",
+      "present_when": {
+        "any": [
+          "data is concatenated into a structured string format without the escaping that format needs",
+          "the wrong escaping routine is used, for example HTML escaping for a URL or JavaScript context, or escaping is applied twice or in the wrong order",
+          "a hand-written escape function handles only some special characters, such as quotes but not backslashes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the output is produced by a serialiser or builder API for that format, such as a JSON encoder, URL builder or parameterised query",
+          "each value passes through the escaping function matching its exact output context",
+          "the embedded values are constants or numbers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-117": "the output is a log entry",
+        "CWE-838": "escaping is done but uses a character encoding the receiver does not expect",
+        "CWE-79": "the output is a web page and the missing escaping lets script run"
+      }
+    },
+    "CWE-117": {
+      "name": "Improper Output Neutralization for Logs",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-116"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write input into a log message without neutralising newlines or other characters that could forge or corrupt log entries?",
+      "present_when": {
+        "any": [
+          "a request value, user name, header or other input is passed to a logger or written to a log file as part of the message",
+          "the input is not stripped of CR, LF or terminal control characters, and the log format is line-based"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "CR, LF and control characters are removed or encoded before logging",
+          "the logger writes structured records such as JSON that encode the value as a field",
+          "the logged values are constants, numbers or internal identifiers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-532": "the problem is sensitive data being written to the log, not forged entries",
+        "CWE-93": "the CRLF lands in a non-log line-based output"
+      }
+    },
+    "CWE-129": {
+      "name": "Improper Validation of Array Index",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1285"
+      ],
+      "function_checkable": true,
+      "question": "Does this function index an array with a value from input or a calculation without checking it is within the array's bounds?",
+      "present_when": {
+        "any": [
+          "an index from a parameter, input field or arithmetic is used in array[index] without testing it against the array length",
+          "only the upper bound is tested on a signed index, so negative values pass",
+          "the bound check compares with the wrong length, such as a capacity rather than the number of valid elements"
+        ],
+        "python": [
+          "a negative index from input silently reads from the end of a list where that is not intended"
+        ],
+        "javascript": [
+          "an index from input is used to read or write an array or object property, including __proto__ through bracket access"
+        ],
+        "typescript": [
+          "arr[i] with i from input is used as T, since without noUncheckedIndexedAccess the compiler types an out-of-range read as T rather than undefined"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the index is tested with 0 <= index < length before every access",
+          "the index is a constant or comes from iterating over the array itself"
+        ],
+        "typescript": [
+          "the element is read with .at(i) or under noUncheckedIndexedAccess and its T | undefined result is checked before use"
+        ],
+        "rust": [
+          "safe indexing or get(), which is bounds-checked, unless the panic itself is the concern"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-125": "the out-of-range read itself is shown rather than the missing index validation",
+        "CWE-787": "the out-of-range write itself is shown rather than the missing index validation"
+      }
+    },
+    "CWE-130": {
+      "name": "Improper Handling of Length Parameter Inconsistency",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-240"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust a length field taken from input without checking it against the amount of data actually received or the buffer size?",
+      "present_when": {
+        "any": [
+          "a length, size or count read from a message header is used to copy, read or allocate without comparing it with the bytes available",
+          "an offset plus a length from input is used to slice or read without checking it stays within the received data"
+        ],
+        "c": [
+          "memcpy(dst, src, hdr->len) or a read loop driven by a length field with no check against the buffer or bytes received"
+        ],
+        "cpp": [
+          "a length field from the header drives std::copy_n, std::string::assign(ptr, len) or memcpy into data() without comparing it with the received size()"
+        ],
+        "rust": [
+          "a length field drives slice::from_raw_parts, get_unchecked or a raw copy inside unsafe without validation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the length field is checked to be no larger than both the remaining input and the destination before use",
+          "the actual received length is used instead of the declared one"
+        ],
+        "python": [
+          "only slicing is used, which clamps rather than reading outside memory, and no logic relies on the declared length"
+        ],
+        "javascript": [
+          "only typed array subarray or slice is used, which clamps, and no logic relies on the declared length"
+        ],
+        "rust": [
+          "safe slicing or get() with the length field, which panics or returns None rather than overrunning"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-125": "the code shows an out-of-bounds read whose index is not tied to a length field",
+        "CWE-805": "the length used for a buffer operation is wrong but does not come from an input length field"
+      }
+    },
+    "CWE-138": {
+      "name": "Improper Neutralization of Special Elements",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "interpreter_output",
+        "parsing",
+        "external_input",
+        "filesystem"
+      ],
+      "function_checkable": true,
+      "question": "Does the function pass input to a parser, interpreter, protocol or format where delimiters, quotes, escapes, wildcards, NUL bytes or other control characters have special meaning?",
+      "present_when": {
+        "any": [
+          "input is concatenated into strings with syntax, such as commands, paths, queries, records, headers or expressions",
+          "the function filters, strips, splits or escapes special characters such as quotes, separators, newlines, NUL, '*' or '..'",
+          "input is parsed by looking for delimiters, leading or trailing markers, or paired brackets",
+          "values are written into structures that use a sentinel or terminator to mark the end"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function only performs arithmetic or manipulates data that never reaches a parser or downstream component",
+          "all values are passed through typed APIs, such as bound parameters or argument vectors, with no string assembly"
+        ]
+      }
+    },
+    "CWE-140": {
+      "name": "Improper Neutralization of Delimiters",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function embed input into delimited data, such as fields, arguments, records or lines, without escaping or rejecting the delimiter characters?",
+      "present_when": {
+        "any": [
+          "input is joined with a separator such as ',', ';', '|', ':', '&', '=' or newline and the input itself may contain that separator",
+          "a later split on the delimiter would yield extra or shifted fields when input contains it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the delimiter is escaped or quoted in each value, or values containing it are rejected",
+          "a serialiser for the format, such as a CSV writer or URL encoder, builds the output"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-141": "the delimiter separates parameters or arguments",
+        "CWE-143": "the delimiter separates records",
+        "CWE-144": "the delimiter is a line break"
+      }
+    },
+    "CWE-141": {
+      "name": "Improper Neutralization of Parameter/Argument Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-140"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put input into a parameter or argument list where a separator character in the input could create extra parameters?",
+      "present_when": {
+        "any": [
+          "a query string, form body, argument string or key=value list is built by concatenation and input is not encoded",
+          "input containing '&', '=', ';', ',' or spaces could add or override parameters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "values are encoded with a URL or form encoder, or passed through a parameter-building API",
+          "the parameter separator is rejected in input, or the values are constants"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-88": "the parameter list is the command line of another program",
+        "CWE-142": "the separator divides a value into parts rather than separating parameters"
+      }
+    },
+    "CWE-142": {
+      "name": "Improper Neutralization of Value Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-140"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put input into a field whose value is later split by a delimiter, without escaping that delimiter in the input?",
+      "present_when": {
+        "any": [
+          "a multi-part value, such as a list joined with ',' or ':', or a name=value pair, is built from input",
+          "a consumer splits the stored value on a delimiter that input may contain, altering the parts it sees"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "values are escaped or rejected when they contain the delimiter",
+          "a structured format such as JSON or a list type stores the parts separately"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-141": "the delimiter separates whole parameters or arguments",
+        "CWE-143": "the delimiter separates whole records"
+      }
+    },
+    "CWE-143": {
+      "name": "Improper Neutralization of Record Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-140"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write input into a record-based output, such as a CSV row or a flat file entry, without neutralising the record separator?",
+      "present_when": {
+        "any": [
+          "rows or entries are written with a separator, typically a newline or a custom character, and input is written raw into a field",
+          "input containing the record separator could end the current record and start a forged one"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a CSV or format library writes the record and quotes fields that contain separators",
+          "the record separator is stripped from or rejected in input"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1236": "the problem is a cell starting with a formula character",
+        "CWE-117": "the record is a log entry"
+      }
+    },
+    "CWE-144": {
+      "name": "Improper Neutralization of Line Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-140"
+      ],
+      "function_checkable": true,
+      "question": "Does this function insert input into line-oriented output where a newline in the input would start a new line that the reader trusts?",
+      "present_when": {
+        "any": [
+          "input is written into a line-based file, protocol message or configuration without removing \\n or \\r",
+          "the consumer treats each line as a separate command, entry or setting"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "newlines are stripped, encoded or rejected before the value is written",
+          "the output format encodes values, for example JSON strings, so newlines cannot break lines"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-93": "the line break is specifically a CRLF in a protocol",
+        "CWE-117": "the output is a log entry",
+        "CWE-113": "the line break lands in an HTTP header"
+      }
+    },
+    "CWE-145": {
+      "name": "Improper Neutralization of Section Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-140"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write input into a sectioned format, such as an INI file, multipart body or email, without neutralising section markers or boundaries?",
+      "present_when": {
+        "any": [
+          "input is written into an INI-style file where a line like '[name]' would open a new section",
+          "input goes into a multipart or MIME body and could contain the boundary string"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a library for the format writes the value and escapes or rejects section markers",
+          "the boundary is random and checked not to occur in the content, or input is validated against a strict pattern"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-144": "the problem is any line break rather than a section marker"
+      }
+    },
+    "CWE-146": {
+      "name": "Improper Neutralization of Expression/Command Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-140"
+      ],
+      "function_checkable": true,
+      "question": "Does this function insert input into an expression or command string where a statement separator in the input could end it and start another?",
+      "present_when": {
+        "any": [
+          "input is concatenated into a command, script or expression where ';', '&&', '|', newline or a closing bracket ends the current statement",
+          "the result is passed to an interpreter, shell, database or expression evaluator"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is passed as a bound parameter or separate argument, not embedded in the text",
+          "separator characters are rejected, or input matches a strict allow-list"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the string is a shell command",
+        "CWE-89": "the string is an SQL statement",
+        "CWE-95": "the string is passed to eval"
+      }
+    },
+    "CWE-147": {
+      "name": "Improper Neutralization of Input Terminators",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input to a protocol or parser where a terminator sequence in the input could end the data early?",
+      "present_when": {
+        "any": [
+          "input is sent in a protocol where a line containing only '.', a blank line or a fixed end marker ends the message",
+          "input is placed in a heredoc, length-free block or stream that stops at a terminator the input may contain"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the terminator is escaped in input, such as SMTP dot-stuffing, or input containing it is rejected",
+          "data is framed by an explicit length rather than a terminator"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-158": "the terminator is a NUL byte",
+        "CWE-144": "the problem is an ordinary line break"
+      }
+    },
+    "CWE-148": {
+      "name": "Improper Neutralization of Input Leaders",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse input that should start with a leading marker, without handling a missing, malformed or repeated leader?",
+      "present_when": {
+        "any": [
+          "code skips a prefix, such as a sign, '/', '0x' or a protocol tag, by advancing a fixed number of characters without checking it is there",
+          "only one leading marker is removed or checked when the input may contain several, or none"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the leader is verified before it is skipped, and input without it is rejected",
+          "a full parser or regular expression anchored at the start validates the whole input"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-160": "the problem is a leading character that the downstream component interprets specially",
+        "CWE-161": "several leading special elements in a row slip through"
+      }
+    },
+    "CWE-149": {
+      "name": "Improper Neutralization of Quoting Syntax",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function place input inside quoted text, or parse quoted input, without handling quote characters in the input correctly?",
+      "present_when": {
+        "any": [
+          "input is wrapped in single or double quotes in a command, query, CSV field or expression without escaping quotes inside it",
+          "a parser assumes quotes are balanced and mis-handles an unmatched, doubled or escaped quote"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "quotes in input are escaped for the target syntax, or input containing them is rejected",
+          "a library quoting function, such as shlex.quote or a CSV writer, or a bound parameter API is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-89": "the quoted string is part of an SQL statement",
+        "CWE-157": "the unbalanced elements are brackets or braces rather than quotes"
+      }
+    },
+    "CWE-150": {
+      "name": "Improper Neutralization of Escape, Meta, or Control Sequences",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input to a terminal, parser or format where escape sequences or control characters in it would be interpreted?",
+      "present_when": {
+        "any": [
+          "input is written to a terminal or console without removing ANSI escape sequences or other control bytes",
+          "input containing backslash escapes or metacharacters is passed into a format that interprets them, such as a regex, printf-style or shell string",
+          "an escape routine fails to escape the escape character itself, such as a backslash"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "control characters are stripped or replaced and escape characters are themselves escaped",
+          "the value is passed as literal data through an API that does not interpret escapes, or is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-117": "the control characters forge entries in a log",
+        "CWE-134": "the input is used as a printf format string",
+        "CWE-158": "the control character is a NUL byte"
+      }
+    },
+    "CWE-151": {
+      "name": "Improper Neutralization of Comment Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function embed input into code, queries, markup or configuration where comment markers in the input could hide the rest of the line?",
+      "present_when": {
+        "any": [
+          "input is concatenated into SQL, HTML, scripts, configuration or other text that supports comments such as '--', '#', '/*' or '<!--'",
+          "comment markers in input are not escaped or rejected before the text is interpreted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is passed as a bound parameter or escaped for the target syntax",
+          "comment markers are rejected, or the input matches a strict allow-list"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-89": "the comment marker truncates an SQL statement"
+      }
+    },
+    "CWE-152": {
+      "name": "Improper Neutralization of Macro Symbols",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input into text that is macro-expanded, without neutralising macro symbols in the input?",
+      "present_when": {
+        "any": [
+          "input is placed into text later processed by a macro or expansion engine, such as a preprocessor, m4, a build file or a mail merge",
+          "symbols such as '$(', '%', '#' or '@' that trigger expansion are not escaped in the input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "macro symbols in input are escaped or rejected before expansion",
+          "the input is substituted as literal data after expansion, or is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-153": "the symbol triggers variable or shell substitution rather than a macro",
+        "CWE-1336": "the expansion is done by a template engine"
+      }
+    },
+    "CWE-153": {
+      "name": "Improper Neutralization of Substitution Characters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input into a string that will undergo substitution, such as shell or variable expansion, without neutralising substitution characters?",
+      "present_when": {
+        "any": [
+          "input containing '$', backticks, '${...}' or '%VAR%' is placed in a string that a shell, environment expander or interpolation step later expands",
+          "input is fed to an expansion function such as os.path.expandvars, string.Template.substitute or wordexp"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "substitution characters are escaped or rejected in input",
+          "the value is used only as literal data after any substitution has already happened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the expansion leads to running an operating system command",
+        "CWE-154": "the problem is delimiting a variable name rather than triggering substitution"
+      }
+    },
+    "CWE-154": {
+      "name": "Improper Neutralization of Variable Name Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function insert input next to variable references in text that is expanded, so characters in the input could change which variable name is read?",
+      "present_when": {
+        "any": [
+          "input is concatenated directly after a '$NAME' or '%NAME' reference without braces, extending or ending the variable name",
+          "input containing '$', '{', '}' or '%' is placed into a template or shell string that resolves variable names"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "variable references are fully delimited, such as ${NAME}, and input is escaped or treated as literal",
+          "the expansion uses an explicit mapping of allowed names, or the text is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-153": "input triggers substitution itself rather than altering a variable name boundary"
+      }
+    },
+    "CWE-155": {
+      "name": "Improper Neutralization of Wildcards or Matching Symbols",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input to a matching operation, such as glob, LIKE, regex or a file pattern, without escaping wildcard characters?",
+      "present_when": {
+        "any": [
+          "input goes into a glob, fnmatch, LIKE clause, regex or search filter where '*', '?', '%', '_' or '[' act as wildcards",
+          "a pattern meant to match one exact name can match many because wildcards in input are not escaped"
+        ],
+        "python": [
+          "glob.glob, fnmatch or re.compile receives input without glob.escape or re.escape"
+        ],
+        "javascript": [
+          "new RegExp(input) or a LIKE pattern is built without escaping regex or LIKE metacharacters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the input is escaped for the matcher, such as re.escape or escaping % and _ in LIKE",
+          "exact comparison is used instead of pattern matching"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1333": "the concern is a regex that backtracks catastrophically",
+        "CWE-89": "the wildcard input breaks out of the SQL string rather than widening a LIKE match"
+      }
+    },
+    "CWE-156": {
+      "name": "Improper Neutralization of Whitespace",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let whitespace in input change how a downstream component splits or compares it?",
+      "present_when": {
+        "any": [
+          "input is placed into a space-separated command or record, so spaces, tabs or newlines create extra fields",
+          "a check compares input without trimming or normalising whitespace, while the consumer trims it, so 'admin ' passes as different from 'admin'"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "whitespace is trimmed or normalised consistently before both the check and the use",
+          "input is passed as separate argument elements or quoted fields, or whitespace in input is rejected"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-88": "the spaces add extra arguments to another program's command line",
+        "CWE-140": "the delimiter in question is not whitespace"
+      }
+    },
+    "CWE-157": {
+      "name": "Failure to Sanitize Paired Delimiters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function process or emit input containing paired delimiters, such as brackets, braces or parentheses, without handling unbalanced or nested pairs?",
+      "present_when": {
+        "any": [
+          "a parser assumes each opening bracket has a matching close and indexes or loops past the end when it does not",
+          "input with '(' ')' '[' ']' '{' '}' is inserted into an expression, filter or path where an extra closer would end the intended group"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the parser tracks depth and rejects unbalanced or overly deep input",
+          "bracket characters in input are escaped or rejected before insertion"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-149": "the unbalanced elements are quotes",
+        "CWE-90": "the brackets break out of an LDAP filter",
+        "CWE-674": "the nesting causes unbounded recursion"
+      }
+    },
+    "CWE-158": {
+      "name": "Improper Neutralization of Null Byte or NUL Character",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input that may contain a NUL byte to code that treats NUL as the end of the string, after checking the full value?",
+      "present_when": {
+        "any": [
+          "a length-counted string from input, which can contain '\\0', is checked by suffix or content and then passed to a C API or OS call that stops at the first NUL",
+          "an extension or prefix check runs on the full value while a later step sees only the part before an embedded NUL"
+        ],
+        "c": [
+          "data read with a length, such as from recv or fread, is used with strcmp, strlen, strcpy or fopen without checking for an embedded NUL"
+        ],
+        "cpp": [
+          "a std::string of received bytes, which can hold '\\0', is checked with ends_with or find and then passed by c_str() to fopen, open or a C API"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input containing a NUL byte is rejected before use",
+          "every step treats the data as length-counted bytes, with no NUL-terminated API in the path"
+        ],
+        "cpp": [
+          "s.find('\\0') != std::string::npos is rejected before c_str() is passed on"
+        ],
+        "python": [
+          "the value goes to open or os functions, which raise ValueError on embedded NUL"
+        ],
+        "rust": [
+          "the value goes through CString::new, which fails on an interior NUL, or through Path and OsStr APIs"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-170": "the defect is a missing or misplaced terminator in a buffer the function writes",
+        "CWE-147": "the terminator that cuts the data short is not a NUL byte"
+      }
+    },
+    "CWE-159": {
+      "name": "Improper Handling of Invalid Use of Special Elements",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function process input containing special characters or markers but mis-handle cases where they appear where they should not, are missing, or are repeated?",
+      "present_when": {
+        "any": [
+          "a parser or filter for structured input does not check for an absent, extra or mismatched special character before acting",
+          "special elements in user input are passed on without being filtered, quoted or rejected when their use is invalid for the format"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a complete parser or schema validator rejects malformed input before it is used",
+          "the input contains no syntax the function interprets, or is fully escaped for the destination"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-166": "an expected special element is missing",
+        "CWE-167": "an unexpected extra special element is present",
+        "CWE-168": "two or more special elements are inconsistent with each other"
+      }
+    },
+    "CWE-160": {
+      "name": "Improper Neutralization of Leading Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass input on without dealing with special characters at its start, such as '-', '/', '.', '~', '=' or whitespace, that the receiver treats specially?",
+      "present_when": {
+        "any": [
+          "input that may begin with '-', '/', '.', '~', '|' or '=' is used as a file name, argument, path or spreadsheet cell",
+          "a leading character changes meaning, such as an absolute path, an option flag, a hidden file or a formula"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "leading special characters are stripped, prefixed or rejected before use",
+          "the input is validated against a strict pattern that excludes them"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-161": "several leading special characters in a row defeat a filter that removes only one",
+        "CWE-88": "the leading '-' turns an argument into an option of another program",
+        "CWE-1236": "the leading character makes a spreadsheet cell a formula"
+      }
+    },
+    "CWE-161": {
+      "name": "Improper Neutralization of Multiple Leading Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-160"
+      ],
+      "function_checkable": true,
+      "question": "Does this function remove or check only one leading special character from input, so a run of several leading ones still gets through?",
+      "present_when": {
+        "any": [
+          "a single leading '/', '.', '-' or whitespace character is stripped with an if-check or one-off slice, not a loop",
+          "a startsWith check rejects one prefix character but input like '//', '--' or '../..' leaves another behind"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all leading special characters are removed in a loop or with lstrip/trimStart, or the input is rejected if any are present",
+          "the input is validated against a strict pattern anchored at the start"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-160": "the leading character is not handled at all"
+      }
+    },
+    "CWE-162": {
+      "name": "Improper Neutralization of Trailing Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass on input without dealing with special characters at its end, such as dots, slashes, spaces or NUL, that the receiver treats specially?",
+      "present_when": {
+        "any": [
+          "an extension or suffix check runs on input that may end in '.', '/', '\\', space or '::$DATA', which the file system or parser later drops or interprets",
+          "a trailing backslash, separator or escape character in input can join with the text that follows it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "trailing special characters are stripped or cause rejection before the check and the use",
+          "the name is normalised by the platform's canonical path function before it is compared"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-163": "several trailing special characters defeat a filter that removes only one",
+        "CWE-158": "the trailing element is a NUL byte that truncates the value"
+      }
+    },
+    "CWE-163": {
+      "name": "Improper Neutralization of Multiple Trailing Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-162"
+      ],
+      "function_checkable": true,
+      "question": "Does this function strip or check only one trailing special character from input, so several trailing ones still get through?",
+      "present_when": {
+        "any": [
+          "a single trailing '.', '/', space or separator is removed with an if-check or one slice, not a loop",
+          "an endsWith check handles one trailing character but input like 'file.php..' or 'dir//' leaves another"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all trailing special characters are removed in a loop or with rstrip/trimEnd, or the input is rejected if any are present",
+          "the value is canonicalised before it is compared"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-162": "the trailing character is not handled at all"
+      }
+    },
+    "CWE-164": {
+      "name": "Improper Neutralization of Internal Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check only the start or end of input for special characters, missing ones in the middle that the receiver will interpret?",
+      "present_when": {
+        "any": [
+          "validation looks only at a prefix or suffix, while separators, '..', quotes or control characters inside the string reach the consumer",
+          "special characters embedded inside input are not escaped before it goes into a path, query, command or format"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the whole input is matched against a strict allow-list pattern, or every special character is escaped",
+          "the value is passed through an API that treats it as literal data"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-165": "a filter removes one internal occurrence but multiple ones remain",
+        "CWE-795": "the filter only considers a particular position in the string"
+      }
+    },
+    "CWE-165": {
+      "name": "Improper Neutralization of Multiple Internal Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-164"
+      ],
+      "function_checkable": true,
+      "question": "Does this function remove or check internal special characters such that repeated or adjacent ones in the middle of input still get through?",
+      "present_when": {
+        "any": [
+          "a single replace of '../' or '//' leaves '....//' or '///' which collapses back into the special sequence",
+          "a check finds and handles one internal occurrence and stops, while later ones remain"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the replacement is repeated until no change occurs, or input containing the sequence is rejected",
+          "the value is canonicalised, such as with realpath, before checking"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-164": "internal special characters are not handled at all",
+        "CWE-793": "the filter replaces only the first occurrence anywhere in the string"
+      }
+    },
+    "CWE-166": {
+      "name": "Improper Handling of Missing Special Element",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-159"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse input that should contain a delimiter, terminator or marker, without handling the case where it is missing?",
+      "present_when": {
+        "any": [
+          "the result of a search for a separator, such as strchr, indexOf, find or split, is used without checking for not-found",
+          "a loop scans for a terminator or closing marker with no bound if it never appears"
+        ],
+        "c": [
+          "a pointer returned by strchr, strstr or memchr is dereferenced or subtracted without a NULL check"
+        ],
+        "cpp": [
+          "the result of std::string::find or find_first_of is used in substr, erase or arithmetic without comparing it with std::string::npos",
+          "an iterator from std::find or map::find is dereferenced without comparing it with end()"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every search result is checked for not-found, and the missing case returns an error",
+          "the scan is bounded by the input length"
+        ],
+        "cpp": [
+          "every find result is compared with npos or end() before use"
+        ],
+        "rust": [
+          "find or split_once returns Option and the None case is handled, not unwrapped"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-167": "the input has an extra special element rather than a missing one",
+        "CWE-476": "the visible fault is a null pointer dereference of the search result"
+      }
+    },
+    "CWE-167": {
+      "name": "Improper Handling of Additional Special Element",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-159"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse input that may contain more delimiters, markers or special characters than expected, without handling the extra ones?",
+      "present_when": {
+        "any": [
+          "input is split on a separator and only the first parts are used, ignoring or mis-assigning additional parts",
+          "a fixed-size array of fields is filled while splitting, with no check on how many separators were found",
+          "code assumes exactly one '@', '=', ':' or '.' and takes the first or last occurrence without verifying the count"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the number of parts or special characters is checked and unexpected counts are rejected",
+          "a split with an explicit maximum is used where the remainder is meant to be kept whole"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-166": "the expected special element is missing",
+        "CWE-787": "the extra fields are written past the end of a fixed array"
+      }
+    },
+    "CWE-168": {
+      "name": "Improper Handling of Inconsistent Special Elements",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-159"
+      ],
+      "function_checkable": true,
+      "question": "Does this function handle input with several related special characters or keywords that may disagree, such as mismatched quotes, tags or length markers?",
+      "present_when": {
+        "any": [
+          "an opening marker is matched with the wrong closing marker, or open and close types are not compared",
+          "two indications of the same thing, such as a declared length and a terminator, are both present and the code trusts one without checking the other"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the parser checks that paired or related markers agree and rejects inconsistent input",
+          "a complete parser for the format validates the input before use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-157": "the issue is unbalanced bracket pairs rather than mismatched kinds",
+        "CWE-130": "a declared length field disagrees with the actual data length"
+      }
+    },
+    "CWE-170": {
+      "name": "Improper Null Termination",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "memory_buffers",
+        "pointers"
+      ],
+      "function_checkable": true,
+      "question": "Can this function leave a string or array it fills without its NUL or other terminator, or put the terminator in the wrong place?",
+      "present_when": {
+        "c": [
+          "strncpy, memcpy, read, recv or fread fills a buffer to its full size and no '\\0' is written afterwards",
+          "the terminator is written at buf[len] where len may equal the buffer size, or at an index from an unchecked count",
+          "the filled buffer is then used with strlen, strcpy, printf %s or another function that expects termination"
+        ],
+        "cpp": [
+          "istream::read or readsome fills a char array that is then used as a C string without a terminator written at gcount()"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the code explicitly sets buf[size - 1] = '\\0' or buf[n] = '\\0' with n checked to be below the size",
+          "snprintf or strlcpy, which always terminate when the size is non-zero, write the buffer",
+          "the buffer is used only with length-counted operations, or is a C++ std::string"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-787": "the terminator is written past the end of the buffer",
+        "CWE-464": "a terminator or sentinel is inserted into the middle of the data",
+        "CWE-125": "the visible fault is reading past the buffer end"
+      }
+    },
+    "CWE-172": {
+      "name": "Encoding Error",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "parsing",
+        "interpreter_output",
+        "memory_buffers"
+      ],
+      "function_checkable": true,
+      "question": "Does this function encode or decode data incorrectly, or check data before decoding it, so the value used differs from the value checked?",
+      "present_when": {
+        "any": [
+          "input is validated and then decoded (URL, HTML entity, base64, Unicode or charset conversion), so the decoded value is never checked",
+          "data is decoded more than once, or with a different charset from the one it was encoded with",
+          "a hand-written encoder or decoder mishandles invalid sequences, partial escapes or multi-byte characters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is decoded and normalised exactly once, and every check runs on the final form",
+          "standard library codecs are used with strict error handling and matching charsets"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-176": "the problem concerns Unicode forms or normalisation",
+        "CWE-177": "the problem concerns percent or hex encoding",
+        "CWE-838": "the output's encoding does not match what the receiver expects"
+      }
+    },
+    "CWE-173": {
+      "name": "Improper Handling of Alternate Encoding",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-172"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check input for dangerous values in one representation while an alternate valid encoding of the same value gets through?",
+      "present_when": {
+        "any": [
+          "a blocklist compares raw input to literal strings such as '../' or '<script', while the consumer also accepts escaped, entity, overlong UTF-8 or case-variant forms",
+          "the check runs before the downstream component decodes the alternate encoding"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is decoded to a single canonical form before validation",
+          "validation is an allow-list over the canonical value, or alternate encodings are rejected"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-177": "the alternate form is specifically URL or hex encoding",
+        "CWE-176": "the alternate form is a Unicode equivalent",
+        "CWE-175": "the input mixes several encodings at once"
+      }
+    },
+    "CWE-175": {
+      "name": "Improper Handling of Mixed Encoding",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-172"
+      ],
+      "function_checkable": true,
+      "question": "Does this function handle input that may mix several encodings, decoding or checking it in a way that one encoding hides content from the check?",
+      "present_when": {
+        "any": [
+          "input can contain both percent-encoded and HTML-entity or Unicode-escaped parts, and only one kind is decoded before checking",
+          "decoding steps run in an order that lets one encoding reveal another after validation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all applicable decodings are applied until stable, then the value is validated once",
+          "input containing escape sequences of an unexpected kind is rejected"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-173": "a single alternate encoding is the problem",
+        "CWE-174": "the same encoding is decoded twice"
+      }
+    },
+    "CWE-176": {
+      "name": "Improper Handling of Unicode Encoding",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-172"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check or compare Unicode input without normalising it, or handle it as bytes so multi-byte characters are mis-processed?",
+      "present_when": {
+        "any": [
+          "a name, path or identifier is compared or blocklisted without Unicode normalisation, while a later step normalises or case-folds it",
+          "lengths, slices or truncation count bytes or UTF-16 units in multi-byte text, splitting characters"
+        ],
+        "c": [
+          "a wide or multi-byte string is converted with fixed byte-per-character assumptions, or buffer sizes use character counts instead of bytes"
+        ],
+        "cpp": [
+          "length, substr or indexing on a std::string of UTF-8 text splits multi-byte characters, or std::tolower is applied byte by byte to UTF-8"
+        ],
+        "javascript": [
+          "length or substring is used on text with surrogate pairs where code points matter"
+        ],
+        "python": [
+          "comparisons of security-relevant names skip unicodedata.normalize while another layer applies NFKC"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is normalised (for example NFC or NFKC) before both validation and use",
+          "the value is restricted to ASCII by an allow-list before processing"
+        ],
+        "rust": [
+          "text is handled as str with char or grapheme-aware operations, so slicing cannot produce invalid UTF-8"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-838": "the output's declared encoding does not match its bytes",
+        "CWE-173": "a non-Unicode alternate encoding bypasses the check"
+      }
+    },
+    "CWE-177": {
+      "name": "Improper Handling of URL Encoding (Hex Encoding)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-172"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check input that may be URL or hex encoded before decoding it, or decode it a second time after checking?",
+      "present_when": {
+        "any": [
+          "a path or parameter is checked for '../', '/' or other characters before URL decoding, so %2e%2e%2f passes",
+          "a value already decoded by the framework is decoded again, so double encoding such as %252e survives the check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is decoded exactly once and then validated and used in its decoded form",
+          "the request contains a '%' in a field where it is not allowed, and it is rejected"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-174": "the defect is decoding twice in general rather than URL encoding specifically",
+        "CWE-22": "the decoded value is a path that escapes the intended directory"
+      }
+    },
+    "CWE-182": {
+      "name": "Collapse of Data into Unsafe Value",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "interpreter_output",
+        "parsing"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter input by removing characters or sequences in a way that can turn the remaining text into the very value it was trying to block?",
+      "present_when": {
+        "any": [
+          "a single pass deletes '../', '<script>' or similar, so input like '....//' or '<scr<script>ipt>' collapses into the blocked value",
+          "characters are stripped and the result is not re-validated before use"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input containing the blocked sequence is rejected rather than modified",
+          "the filter repeats until the output is stable, or the result is validated again after filtering"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-85": "the collapse rebuilds script in an HTML context",
+        "CWE-793": "the filter simply ignores later occurrences without collapsing"
+      }
+    },
+    "CWE-228": {
+      "name": "Improper Handling of Syntactically Invalid Structure",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "parsing",
+        "external_input",
+        "network"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse or decode structured input and carry on with wrong or partial results when the input is malformed?",
+      "present_when": {
+        "any": [
+          "a parser, decoder or tokeniser loop assumes the next field, delimiter or terminator is present and reads on without checking",
+          "a parse or decode error is ignored and the partly filled result is used afterwards",
+          "fields are split on a delimiter and indexed by position without checking how many parts came back"
+        ],
+        "python": [
+          "parts = line.split(sep) followed by parts[2] or tuple unpacking with no count check or exception handling"
+        ],
+        "rust": [
+          "unwrap() or expect() on a parse result for external input, or the Err case discarded with a default that hides the error"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every parse step checks for the expected token, length or delimiter and rejects the whole input on a mismatch",
+          "a strict library parser is used and its error result stops processing",
+          "the data is a constant or produced by trusted code in the same function"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-229": "the problem is a missing, extra or undefined value inside an otherwise well-formed record",
+        "CWE-237": "the problem is an incomplete or inconsistent structural element such as a length field",
+        "CWE-241": "the problem is a value of the wrong type rather than broken syntax"
+      }
+    },
+    "CWE-229": {
+      "name": "Improper Handling of Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-228"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mishandle input values that are absent, surplus or outside the defined set, using them as if they were valid?",
+      "present_when": {
+        "any": [
+          "a looked-up field, header or key from input is used without checking it exists",
+          "more values than expected are copied or processed with no upper limit",
+          "a code or enum value from input selects behaviour with no default or error branch for unknown values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each value is checked for presence, count and allowed range before use, with rejection otherwise",
+          "unknown values fall into an explicit error or reject branch",
+          "values come from a schema validator or typed parser that has already enforced these rules"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-230": "the specific fault is an expected value that is missing",
+        "CWE-231": "the specific fault is more values arriving than the code allows for",
+        "CWE-232": "the specific fault is a value outside the set the code defines"
+      }
+    },
+    "CWE-230": {
+      "name": "Improper Handling of Missing Values",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-229"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a value from input that may be missing or empty without first checking that it is present?",
+      "present_when": {
+        "any": [
+          "a field, argument, header or map entry read from input is used directly when it may be absent or empty",
+          "an empty string or zero-length element is treated as if it held data, such as indexing its first character"
+        ],
+        "javascript": [
+          "req.query.x, req.body.x or obj[key] used in a call or property access with no undefined check"
+        ],
+        "typescript": [
+          "a non-null assertion such as req.body.name!, params.id! or query.page! is applied to input that the client may leave out",
+          "an interface or DTO marks a field required although the request can omit it, and the field is used with no runtime presence check"
+        ],
+        "python": [
+          "dict['key'] on request data inside no try block, or .get() results used without a None check"
+        ],
+        "c": [
+          "strtok or getenv results used without a NULL test, or argv[n] read without checking argc"
+        ],
+        "cpp": [
+          "std::map operator[] or json[\"key\"] reads a field that may be absent, or front(), back(), s[0] or *opt is used on a possibly empty value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "presence and non-emptiness are tested on every path before use, with an error or default otherwise",
+          "a documented default is substituted when the value is missing"
+        ],
+        "typescript": [
+          "the field is typed optional and narrowed with an undefined check, ?. or ?? default before use, with no ! assertion or any cast"
+        ],
+        "cpp": [
+          "find() or contains() is checked, and empty() or has_value() is tested before front(), [0] or *"
+        ],
+        "rust": [
+          "the value is an Option handled with match, if let, ok_or or unwrap_or rather than unwrap"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-476": "the missing value causes a null pointer dereference and that is the more precise finding",
+        "CWE-232": "the value is present but outside the defined set"
+      }
+    },
+    "CWE-231": {
+      "name": "Improper Handling of Extra Values",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-229"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept more input values than it expects and mishandle the surplus, for example by copying them past a fixed limit?",
+      "present_when": {
+        "any": [
+          "a loop stores each incoming item into a fixed-size array or table without stopping at its capacity",
+          "values after the expected count are silently processed, overwriting earlier settings or state",
+          "repeated fields or duplicate keys are accepted and the last or first one wins without the code noticing"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the item count is checked against a maximum and input with extras is rejected",
+          "storage grows dynamically and extra items are deliberately allowed",
+          "the parser enforces an exact field count"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-120": "the surplus values are copied into a buffer without a size check and the overflow is the concrete defect",
+        "CWE-235": "the extras are named parameters or arguments rather than values"
+      }
+    },
+    "CWE-232": {
+      "name": "Improper Handling of Undefined Values",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-229"
+      ],
+      "function_checkable": true,
+      "question": "Does this function act on an input value that is outside the set it defines, such as an unknown enum code, without rejecting it?",
+      "present_when": {
+        "any": [
+          "a switch or lookup on an input code has no default branch, or the default carries on as if a valid case matched",
+          "an input number is cast to an enum or used as a table index with no check that it is a defined value",
+          "a value looked up in a map returns undefined, None or a zero value that is then used as a real result"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "unknown values reach an explicit error, reject or safe default branch",
+          "the value is checked against the defined set before use"
+        ],
+        "rust": [
+          "an exhaustive match on a Rust enum, or TryFrom conversion whose Err is handled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-230": "the value is missing entirely",
+        "CWE-129": "the undefined value is used as an array index without a bounds check"
+      }
+    },
+    "CWE-233": {
+      "name": "Improper Handling of Parameters",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-228"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mishandle input parameters or arguments that are surplus, missing or unrecognised, carrying on as though they were valid?",
+      "present_when": {
+        "any": [
+          "named parameters, options or query arguments from input are processed without checking which names are allowed",
+          "required parameters are read without checking they were supplied",
+          "argument arrays are indexed by position without checking their length"
+        ],
+        "c": [
+          "argv[i] read beyond argc, or variadic arguments consumed beyond those actually passed"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "parameters are checked against an allow-list and required names, with rejection on any mismatch",
+          "a schema, argument parser or framework validator enforces the parameter set before this code runs"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-235": "the specific fault is extra or duplicate parameters",
+        "CWE-236": "the specific fault is parameter names the code does not define"
+      }
+    },
+    "CWE-235": {
+      "name": "Improper Handling of Extra Parameters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-233"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mishandle extra or repeated parameters in input, such as duplicate query keys or surplus arguments?",
+      "present_when": {
+        "any": [
+          "a parameter that may appear more than once is read in one place as the first value and elsewhere as the last or as a list",
+          "surplus arguments or fields are processed or stored without a limit or rejection"
+        ],
+        "javascript": [
+          "req.query.x used as a string when duplicate keys make it an array"
+        ],
+        "typescript": [
+          "req.query.x is cast as string or declared string in a typed query, though Express can supply string[] or a nested object for repeated keys"
+        ],
+        "python": [
+          "request.args.get('x') used for a check while request.args.getlist('x') or another lookup is used for the action"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "duplicate or surplus parameters cause rejection",
+          "the same single parsed value is used consistently for both checking and acting",
+          "a validator fixes the parameter set and types before use"
+        ],
+        "typescript": [
+          "a schema that rejects arrays parses the query, or Array.isArray or typeof narrows the value before use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-236": "the parameters are not extra copies but names the code does not define"
+      }
+    },
+    "CWE-236": {
+      "name": "Improper Handling of Undefined Parameters",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-233"
+      ],
+      "function_checkable": true,
+      "question": "Does this function act on parameter names or fields it does not define, such as passing all user-supplied keys straight into an object or query?",
+      "present_when": {
+        "any": [
+          "every key from input is copied onto an object, record or settings map without filtering to known names",
+          "an input parameter name selects a property, column or method to access"
+        ],
+        "javascript": [
+          "Object.assign(target, req.body) or spread of request data into a model"
+        ],
+        "typescript": [
+          "a body typed as a DTO or Partial<Entity> is spread or Object.assign-ed into a model, trusting the type to limit which keys arrive"
+        ],
+        "python": [
+          "Model(**request.json), setattr(obj, key, value) or update(**data) with keys from input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "keys are filtered against an explicit allow-list before use",
+          "unknown keys raise an error or are dropped",
+          "a typed schema or struct deserialiser rejects unknown fields"
+        ],
+        "typescript": [
+          "a ValidationPipe with whitelist: true or forbidNonWhitelisted, or a zod object schema that strips or rejects unknown keys, runs before the copy"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-915": "the unfiltered keys modify object attributes and mass assignment is the more precise finding",
+        "CWE-235": "the parameters are defined but appear more than once"
+      }
+    },
+    "CWE-237": {
+      "name": "Improper Handling of Structural Elements",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-228"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mishandle input structures that are incomplete or internally inconsistent, such as a truncated record or a length field that disagrees with the data?",
+      "present_when": {
+        "any": [
+          "a record, message or header is processed although the input may stop part-way through it",
+          "two related fields, such as a declared length and the actual data, are trusted without checking they agree",
+          "an opening element is assumed to have a matching close or terminator"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the code checks that the full structure is available and its fields agree before using any of it",
+          "incomplete or inconsistent structures are rejected as a whole"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-238": "the structure is incomplete rather than inconsistent",
+        "CWE-240": "the structure has fields that contradict each other",
+        "CWE-130": "a length field disagrees with the actual data size"
+      }
+    },
+    "CWE-238": {
+      "name": "Improper Handling of Incomplete Structural Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-237"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a structured input element, such as a header, record or tag, without checking that it was supplied in full?",
+      "present_when": {
+        "any": [
+          "a fixed-size header or record is read from a buffer or stream without checking enough bytes remain",
+          "a parser assumes all parts of an element are present, such as a key without its value or an open tag without its body",
+          "a short read result is ignored and the incomplete element is used"
+        ],
+        "c": [
+          "a struct is cast over received bytes without comparing the byte count with sizeof the struct"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the remaining length is checked against the element size before each read",
+          "short reads loop until complete or are rejected",
+          "the parser raises an error for any truncated element and the caller stops"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-240": "all parts are present but they contradict each other",
+        "CWE-125": "the incomplete element leads to reading past the end of the buffer"
+      }
+    },
+    "CWE-239": {
+      "name": "Failure to Handle Incomplete Element",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-237"
+      ],
+      "function_checkable": true,
+      "question": "Does this function proceed with an element that is only partly specified, for example a field missing a required part, as if it were complete?",
+      "present_when": {
+        "any": [
+          "an element with several required parts is used after only some of them are checked or parsed",
+          "a partially populated object or record from input is passed on without a completeness check",
+          "an incomplete multi-part read or message is acted on without waiting for or rejecting the remainder"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all required parts of the element are verified before it is used",
+          "incomplete elements produce an error and are discarded"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-238": "the incomplete item is a structural element such as a header or record framing",
+        "CWE-230": "a single expected value is missing rather than part of an element"
+      }
+    },
+    "CWE-240": {
+      "name": "Improper Handling of Inconsistent Structural Elements",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-237"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust two related input fields that should agree, such as a count and the items or a length and the data, without checking they match?",
+      "present_when": {
+        "any": [
+          "a declared count, size or offset from input is used while the actual data available is a different amount",
+          "a checksum, type tag or version field is trusted without checking it matches the content",
+          "two fields describing the same thing are each used in different places without a consistency check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "related fields are compared with each other and with the real data size, and mismatches are rejected",
+          "the code derives one value from the other instead of trusting both"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-130": "the inconsistent pair is specifically a length field and the actual data length",
+        "CWE-238": "a part of the structure is missing rather than contradictory"
+      }
+    },
+    "CWE-241": {
+      "name": "Improper Handling of Unexpected Data Type",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-228"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use an input value as a particular type, such as number, string or array, without checking it is that type?",
+      "present_when": {
+        "any": [
+          "an input field is passed to arithmetic, string or collection operations assuming a type it may not have",
+          "a conversion such as atoi, parseInt or int() is used and its failure result is treated as a valid value"
+        ],
+        "javascript": [
+          "a request body or JSON field is used with .length, string methods or comparisons with no typeof or Array.isArray check"
+        ],
+        "python": [
+          "json or request data is used as str, int or list with no isinstance check or exception handling"
+        ],
+        "c": [
+          "atoi or strtol result used without checking endptr or errno, so non-numeric text becomes 0"
+        ],
+        "cpp": [
+          "std::atoi, or >> extraction into a number, is used without checking the stream's fail state"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the type is checked and wrong types are rejected before use",
+          "a schema validator or typed deserialiser has already enforced the type"
+        ],
+        "cpp": [
+          "the std::from_chars result's ec and ptr are checked, or std::stoi runs in a try that catches invalid_argument and out_of_range"
+        ],
+        "rust": [
+          "serde or parse::<T>() is used and the Err case is handled"
+        ],
+        "typescript": [
+          "the value is narrowed with a runtime type guard; a type annotation alone does not count"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-843": "the code accesses a resource or object through an incompatible type, such as a bad cast or union misuse",
+        "CWE-1287": "the code validates input but fails to check its type specifically"
+      }
+    },
+    "CWE-462": {
+      "name": "Duplicate Key in Associative List (Alist)",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-694"
+      ],
+      "function_checkable": true,
+      "question": "Does this function add an entry to an associative list or key-value array without checking whether the key is already present?",
+      "present_when": {
+        "c": [
+          "a key-value pair is appended to a linked list or array of pairs with no prior search for the same key",
+          "a lookup scans the list and returns the first match, so a later duplicate is silently ignored or masks the intended entry"
+        ],
+        "cpp": [
+          "std::map::insert or emplace is called and its returned bool ignored, so a duplicate key's new value is silently dropped",
+          "key-value pairs go into a std::vector<std::pair> or std::multimap without a check for the key, and lookups take the first match"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the add function searches for the key first and updates or rejects an existing entry",
+          "the container enforces unique keys, such as std::map::insert or a hash table that replaces on collision by design"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-694": "the duplicate identifiers belong to separate resources rather than list entries"
+      }
+    },
+    "CWE-463": {
+      "name": "Deletion of Data Structure Sentinel",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "memory_buffers",
+        "pointers"
+      ],
+      "function_checkable": true,
+      "question": "Can this function overwrite or remove the sentinel that marks the end of a data structure, such as a string's terminating NUL or a list's end marker?",
+      "present_when": {
+        "c": [
+          "a write to buf[len] or buf[size] overwrites the terminating NUL of a string that is later read as a string",
+          "a copy fills the whole buffer with strncpy or memcpy, leaving no room for the terminator",
+          "a loop writes into an array up to and including the slot that holds an end marker such as a NULL or -1 entry"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "writes stop at size - 1 and the terminator or sentinel slot is set explicitly afterwards",
+          "the structure carries an explicit length and no code relies on a sentinel",
+          "snprintf or strlcpy is used, which always keep the terminator within the size given"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-170": "the string was never terminated rather than having its terminator overwritten",
+        "CWE-787": "the write goes beyond the buffer itself rather than onto the sentinel inside it"
+      }
+    },
+    "CWE-464": {
+      "name": "Addition of Data Structure Sentinel",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store a value into a data structure that could equal the sentinel or terminator marking its end, cutting it short or confusing traversal?",
+      "present_when": {
+        "c": [
+          "bytes from input are copied into a NUL-terminated string where an embedded '\\0' ends it early",
+          "a value equal to the end marker, such as NULL in a pointer array, -1 or 0 in an int list, is stored as ordinary data",
+          "a terminator is written into the middle of a buffer, for example at an index computed from input"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "values equal to the sentinel are rejected or escaped before being stored",
+          "the structure tracks its length explicitly rather than relying on a sentinel, such as std::vector or std::string size"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-170": "the terminator is missing or placed after the end rather than added inside the data",
+        "CWE-158": "an embedded NUL from input defeats a check made on the full value"
+      }
+    },
+    "CWE-606": {
+      "name": "Unchecked Input for Loop Condition",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1284"
+      ],
+      "function_checkable": true,
+      "question": "Does this function run a loop whose number of iterations is controlled by input that is not checked against a limit?",
+      "present_when": {
+        "any": [
+          "a for or while loop bound comes from a request parameter, file field or message count with no maximum check",
+          "a loop continues until a condition supplied by input, such as a terminator or depth value, with no upper limit on iterations",
+          "a range or repeat count built from input drives work, allocation or output inside the loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the bound is clamped to a fixed maximum, or validated with rejection when too large",
+          "the loop iterates over a collection already in memory whose size is limited elsewhere in this function",
+          "the bound is a constant or derived from internal state"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-834": "the loop has no reachable bound at all, regardless of input",
+        "CWE-1284": "the unchecked quantity sizes an allocation or read rather than a loop"
+      }
+    },
+    "CWE-622": {
+      "name": "Improper Validation of Function Hook Arguments",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Is this function a hook or interceptor for an API or system call that uses the caller's arguments without validating them?",
+      "present_when": {
+        "any": [
+          "a hooked system call, API detour or interposed library function dereferences pointer or buffer arguments supplied by the caller without checking them",
+          "argument lengths, handles or flags passed to the hook are trusted and used to read, write or decide policy",
+          "the hook reads a caller-supplied value once for the check and again for use"
+        ],
+        "javascript": [
+          "a monkey-patched or proxied function uses its arguments in a privileged context without checking their types or values"
+        ],
+        "python": [
+          "a wrapped or patched function used as a security hook trusts its arguments without validation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the hook copies caller arguments into its own memory and validates sizes, pointers and values before using them",
+          "the function is not a hook; it is the original implementation or an ordinary caller"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-781": "the hook is specifically a Windows IOCTL handler using METHOD_NEITHER buffers"
+      }
+    },
+    "CWE-641": {
+      "name": "Improper Restriction of Names for Files and Other Resources",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-99"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a file or resource name from input without limiting its characters, length or reserved names?",
+      "present_when": {
+        "any": [
+          "a file, object or resource name is concatenated from input and created or opened with no restriction on the characters allowed",
+          "names such as device names (CON, NUL), hidden dot-files, very long names or control characters are not rejected"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is generated by the program, such as a UUID or a hash, rather than taken from input",
+          "input is checked against a strict pattern such as [A-Za-z0-9_-] with a length limit before use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input can include '..' or separators to move outside the intended directory"
+      }
+    },
+    "CWE-643": {
+      "name": "Improper Neutralization of Data within XPath Expressions ('XPath Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-943"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build an XPath expression from input without parameterising or escaping it?",
+      "present_when": {
+        "any": [
+          "an XPath query string is built by concatenating or formatting input and then evaluated",
+          "input containing quotes, brackets or 'or' could change which nodes the expression selects"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the XPath uses variables bound through the library's variable resolver or parameter API",
+          "input is validated against a strict pattern, or the expression is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-652": "the expression is XQuery rather than XPath",
+        "CWE-91": "the input is inserted into an XML document, not a query"
+      }
+    },
+    "CWE-644": {
+      "name": "Improper Neutralization of HTTP Headers for Scripting Syntax",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-116"
+      ],
+      "function_checkable": true,
+      "question": "Does this function copy input into an HTTP response header without removing script or markup syntax that a client could act on?",
+      "present_when": {
+        "any": [
+          "a header value such as Content-Type, Content-Disposition, Refresh or a custom header is set from input",
+          "input in the header is not checked for '<', '>' or script content and could be rendered or processed by a client"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the header value is constant, or chosen from a fixed allow-list",
+          "the input is validated against a strict pattern, or encoded, before it is placed in the header"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-113": "input with CR or LF can split the header into new headers or a new response"
+      }
+    },
+    "CWE-652": {
+      "name": "Improper Neutralization of Data within XQuery Expressions ('XQuery Injection')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-943"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build an XQuery expression from input without binding it as an external variable or escaping it?",
+      "present_when": {
+        "any": [
+          "an XQuery string is built by concatenating or formatting input and then executed",
+          "input with quotes, braces or XQuery keywords could change the query's logic"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is bound as an external variable through the XQuery API rather than placed in the query text",
+          "input is validated against a strict pattern, or the query is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-643": "the expression is XPath rather than XQuery"
+      }
+    },
+    "CWE-694": {
+      "name": "Use of Multiple Resources with Duplicate Identifier",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-99"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create, register or look up resources by an identifier that may be shared by more than one of them where it must be unique?",
+      "present_when": {
+        "any": [
+          "an item is inserted into a map, registry or table without checking whether the key already exists, silently replacing or shadowing another",
+          "identifiers are generated from values that can collide, such as names, timestamps or truncated hashes, and used as unique keys",
+          "a lookup returns the first match among entries that can share the same identifier"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the insert checks for an existing key and rejects or handles duplicates",
+          "identifiers come from a unique source such as a database primary key, counter or UUID"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-462": "the duplicated key is in an associative list searched linearly"
+      }
+    },
+    "CWE-707": {
+      "name": "Improper Neutralization",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does this function take external or untrusted data and validate it, encode it, or pass it into a command, query, markup, path, format or other interpreter?",
+      "present_when": {
+        "any": [
+          "input from parameters, requests, files or the network is checked, parsed or used without checks",
+          "strings are concatenated or formatted into SQL, shell commands, HTML, XML, LDAP, file paths, templates or code that something else interprets",
+          "escaping, quoting, encoding, decoding or canonicalisation of data, or the lack of it, before output or use",
+          "string termination, delimiters or special characters are handled when building or parsing messages"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function handles only constants and internal values with no external input and builds no interpreted strings",
+          "the function is a pure numeric calculation with no parsing, validation or output formatting"
+        ]
+      }
+    },
+    "CWE-781": {
+      "name": "Improper Address Validation in IOCTL with METHOD_NEITHER I/O Control Code",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-1285"
+      ],
+      "function_checkable": true,
+      "question": "Does this driver function handle a METHOD_NEITHER IOCTL by using the caller's buffer addresses without probing and validating them?",
+      "present_when": {
+        "c": [
+          "an IOCTL dispatch routine for a control code defined with METHOD_NEITHER reads Type3InputBuffer or UserBuffer directly",
+          "the user-mode pointer is dereferenced without ProbeForRead or ProbeForWrite inside a try/except block",
+          "the buffer length from the IRP stack is trusted without comparing it with the expected structure size"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the user buffer is probed with ProbeForRead or ProbeForWrite within structured exception handling, and the data is copied to kernel memory before use",
+          "the control code uses METHOD_BUFFERED or a direct I/O method instead",
+          "the function is not a kernel driver IOCTL handler"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-622": "the code hooks an API rather than handling an IOCTL"
+      }
+    },
+    "CWE-790": {
+      "name": "Improper Filtering of Special Elements",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-138"
+      ],
+      "function_checkable": true,
+      "question": "Does this function try to filter special characters or sequences from input before passing it on, but filter them incorrectly or not at all?",
+      "present_when": {
+        "any": [
+          "a sanitising step uses replace, regex substitution or a blocklist that misses some forms of the special element",
+          "the filtered output is then used in a path, query, command, markup or other interpreted context"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is escaped or encoded for the destination rather than filtered",
+          "input is validated against a strict allow-list and rejected otherwise"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-791": "some special elements are filtered but not all",
+        "CWE-184": "the defect is an incomplete list of disallowed inputs"
+      }
+    },
+    "CWE-791": {
+      "name": "Incomplete Filtering of Special Elements",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-790"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter special characters from input but leave some instances or forms unfiltered?",
+      "present_when": {
+        "any": [
+          "the filter removes some occurrences or positions of a special element but not all of them",
+          "a replace call handles one spelling, such as lower case or one encoding, while other forms pass through"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every occurrence is handled, such as with a global replace repeated until stable, or input containing the element is rejected",
+          "the output is escaped for the destination rather than filtered"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-792": "the gap is in handling one or more instances of the element",
+        "CWE-795": "the filter only examines a particular location in the input"
+      }
+    },
+    "CWE-792": {
+      "name": "Incomplete Filtering of One or More Instances of Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-791"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter special elements in input in a way that leaves one or more occurrences of them untouched?",
+      "present_when": {
+        "any": [
+          "a non-global replace, a single regex match or a find-once loop processes only some occurrences",
+          "removal is not repeated, so new occurrences formed after removal remain"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "replaceAll, a global regex or a loop until no match remains handles every occurrence",
+          "input containing the element is rejected instead of filtered"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-793": "exactly the first occurrence is filtered and the rest are left",
+        "CWE-794": "multiple occurrences are processed but not all"
+      }
+    },
+    "CWE-793": {
+      "name": "Only Filtering One Instance of a Special Element",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-792"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter only the first occurrence of a special character or sequence in input, leaving later ones?",
+      "present_when": {
+        "javascript": [
+          "String.replace with a string argument or a regex without the g flag is used to strip a special sequence"
+        ],
+        "python": [
+          "str.replace(old, new, 1), re.sub with count=1, or code that finds and removes only the first match"
+        ],
+        "c": [
+          "strstr or strchr finds and removes one occurrence with no loop over the rest"
+        ],
+        "cpp": [
+          "std::string::find followed by a single replace or erase, with no loop that continues searching after the result"
+        ],
+        "rust": [
+          "replacen(.., 1) or a single find and replace_range removes only the first match"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all occurrences are replaced, for example replaceAll, a global regex, str.replace without a count or a loop",
+          "input containing the element is rejected rather than filtered"
+        ],
+        "cpp": [
+          "std::regex_replace, which replaces every match by default, or a loop that repeats find until npos"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-794": "more than one occurrence is handled but some still remain"
+      }
+    },
+    "CWE-794": {
+      "name": "Incomplete Filtering of Multiple Instances of Special Elements",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-792"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter several occurrences of a special element in input but still miss some of them?",
+      "present_when": {
+        "any": [
+          "a loop removes matches but advances past characters that form a new match after removal",
+          "a fixed number of passes, or a pass that skips overlapping matches, leaves remaining occurrences"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "filtering repeats until the string no longer changes",
+          "input containing the element is rejected, or the value is escaped for the destination instead"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-793": "only the first occurrence is filtered"
+      }
+    },
+    "CWE-795": {
+      "name": "Only Filtering Special Elements at a Specified Location",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-791"
+      ],
+      "function_checkable": true,
+      "question": "Does this function look for special elements only at a particular position in input, such as the start or end, missing them elsewhere?",
+      "present_when": {
+        "any": [
+          "a filter checks startsWith, endsWith, the first character or a fixed index but the special element can appear anywhere",
+          "a regex used for filtering is anchored with ^ or $ so occurrences elsewhere are ignored"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the whole input is scanned for the element, or validated against a full-string allow-list",
+          "the position check is about format, not security, and the value is escaped for the destination"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-796": "the position is relative to a marker such as the start, end or a separator",
+        "CWE-797": "the position is a fixed absolute offset"
+      }
+    },
+    "CWE-796": {
+      "name": "Only Filtering Special Elements Relative to a Marker",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-795"
+      ],
+      "function_checkable": true,
+      "question": "Does this function filter special elements only relative to a marker, such as the start or end of the string or after a separator, missing them elsewhere?",
+      "present_when": {
+        "any": [
+          "a check removes '../' only at the start, or '.exe' only at the end, while copies elsewhere remain",
+          "only the segment after the first separator or before the last separator is filtered"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every segment or the whole string is checked for the element",
+          "the value is canonicalised or matched against a strict allow-list before use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-797": "the position checked is a fixed byte offset"
+      }
+    },
+    "CWE-797": {
+      "name": "Only Filtering Special Elements at an Absolute Position",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-795"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check for special elements only at a fixed offset in input, such as a hard-coded byte index, missing them at other offsets?",
+      "present_when": {
+        "any": [
+          "a filter inspects input[n] or a fixed-width slice for a special character and leaves the rest unchecked",
+          "the code assumes a fixed-length prefix, so the special element can be shifted past the checked offset"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the whole input is scanned or validated against an allow-list",
+          "the fixed offset is guaranteed by a prior full-format validation"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-796": "the position is relative to a marker rather than fixed"
+      }
+    },
+    "CWE-838": {
+      "name": "Inappropriate Encoding for Output Context",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-116"
+      ],
+      "function_checkable": true,
+      "question": "Does this function encode or declare output in a character set or escaping scheme that differs from what the receiving component expects?",
+      "present_when": {
+        "any": [
+          "text is encoded with one charset, such as Latin-1 or UTF-16, but labelled or sent as another, such as UTF-8",
+          "escaping meant for one context is used for another, such as HTML entity escaping for a value inside a JavaScript string or URL",
+          "a Content-Type or meta charset declaration does not match the bytes actually written"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the output is encoded and declared with the same charset throughout",
+          "the escaping function is specific to the exact output context, such as URL component encoding for a query parameter"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-116": "escaping is missing altogether rather than mismatched",
+        "CWE-176": "the defect is in handling Unicode input rather than producing output"
+      }
+    },
+    "CWE-914": {
+      "name": "Improper Control of Dynamically-Identified Variables",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-99"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let input choose which variable, attribute or field gets read or written, without restricting the allowed names?",
+      "present_when": {
+        "any": [
+          "a name from input is used to set or read an object property, attribute or variable dynamically",
+          "all request fields are copied onto an object or model without an allow-list of fields"
+        ],
+        "javascript": [
+          "obj[key] = value or Object.assign with keys from input, allowing __proto__, constructor or privileged fields"
+        ],
+        "typescript": [
+          "obj[key as keyof T] = value or obj[key as keyof typeof obj] where key comes from input; the keyof assertion checks nothing at run time"
+        ],
+        "python": [
+          "setattr, getattr, globals()[name], vars(obj).update or __dict__.update with names from input"
+        ],
+        "c": [
+          "an index or name from input selects an entry in a table of pointers to variables that is then written"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is checked against an explicit allow-list of permitted fields before use",
+          "the name is a constant or comes from code, not input"
+        ],
+        "typescript": [
+          "the key is matched against an as const array of allowed names with includes before it is used"
+        ],
+        "rust": [
+          "struct fields are accessed statically; dynamic access only goes through a match on known names"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1321": "the write can reach an object prototype through __proto__ or constructor.prototype",
+        "CWE-915": "the issue is bulk assignment of object attributes from request data"
+      }
+    },
+    "CWE-943": {
+      "name": "Improper Neutralization of Special Elements in Data Query Logic",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a query for a database or data store using input that could change the query's logic?",
+      "present_when": {
+        "any": [
+          "a query string or query object for SQL, NoSQL, LDAP, XPath, XQuery or a search engine is built by concatenation or formatting with input",
+          "input objects are passed straight into a query filter where operators such as $where, $ne or $gt could be injected"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the query uses parameter binding or placeholders with input supplied separately",
+          "input is cast to a scalar type, or checked against an allow-list, before it reaches the query",
+          "the query is a constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-89": "the query is SQL",
+        "CWE-90": "the query is an LDAP filter or DN",
+        "CWE-643": "the query is an XPath expression"
+      }
+    },
+    "CWE-1173": {
+      "name": "Improper Use of Validation Framework",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function bypass, misuse or only partly apply the input validation framework or schema that its code otherwise uses?",
+      "present_when": {
+        "any": [
+          "a request handler reads raw input directly instead of the validated object a schema or form library produced",
+          "validation is called but its result, errors or is_valid flag is ignored before the data is used",
+          "a schema or validator is configured to allow unknown fields or to skip checks for some inputs"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses only the validated output of the framework and stops on validation failure",
+          "the function does not handle external input",
+          "validation is done fully by hand with explicit checks on every field"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-20": "no validation framework is involved; input is simply not validated"
+      }
+    },
+    "CWE-1236": {
+      "name": "Improper Neutralization of Formula Elements in a CSV File",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-74"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write user-supplied values into CSV or spreadsheet output without neutralising cells that start with formula characters?",
+      "present_when": {
+        "any": [
+          "values from users are written as CSV or spreadsheet cells with no handling of a leading =, +, -, @, tab or carriage return",
+          "only quotes and commas are escaped, which keeps the field valid CSV but still lets a formula run when opened"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "cells starting with = + - @ tab or CR are prefixed with a single quote or otherwise neutralised",
+          "the values written are numbers, constants or generated by the program"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-143": "input can break the record structure with newlines or delimiters rather than injecting a formula"
+      }
+    },
+    "CWE-1284": {
+      "name": "Improper Validation of Specified Quantity in Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a quantity from input, such as a size, count, length or amount, without checking it is within sensible limits?",
+      "present_when": {
+        "any": [
+          "a count or length from a request, file header or message decides how much memory to allocate, how many items to process or how many bytes to read",
+          "a quantity such as an order amount or number of retries is accepted without checking it is positive and below a maximum",
+          "a size field from a parsed structure is trusted instead of comparing it with the data actually received"
+        ],
+        "typescript": [
+          "a quantity typed number in a DTO or interface has no @Min/@Max or schema bound; the number type accepts negatives and any size"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the quantity is checked against both a minimum and an explicit maximum before use",
+          "the quantity is computed internally from data the function already holds, such as len of a received buffer"
+        ],
+        "typescript": [
+          "a schema such as z.number().int().min(1).max(100), or class-validator @Min and @Max under a ValidationPipe, bounds the value"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-606": "the unchecked quantity specifically controls a loop's iteration count",
+        "CWE-1285": "the unchecked value is an index, position or offset rather than a quantity"
+      }
+    },
+    "CWE-1285": {
+      "name": "Improper Validation of Specified Index, Position, or Offset in Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use an index, position or offset taken from input without checking it lies within the valid range?",
+      "present_when": {
+        "any": [
+          "an offset, position or index from a request, file or message is used to seek, slice, index or locate data with no range check",
+          "only one bound is checked, for example offset < size but not offset >= 0, or offset + length is not checked",
+          "a record or field number from input selects an entry in a table without validation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is checked against both bounds, including offset plus length, before use on every path",
+          "the value comes from internal state, a constant or the container's own iteration"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-129": "the value is specifically an array index",
+        "CWE-781": "the address comes from a METHOD_NEITHER IOCTL buffer"
+      }
+    },
+    "CWE-1286": {
+      "name": "Improper Validation of Syntactic Correctness of Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept structured input without checking it is well formed before using it?",
+      "present_when": {
+        "any": [
+          "a message, file or string expected to follow a grammar, such as JSON, XML, a date or an address, is split or indexed by hand without checking its structure",
+          "the result of parsing is used even when the parser reported an error or returned partial data",
+          "fields are extracted by fixed positions or separators and used without checking the expected count"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is parsed with a strict parser and any parse error stops processing",
+          "the function checks field counts and formats, and rejects malformed input, before using values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-112": "the input is XML and is not checked against a schema",
+        "CWE-1287": "the input parses but its value has the wrong type"
+      }
+    },
+    "CWE-1287": {
+      "name": "Improper Validation of Specified Type of Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use an input value without checking that it is of the expected type, such as a number, string, list or object?",
+      "present_when": {
+        "any": [
+          "a field from parsed JSON, query parameters or a message is used as a number, string or array without checking its type"
+        ],
+        "javascript": [
+          "a request field is used with string methods, arithmetic or as an object key when it could be an array or object, for example from qs parsing"
+        ],
+        "typescript": [
+          "a request field declared string or number in a DTO or interface is used as that type with no typeof check, though at run time it may be an array or object",
+          "a value typed any or unknown is cast with as string, as number or as T and then used"
+        ],
+        "python": [
+          "a value from json.loads or request data is used assuming str or int without isinstance or conversion with error handling"
+        ],
+        "c": [
+          "a tagged message or union member is read without checking the type tag"
+        ],
+        "cpp": [
+          "a JSON value (for example nlohmann::json) is read with get<T>(), operator[] or implicit conversion without is_number(), is_string() or contains() checks",
+          "a std::variant is read with std::get, or a union member is read, without checking holds_alternative or index()"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value's type is checked, or it is converted with failure handling, before use",
+          "a strict schema or typed deserialiser has already enforced the type in this function"
+        ],
+        "typescript": [
+          "a schema parse or a typeof, Array.isArray or instanceof type guard confirms the type before the value is used"
+        ],
+        "cpp": [
+          "std::holds_alternative or the JSON type predicates are tested, or a typed from_json runs inside a try that handles type errors"
+        ],
+        "rust": [
+          "the value comes from a typed deserialiser such as serde into a concrete struct"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1286": "the input is not even syntactically well formed",
+        "CWE-843": "memory is accessed as a different type from the one it holds"
+      }
+    },
+    "CWE-1288": {
+      "name": "Improper Validation of Consistency within Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use several related input fields without checking they agree with each other, such as a length field against the data actually supplied?",
+      "present_when": {
+        "any": [
+          "a declared length, count or checksum in a header is trusted without comparing it with the size of the payload received",
+          "start and end values, minimum and maximum, or a total and its parts are used without checking their relationship",
+          "duplicate or conflicting keys in input, such as two values for the same parameter, are accepted without rule"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "related fields are cross-checked, for example start <= end and declared length equals received length, and mismatches are rejected",
+          "only one field is used and the others are ignored"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1284": "a single quantity is unchecked, with no relationship between fields involved",
+        "CWE-130": "a length field inconsistent with the data leads to a memory access"
+      }
+    },
+    "CWE-1289": {
+      "name": "Improper Validation of Unsafe Equivalence in Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check an identifier or reference for a forbidden value without first normalising it, so an equivalent spelling passes?",
+      "present_when": {
+        "any": [
+          "a deny check compares a name, path, host or tag case-sensitively when the consumer treats it case-insensitively",
+          "input is checked before URL decoding, Unicode normalisation or path resolution that happens later",
+          "a blocked value is compared literally while alternate forms such as trailing dots, extra slashes or IP address encodings are not considered"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is canonicalised, for example decoded, normalised, lower-cased or resolved, before the check, and the canonical form is what gets used",
+          "the check is an exact allow list match on the canonical form",
+          "the value is not used as a resource identifier or security reference"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-76": "the escaping or neutralisation handles one special element but not its equivalents",
+        "CWE-186": "the check is a regex that is too narrow to catch variants"
+      }
+    },
+    "CWE-1336": {
+      "name": "Improper Neutralization of Special Elements Used in a Template Engine",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-94"
+      ],
+      "requires": [
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does this function feed untrusted input to a template engine as template source, or render it in a way the engine will evaluate?",
+      "present_when": {
+        "any": [
+          "a template string is built by concatenating or formatting input and then compiled or rendered",
+          "input is passed as the template body rather than as a context variable"
+        ],
+        "python": [
+          "Template(input), render_template_string, Environment.from_string or format_map on a string that includes input"
+        ],
+        "javascript": [
+          "ejs.render, pug.compile, Handlebars.compile, nunjucks.renderString or lodash _.template called on a string containing input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the template source is a fixed file or constant and input is supplied only as data in the render context",
+          "a sandboxed or logic-less engine is used and the input is still only data"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-79": "input is rendered as data but without HTML escaping",
+        "CWE-95": "input reaches eval or Function directly without a template engine"
+      }
+    },
+    "CWE-1427": {
+      "name": "Improper Neutralization of Input Used for LLM Prompting",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-77"
+      ],
+      "function_checkable": true,
+      "question": "Does this function place untrusted text into a prompt for a language model without keeping it separate from the developer's instructions?",
+      "present_when": {
+        "any": [
+          "user input, retrieved documents or web content is concatenated or interpolated into the system prompt or instruction text",
+          "untrusted text is merged into the same message as instructions with no role separation or delimiting",
+          "model output driven by untrusted content is used to choose tools, commands or actions without checks"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "untrusted content is sent only as a separate user-role message, with fixed instructions in the system role",
+          "the prompt is built entirely from constants or trusted configuration",
+          "the function does not call or prepare input for a language model"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-88": "the input ends up as arguments to an operating system command",
+        "CWE-94": "the input is turned into source code that is executed"
+      }
+    }
+  }
+}

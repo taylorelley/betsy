@@ -4,8 +4,8 @@ BETSY asks a decision model one yes/no question per weakness about one function'
 Published weakness catalogues are written for people, and their prose is a poor fit for that:
 exclusions sit at the end of long descriptions, broad product-level entries cannot be decided
 from one function, and sibling CWEs describe the same code pattern. So each weakness BETSY
-knows is a card in `data/weaknesses/cards.json`, which is the only weakness definition in the
-repository. The format is described in the [README](../README.md#weakness-cards).
+knows is a card under `data/weaknesses/cards/`, and those files are the only weakness
+definitions in the repository. The format is described in the [README](../README.md#weakness-cards).
 
 The cards began as an overlay on catalog files copied from scorpius-cli (MITRE CWE 4.20 plus
 `REL-` and `PERF-` entries) and on BETSY's own extension files. Those files have been removed.
@@ -18,13 +18,14 @@ entries. The earlier files remain in the git history.
 
 **Complete in coverage, not yet validated and not cleared to ship.**
 
-- There are 1,088 cards. 1,008 are checkable; 80 are marked not function-checkable and listed
+- There are 1,093 cards. 1,013 are checkable; 80 are marked not function-checkable and listed
   below. Six of those 80 (CWE-382, CWE-564, CWE-609, CWE-690, CWE-1051 and CWE-1106) exist only
   because another card's `distinguish_from` names them; they were never planned.
+- Every card has `status` `draft`. No card has been marked `reviewed` or `validated`.
 - The 215 other entries of the earlier catalog files that had no card were never planned for
   any language (hardware-only, introduced outside code, wrong language, or a gate with nothing
   below it). They are no longer known to BETSY, so naming one with `--weakness` is an error.
-- 111 cards are BETSY's own weaknesses (REL-214 to REL-306 and PERF-011 to PERF-028); see
+- 116 cards are BETSY's own weaknesses (REL-214 to REL-311 and PERF-011 to PERF-028); see
   "BETSY's own weaknesses" below.
 - The cards for `CWE-` entries are new wording derived from MITRE content. Legal must confirm
   that the CWE terms of use allow this, with the notice in `data/weaknesses/CWE_NOTICE.txt`
@@ -41,7 +42,52 @@ passed on the last commit that had them, and the card wording has not changed si
 has read only a sample.
 
 Skipping the uncheckable cards saves 51 to 72 questions per function, depending on the
-language; the fixtures now plan 705 to 938.
+language; the fixtures now plan 709 to 938.
+
+## Structure and audit
+
+The cards were restructured so that each one is self-contained and gaps are visible:
+
+- **One card, one place.** Trait requirements moved from `traits.json` onto each card
+  (`requires`), and the two hard-coded root exceptions became a `detached` reason on CWE-617
+  and REL-026. The single 32,000-line file became 22 files under
+  `data/weaknesses/cards/<catalog>/`, grouped by top-level CWE or by source standard. Plans
+  and all 5,393 questions were byte-identical before and after this step.
+- **Sources and status.** `REL-` and `PERF-` cards carry `sources`, recovered from the rule
+  mappings in the removed catalog files (MISRA C:2012, Goldberg 1991, SEI CERT C, C++ and
+  Java, and the references named below); rule titles were not carried over. 81 cards have
+  none: REL-001 to REL-025, whose origin the earlier files did not record, and the cards
+  written for BETSY without a published rule. `status` records how far a card has been
+  checked.
+- **Audit.** `betsy weaknesses audit` reports coverage and defects; see the
+  [README](../README.md#auditing-the-cards). Its first run found the following, now fixed:
+  - CWE-94, CWE-96 and CWE-470 (code injection and unsafe reflection) were planned for
+    JavaScript but not TypeScript or TSX. They now reach all three.
+  - CWE-362 (race condition) was limited to C and C++ although its patterns are
+    language-neutral, so races were never asked about in the other languages and its
+    children CWE-367 and CWE-368 were asked of every function there. It now applies to every
+    language.
+  - Five `distinguish_from` links named cards that are never planned for the same language;
+    they were removed.
+- **Fewer questions in round 1.** 32 cards about one syntactic construct now require a
+  syntax trait, which the parser settles for free, and 13 other root cards gained trait
+  requirements that `--traits` can use. For C and C++, the findings asked of every function
+  whatever its content fell from 24 to 12; for Rust from 33 to 6; for the other languages
+  from between 8 and 11 to 3 or 4. The
+  remaining ones are pinned in `tests/expected/always_asked.json`. No model-asked gate cards
+  were added, since their effect on recall cannot be measured without provider runs.
+
+What the audit still shows, for a person to decide:
+
+- CWE-364 (signal handler race) has only C and C++ patterns, so its children CWE-432, CWE-828
+  and CWE-831 are roots in the other languages; CWE-97 is a root in C, C++ and Rust because
+  CWE-96 is not planned there.
+- 11 cards are limited to some languages although every pattern is language-neutral (CWE-96,
+  CWE-543 and nine `REL-` cards from MISRA C), so the limit may be narrower than the weakness.
+  Separately, CWE-248 (uncaught exception) is limited to C++ and has only C++ patterns,
+  although exceptions go uncaught in other languages too.
+- 744 of 1,444 `distinguish_from` links are one-way, and 134 checkable cards have none.
+- 428 to 483 of the cards planned for each language have no pattern specific to it.
 
 ## BETSY's own weaknesses
 
@@ -49,6 +95,11 @@ The scorpius-cli catalogs had no reliability entries for JavaScript, TypeScript,
 and only ten performance entries (REL-001 to REL-213 and PERF-001 to PERF-010). BETSY added its
 own, continuing the same ID sequences:
 
+- REL-307 to REL-311, added after the first audit, each checked against the existing cards by
+  keyword: a global or sticky regular expression reused across calls, a promise returned
+  without `await` from inside a `try` block, and framework state mutated in place (JavaScript,
+  TypeScript and TSX); a `str` sliced at a byte offset that may split a character (Rust); and
+  a coroutine or future that is created but never awaited (Python and Rust).
 - REL-214 to REL-242: JavaScript (floating promises, async
   callbacks in `forEach`, unchecked `NaN` from parsing, `for...in` over arrays, `typeof null`,
   implicit globals, comparator-less `sort`, `return` followed by a line break), TypeScript only
@@ -166,7 +217,7 @@ These came up while drafting and are the first places to look when reviewing res
   gates (CWE-755, CWE-697, CWE-710, CWE-664, CWE-20); the rest, and 13 of the 14 performance
   entries, sit under findings such as CWE-754, CWE-825, CWE-407, CWE-1176 and CWE-1050, whose
   low answers may hide them. If `betsy run recall` shows
-  gating misses, move them to `weakness::DETACHED` or to a broader parent such as CWE-400.
+  gating misses, mark them `detached` or give them a broader parent such as CWE-400.
 - **Entries from the second round (REL-243 to REL-306, PERF-025 to PERF-028)** have not been
   run against a model either. The likeliest to be noisy are REL-304 (rigid name and address
   formats) and REL-306 (locale-sensitive case conversion), which depend on what the data is;
@@ -186,9 +237,17 @@ These came up while drafting and are the first places to look when reviewing res
   APIs, and language guarantees (Python indexing cannot read outside memory).
 - `distinguish_from` names siblings that a model would otherwise also report for the same code,
   and says what the code would show instead. Prefer the more precise sibling.
+- Put the card in the file for its family, or start a new file in the catalog's directory.
 - Give every card a `name`. List `languages` only when the weakness cannot occur in some of
   them, and `parents` in order of preference; a card with no planned parent is asked of every
   function as a root.
+- Add `requires` when the card cannot apply without a trait. Prefer a syntax trait when the
+  card is about one construct the parser can see; add a new one to `traits.json` if needed. A
+  finding with neither a parent nor a `requires` is asked of every function, and a test fails
+  until it is added to `tests/expected/always_asked.json`.
+- Give `REL-` and `PERF-` cards their `sources`. Leave `status` out until a person has
+  reviewed the card.
+- Run `betsy weaknesses audit --strict`.
 - Mark as `gate` a category that should route the hierarchy but never be reported (for CWEs:
   Pillars and entries MITRE marks Prohibited or Discouraged for mapping). Write a broad,
   recall-oriented question covering the subtree. Gates must stay checkable.
@@ -210,7 +269,10 @@ from, so tuning cards against it would overfit. For each evaluation round:
 - add new SQLite functions not used before;
 - judge them the same way as the existing benchmark;
 - compare a run with the changed cards against the same run with the previous revision of
-  `cards.json`, using `betsy run findings` and `betsy run recall`.
+  the card files, using `betsy run findings` and `betsy run recall`;
+- compare a default run with an `--exhaustive` one using `betsy run recall`, to confirm that
+  no finding is attributed to a syntax trait;
+- set `status` to `validated` on the cards the round covered.
 
 Start with the round-1 roots and gates (asked of every function) and the entries that produce the
 most false positives. Budget roughly 1 to 2 million tokens per round. Live-provider runs that

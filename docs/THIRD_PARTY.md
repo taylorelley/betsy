@@ -2,7 +2,7 @@
 
 Dependency metadata inspected from the locked Cargo graph. Grammar crates are MIT; Tree-sitter is MIT. SQLite is bundled through libsqlite3-sys (MIT metadata; upstream SQLite is public domain). Dependencies retain their own notices. No upstream source is vendored in this repository.
 
-`data/weaknesses/cards.json` holds BETSY's weakness cards (see `data/weaknesses/PROVENANCE.md`). Cards with `CWE-` IDs use MITRE CWE identifiers, names and hierarchy, and their wording is derived from MITRE CWE 4.20; they are used under the MITRE CWE Terms of Use, and the required copyright designation and license are reproduced in `data/weaknesses/CWE_NOTICE.txt`. Whether those terms cover the derived wording has not yet been confirmed with Legal.
+`data/weaknesses/cards/` holds BETSY's weakness cards (see `data/weaknesses/PROVENANCE.md`). Cards with `CWE-` IDs use MITRE CWE identifiers, names and hierarchy, and their wording is derived from MITRE CWE 4.20; they are used under the MITRE CWE Terms of Use, and the required copyright designation and license are reproduced in `data/weaknesses/CWE_NOTICE.txt`. Whether those terms cover the derived wording has not yet been confirmed with Legal. Some `REL-` cards name rules of MISRA C:2012 and the SEI CERT standards in `sources`, by standard and rule number only; whether cards derived from those standards may be distributed has not been confirmed with Legal either.
 
 The HTTP client used by `betsy analyze` is ureq 2.12.1 (MIT OR Apache-2.0) with rustls 0.23.46 (Apache-2.0 OR ISC OR MIT), ring 0.17.14 (Apache-2.0 AND ISC), rustls-webpki 0.103.16 (ISC), untrusted 0.9.0 (ISC), subtle 2.6.1 (BSD-3-Clause) and webpki-roots (CDLA-Permissive-2.0). It is only used when a network provider is selected.
 
