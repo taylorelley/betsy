@@ -411,10 +411,12 @@ fn unreadable_source_is_a_gap() {
         let path = t.path().join("locked.py");
         fs::write(&path, "def f(): return 1\n").unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o0)).unwrap();
+        // Privileged users (root, CAP_DAC_OVERRIDE) can still read mode-000 files, and
+        // containers often run as root without setting $USER, so probe instead.
+        let unreadable = fs::File::open(&path).is_err();
         let (m, _) = inventory(t.path());
         fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
-        // Root can read mode-000 files. This workspace runs as an ordinary user.
-        if std::env::var("USER").as_deref() != Ok("root") {
+        if unreadable {
             assert_eq!(m.files[0].parse_status, "io_error");
             assert!(!m.sealed);
         }

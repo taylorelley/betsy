@@ -124,6 +124,22 @@ node kind/canonical lexical ordinal. All hashes are SHA-256 with a `sha256:` pre
 source in different paths remains distinct. Queue order compares UTF-8 path bytes, start, end,
 node kind and ID. IDs identify one snapshot, not an enduring symbol across edits.
 
+The database uses SQLite write-ahead logging with full sync, so `index.sqlite-wal` and
+`index.sqlite-shm` files sit beside it while it is open, and committed data can live in the
+`-wal` file until a checkpoint moves it into the main file. Never copy the files of a database
+that is in use: a checkpoint between copying the main file and the `-wal` file loses committed
+records without any error. To back up, either stop every BETSY process using the database and
+then copy all three files, or take a consistent snapshot with SQLite's backup API, which is safe
+while BETSY runs:
+
+```sh
+sqlite3 .betsy/index.sqlite ".backup backup.sqlite"
+# without the sqlite3 tool, the same API through Python:
+python3 -c "import sqlite3; sqlite3.connect('.betsy/index.sqlite').backup(sqlite3.connect('backup.sqlite'))"
+```
+
+Keep the database on a local filesystem.
+
 Foreign keys, transactions and immutable inventory triggers protect sealed inventory records.
 Dispatch state is separate. `verify` checks stored byte hashes, exact source slices, ranges,
 record consistency, re-parsed coverage, IDs, nesting and canonical manifest order. Stored
@@ -133,7 +149,8 @@ not a security boundary against a user with write access to the database.
 ## Dispatch recovery
 
 Claims are atomic `BEGIN IMMEDIATE` transactions. Repeated `next` calls claim distinct pending
-items in canonical order. The intended integration is one synchronous worker. There are no leases,
+items in canonical order. Each item stores its canonical position when the run is created, so a
+claim is one index lookup however large the run. The intended integration is one synchronous worker. There are no leases,
 background recovery or automatic retries. Completion is idempotent for the same parsed JSON
 result and rejects conflicting second results.
 
@@ -141,6 +158,8 @@ result and rejects conflicting second results.
 betsy run fail --run <run-id> --id <id> --code timeout --message 'Analyzer timed out' --retryable
 betsy run retry --run <run-id> --id <id>
 betsy run recover --run <run-id> --id <claimed-id>
+betsy run recover --run <run-id> --all          # every claimed item, after the worker stopped
+betsy run status --run <run-id> --summary       # status and counts, without items and events
 ```
 
 Use the same `--db` as your run, or accept `.betsy/index.sqlite`. Without `--retryable`, a failure
@@ -204,7 +223,9 @@ betsy weaknesses plan --snapshot <snapshot-id>   # dry-run question/request budg
 JEV_API_KEY=... betsy analyze --snapshot <snapshot-id> --provider jev
 OPENAI_API_KEY=... betsy analyze --snapshot <snapshot-id> --provider openai
 betsy analyze --run <run-id> --provider jev --retry-failed   # resume; same provider flags required
+betsy analyze --run <run-id> --provider jev --recover-claimed # resume after an interrupted analyze
 betsy run findings --run <run-id> --format jsonl
+betsy run findings --run <run-id> --threshold 0.5            # recall-heavy view, nothing re-asked
 betsy run recall --run <pruned-run> --baseline <exhaustive-run>   # what pruning missed, and why
 ```
 
@@ -319,23 +340,40 @@ To keep this fast and cheap, BETSY layers six measures:
      requests in flight.
    - Only the coordinator thread writes SQLite and claims work through the existing
      dispatcher.
-   - Requests retry with backoff on 408, 429 and 5xx, honouring `Retry-After`. A provider
-     failure marks the function `failed_retryable`, which is retried only with
-     `--retry-failed`.
+   - Requests retry with backoff on 408, 429 and 5xx, honouring `Retry-After`. Once retries
+     run out, the function is marked `failed_retryable`, which is retried only with
+     `--retry-failed`. Other request errors (such as a 400) fail the function finally.
+   - Rejected credentials (401, 403) or an unknown endpoint or model (404) stop the whole
+     command with a non-zero exit instead of failing every function. The functions in flight
+     go back to pending, so after fixing the key, model or URL the same run resumes.
+   - Answers already paid for when a function fails, from earlier rounds or from other chunks
+     of the failing round, go into the decision cache, so its retry does not ask them again.
 6. **Decision cache.** Answers are keyed by provider and model, language, `source_hash` and
    question hash. Duplicate function bodies and re-runs after edits reuse earlier answers
-   without a request.
+   without a request. The key holds the model *name*, so a moving alias such as the default
+   `jev-latest` keeps serving answers from whichever model was behind it when they were cached;
+   `analyze` warns about this. Pin a model version with `--model`, or pass `--no-cache` to ignore
+   cached answers and overwrite them with fresh ones.
 
 Run configuration (provider, model, catalog hash, profile, selection, thresholds, gating)
-determines the run identity and is checked on resume. `--weakness CWE-89,REL-001` asks only the
+determines the run identity and is fixed when the run is created. On resume with `--run`, the
+provider flags must match it, and `--threshold`, `--gate-threshold`, `--exhaustive`,
+`--max-rounds`, `--traits`, `--weakness` and `--exclude-weakness` may be omitted or repeated
+with the same values; a different value is an error rather than being silently ignored. To
+report at another threshold, use `run findings --threshold`.
+
+An interrupted `analyze` (for example Ctrl-C) leaves the functions it was working on
+`claimed`. Resuming reports them and a `hint`; `--recover-claimed` requeues them first. Like
+`run recover`, use it only when no other process is working on the run. Creating a run writes
+the dispatch run, its configuration and its plan in one transaction. `--weakness CWE-89,REL-001` asks only the
 listed weaknesses, flat and ungated; `--exclude-weakness` removes entries. SQLite tables:
 `analysis_runs`, `weakness_plan` (per-language dispositions), `weakness_decisions` (per
 function, weakness: role, round, origin `provider|cache|refused|gated|trait`, probability) and
 `decision_cache`. Each dispatch item's result is a summary: questions asked, cached, gated,
 trait-filtered, rounds, plan depth, trait answers, usage, and positives at or above
-`--threshold`. The schema is now `user_version=3`: v1 databases are upgraded in place by
-adding these tables, and v2 databases by rebuilding `weakness_decisions` to admit the `trait`
-origin.
+`--threshold`. The schema is now `user_version=4`: v1 databases are upgraded in place by
+adding these tables, v2 databases by rebuilding `weakness_decisions` to admit the `trait`
+origin, and v3 databases by numbering existing dispatch items in canonical order.
 
 `betsy run recall` compares a run with a baseline over the same snapshot. It reports the
 share of the baseline's findings the run also reported, plus question and round totals for

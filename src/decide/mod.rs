@@ -91,6 +91,17 @@ pub struct ProviderError {
     /// The request was rejected as too large; retrying with fewer questions may succeed.
     pub split: bool,
 }
+/// Rejected credentials (HTTP 401 or 403): every other request would fail the same way.
+pub const AUTH: &str = "provider_auth";
+/// Unknown endpoint or model (HTTP 404): a configuration error, not a property of a function.
+pub const NOT_FOUND: &str = "provider_not_found";
+impl ProviderError {
+    /// True when the error concerns the provider configuration rather than this function,
+    /// so the whole run should stop instead of failing every remaining function.
+    pub fn fatal(&self) -> bool {
+        matches!(self.code, AUTH | NOT_FOUND)
+    }
+}
 impl std::fmt::Display for ProviderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.code, self.message)

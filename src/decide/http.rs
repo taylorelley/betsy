@@ -85,10 +85,11 @@ fn retry_after(header: Option<&str>) -> Option<Duration> {
 /// Retries 408, 429 and 5xx; asks for a split on payload-size rejections.
 fn status_error(code: u16, text: &str) -> ProviderError {
     ProviderError {
-        code: if code == 429 {
-            "rate_limited"
-        } else {
-            "provider_http"
+        code: match code {
+            429 => "rate_limited",
+            401 | 403 => super::AUTH,
+            404 => super::NOT_FOUND,
+            _ => "provider_http",
         },
         message: format!("HTTP {code}: {text}"),
         retryable: matches!(code, 408 | 429 | 500..=599),
@@ -132,7 +133,13 @@ mod tests {
         assert!(status_error(400, "Too many Questions").split);
         let e = status_error(400, "bad model");
         assert!(!e.split && !e.retryable);
-        assert!(!status_error(401, "").retryable);
+        for code in [401, 403, 404] {
+            let e = status_error(code, "");
+            assert!(e.fatal() && !e.retryable && !e.split, "{code}");
+        }
+        for code in [400, 413, 422, 429, 500] {
+            assert!(!status_error(code, "").fatal(), "{code}");
+        }
         assert_eq!(status_error(404, "nope").message, "HTTP 404: nope");
     }
 }

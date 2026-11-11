@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS functions(id TEXT PRIMARY KEY,snapshot_id TEXT,path T
 CREATE INDEX IF NOT EXISTS canonical_functions ON functions(snapshot_id,path COLLATE BINARY,start_byte,end_byte,node_kind COLLATE BINARY,id COLLATE BINARY);
 CREATE TABLE IF NOT EXISTS gaps(snapshot_id TEXT,path TEXT,kind TEXT,start_byte INTEGER,end_byte INTEGER,details_json TEXT,FOREIGN KEY(snapshot_id,path) REFERENCES files(snapshot_id,path));
 CREATE TABLE IF NOT EXISTS dispatch_runs(id TEXT PRIMARY KEY,snapshot_id TEXT REFERENCES snapshots(id),analyzer_config_hash TEXT NOT NULL,status TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS dispatch_items(run_id TEXT REFERENCES dispatch_runs(id),function_id TEXT REFERENCES functions(id),status TEXT NOT NULL CHECK(status IN ('pending','claimed','completed','failed_retryable','failed_final')),attempt INTEGER NOT NULL DEFAULT 0,result_json TEXT,error_json TEXT,PRIMARY KEY(run_id,function_id));
+CREATE TABLE IF NOT EXISTS dispatch_items(run_id TEXT REFERENCES dispatch_runs(id),function_id TEXT REFERENCES functions(id),status TEXT NOT NULL CHECK(status IN ('pending','claimed','completed','failed_retryable','failed_final')),attempt INTEGER NOT NULL DEFAULT 0,result_json TEXT,error_json TEXT,ordinal INTEGER,PRIMARY KEY(run_id,function_id));
+CREATE INDEX IF NOT EXISTS dispatch_queue ON dispatch_items(run_id,status,ordinal);
 CREATE TABLE IF NOT EXISTS dispatch_events(sequence INTEGER PRIMARY KEY,run_id TEXT,function_id TEXT,event TEXT,attempt INTEGER,details_json TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(run_id,function_id) REFERENCES dispatch_items(run_id,function_id));
 CREATE TRIGGER IF NOT EXISTS snapshot_update BEFORE UPDATE ON snapshots WHEN OLD.locked=1 BEGIN SELECT RAISE(ABORT,'immutable snapshot'); END;
 CREATE TRIGGER IF NOT EXISTS snapshot_delete BEFORE DELETE ON snapshots BEGIN SELECT RAISE(ABORT,'immutable snapshot'); END;
@@ -26,4 +27,4 @@ CREATE TABLE IF NOT EXISTS weakness_plan(run_id TEXT REFERENCES analysis_runs(ru
 CREATE TABLE IF NOT EXISTS weakness_decisions(run_id TEXT NOT NULL,function_id TEXT NOT NULL,weakness_id TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('finding','gate')),round INTEGER NOT NULL,origin TEXT NOT NULL CHECK(origin IN ('provider','cache','refused','gated','trait')),probability REAL,question_hash TEXT,reason TEXT,PRIMARY KEY(run_id,function_id,weakness_id),FOREIGN KEY(run_id,function_id) REFERENCES dispatch_items(run_id,function_id));
 CREATE INDEX IF NOT EXISTS weakness_findings ON weakness_decisions(run_id,role,probability);
 CREATE TABLE IF NOT EXISTS decision_cache(provider_key TEXT NOT NULL,language TEXT NOT NULL,source_hash TEXT NOT NULL,question_hash TEXT NOT NULL,probability REAL NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(provider_key,language,source_hash,question_hash));
-PRAGMA user_version=3;
+PRAGMA user_version=4;

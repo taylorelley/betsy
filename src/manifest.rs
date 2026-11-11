@@ -40,19 +40,31 @@ pub fn assemble(
             ordinal,
         ));
     }
-    for i in 0..functions.len() {
+    // The parent is the smallest enclosing callable in the same file. Syntax-tree spans nest
+    // or are disjoint, so a stack of open spans finds it in one pass per file.
+    let mut order: Vec<usize> = (0..functions.len()).collect();
+    order.sort_by(|&a, &b| {
+        let (x, y) = (&functions[a], &functions[b]);
+        (&x.path, x.start_byte, std::cmp::Reverse(x.end_byte), a).cmp(&(
+            &y.path,
+            y.start_byte,
+            std::cmp::Reverse(y.end_byte),
+            b,
+        ))
+    });
+    let mut open: Vec<usize> = vec![];
+    for i in order {
         let f = &functions[i];
-        let parent = functions
-            .iter()
-            .filter(|p| {
-                p.path == f.path
-                    && p.start_byte <= f.start_byte
-                    && p.end_byte >= f.end_byte
-                    && p.id != f.id
-            })
-            .min_by_key(|p| p.end_byte - p.start_byte)
-            .map(|p| p.id.clone());
+        while let Some(&p) = open.last() {
+            let p = &functions[p];
+            if p.path == f.path && p.end_byte >= f.end_byte {
+                break;
+            }
+            open.pop();
+        }
+        let parent = open.last().map(|&p| functions[p].id.clone());
         functions[i].parent_id = parent;
+        open.push(i);
     }
     Manifest {
         schema_version: 1,

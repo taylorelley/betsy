@@ -237,13 +237,14 @@ enum Command {
         provider: ProviderArgs,
         #[command(flatten)]
         selection: SelectionArgs,
-        /// Probability at or above which a weakness is reported (0.7 was tuned on labelled
-        /// code; lower it for a recall-heavy pass).
-        #[arg(long, default_value_t = 0.7)]
-        threshold: f64,
-        /// Children of a weakness are asked only when its probability reaches this value.
-        #[arg(long, default_value_t = 0.15)]
-        gate_threshold: f64,
+        /// Probability at or above which a weakness is reported [default: 0.7, tuned on
+        /// labelled code; lower it for a recall-heavy pass]. Fixed when the run is created.
+        #[arg(long)]
+        threshold: Option<f64>,
+        /// Children of a weakness are asked only when its probability reaches this value
+        /// [default: 0.15]. Fixed when the run is created.
+        #[arg(long)]
+        gate_threshold: Option<f64>,
         /// Ask every planned weakness, disabling hierarchical early exit.
         #[arg(long)]
         exhaustive: bool,
@@ -262,6 +263,14 @@ enum Command {
         /// Requeue retryable failures before draining.
         #[arg(long)]
         retry_failed: bool,
+        /// Requeue items left claimed by an interrupted invocation before draining. Use only
+        /// when no other process is working on the run.
+        #[arg(long, requires = "run")]
+        recover_claimed: bool,
+        /// Ignore cached answers and replace them with fresh ones, for example after the
+        /// provider updated the model behind an alias such as `jev-latest`.
+        #[arg(long)]
+        no_cache: bool,
     },
 }
 #[derive(Subcommand)]
@@ -302,15 +311,21 @@ enum RunCommand {
         #[arg(long)]
         id: String,
     },
+    /// Requeue a claimed item after its worker stopped; `--all` requeues every claimed item.
     Recover {
         #[command(flatten)]
         run: Run,
+        #[arg(long, required_unless_present = "all", conflicts_with = "all")]
+        id: Option<String>,
         #[arg(long)]
-        id: String,
+        all: bool,
     },
     Status {
         #[command(flatten)]
         run: Run,
+        /// Only the run status and per-state counts, without items and events.
+        #[arg(long)]
+        summary: bool,
     },
     /// Run a local analyzer once per pending function: request JSON on stdin, result JSON on
     /// stdout. The program runs directly, without a shell: `run exec --run R -- prog args`.
@@ -333,6 +348,9 @@ enum RunCommand {
     Findings {
         #[command(flatten)]
         run: Run,
+        /// Report at this probability instead of the run's threshold; no question is asked again.
+        #[arg(long)]
+        threshold: Option<f64>,
     },
     /// Which findings of a baseline run (ideally `--exhaustive`) a pruned run also reported,
     /// and what pruned each one it missed.
@@ -447,13 +465,20 @@ fn execute(cli: Cli) -> Result<()> {
                 let mut db = store::open(&run.db.db)?;
                 output(&dispatch::requeue(&mut db, &run.run, &id, false)?)?;
             }
-            RunCommand::Recover { run, id } => {
+            RunCommand::Recover { run, id, all } => {
                 let mut db = store::open(&run.db.db)?;
-                output(&dispatch::requeue(&mut db, &run.run, &id, true)?)?;
+                match id {
+                    Some(id) if !all => output(&dispatch::requeue(&mut db, &run.run, &id, true)?)?,
+                    _ => output(&dispatch::recover_all(&mut db, &run.run)?)?,
+                }
             }
-            RunCommand::Status { run } => {
+            RunCommand::Status { run, summary } => {
                 let db = store::open(&run.db.db)?;
-                output(&dispatch::status(&db, &run.run)?)?;
+                if summary {
+                    output(&dispatch::summary(&db, &run.run)?)?;
+                } else {
+                    output(&dispatch::status(&db, &run.run)?)?;
+                }
             }
             RunCommand::Exec {
                 run,
@@ -476,9 +501,9 @@ fn execute(cli: Cli) -> Result<()> {
                 let db = store::open(&run.db.db)?;
                 output(&analyze::recall(&db, &baseline, &run.run)?)?;
             }
-            RunCommand::Findings { run } => {
+            RunCommand::Findings { run, threshold } => {
                 let db = store::open(&run.db.db)?;
-                let v = analyze::findings(&db, &run.run)?;
+                let v = analyze::findings(&db, &run.run, threshold)?;
                 match run.format {
                     Format::Json => output(&v)?,
                     Format::Jsonl => {
@@ -534,16 +559,28 @@ fn execute(cli: Cli) -> Result<()> {
             concurrency,
             max_inflight,
             retry_failed,
+            recover_claimed,
+            no_cache,
         } => {
             let provider = provider.build()?;
+            let model = provider.config()["model"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            if !no_cache && model.ends_with("latest") {
+                eprintln!(
+                    "{}",
+                    json!({"warning":format!("model {model} is a moving alias; cached answers from an earlier model behind it are reused. Pin a model version, or pass --no-cache to refresh")})
+                );
+            }
             let mut db = store::open(&db.db)?;
             let run = match (snapshot, run) {
                 (Some(snapshot), None) => {
                     let config = analyze::Config::new(
                         provider.as_ref(),
                         selection.selection(),
-                        threshold,
-                        gate_threshold,
+                        threshold.unwrap_or(analyze::DEFAULT_THRESHOLD),
+                        gate_threshold.unwrap_or(analyze::DEFAULT_GATE_THRESHOLD),
                         exhaustive,
                     )?
                     .with_max_rounds(max_rounds)?
@@ -552,7 +589,18 @@ fn execute(cli: Cli) -> Result<()> {
                     eprintln!("{created}");
                     created["run_id"].as_str().unwrap_or_default().to_string()
                 }
-                (None, Some(run)) => run,
+                (None, Some(run)) => {
+                    analyze::Resume {
+                        selection: selection.selection(),
+                        threshold,
+                        gate_threshold,
+                        exhaustive,
+                        max_rounds,
+                        traits,
+                    }
+                    .check(&analyze::load_config(&db, &run)?)?;
+                    run
+                }
                 _ => anyhow::bail!("pass exactly one of --snapshot or --run"),
             };
             output(&analyze::drain(
@@ -563,6 +611,8 @@ fn execute(cli: Cli) -> Result<()> {
                     concurrency,
                     max_inflight,
                     retry_failed,
+                    recover_claimed,
+                    refresh_cache: no_cache,
                 },
             )?)?;
         }

@@ -3,7 +3,7 @@ use crate::{
     store,
 };
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde_json::{json, Value};
 fn run_snapshot(db: &Connection, run: &str) -> Result<String> {
     db.query_row(
@@ -14,9 +14,24 @@ fn run_snapshot(db: &Connection, run: &str) -> Result<String> {
     .context("run not found")
 }
 pub fn create(db: &mut Connection, snapshot: &str, analyzer: &str) -> Result<Value> {
-    let m = store::load(db, snapshot)?;
-    anyhow::ensure!(m.sealed, "snapshot is not sealed");
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let created = create_in(&tx, snapshot, analyzer)?;
+    tx.commit()?;
+    Ok(created)
+}
+/// Creates a run inside the caller's transaction, so callers can attach more records to it
+/// atomically. Items are numbered in canonical queue order once, so each claim is an index
+/// lookup instead of a sort over the whole run.
+pub fn create_in(tx: &Transaction, snapshot: &str, analyzer: &str) -> Result<Value> {
+    let (status, source_complete): (String, bool) = tx
+        .query_row(
+            "SELECT status,source_complete FROM snapshots WHERE id=?",
+            [snapshot],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?
+        .context("snapshot not found")?;
+    anyhow::ensure!(status == "sealed", "snapshot is not sealed");
     let seq: i64 = tx.query_row("SELECT count(*) FROM dispatch_runs", [], |r| r.get(0))?;
     let config = identity(&(analyzer, 1));
     let run = identity(&(snapshot, &config, seq));
@@ -24,17 +39,28 @@ pub fn create(db: &mut Connection, snapshot: &str, analyzer: &str) -> Result<Val
         "INSERT INTO dispatch_runs VALUES(?,?,?,'active')",
         params![run, snapshot, config],
     )?;
-    tx.execute("INSERT INTO dispatch_items(run_id,function_id,status) SELECT ?,id,'pending' FROM functions WHERE snapshot_id=?",params![run,snapshot])?;
-    tx.commit()?;
+    tx.execute(
+        &format!("INSERT INTO dispatch_items(run_id,function_id,status,ordinal) SELECT ?,id,'pending',row_number() OVER (ORDER BY {CANONICAL}) FROM functions WHERE snapshot_id=?"),
+        params![run, snapshot],
+    )?;
     Ok(
-        json!({"run_id":run,"snapshot_id":snapshot,"analyzer_config_hash":config,"source_complete":m.source_complete}),
+        json!({"run_id":run,"snapshot_id":snapshot,"analyzer_config_hash":config,"source_complete":source_complete}),
     )
 }
+/// Canonical queue order over `functions` columns: UTF-8 path bytes, span, node kind, ID.
+pub const CANONICAL: &str =
+    "path COLLATE BINARY,start_byte,end_byte,node_kind COLLATE BINARY,id COLLATE BINARY";
 pub fn next(db: &mut Connection, run: &str) -> Result<Option<Function>> {
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let snapshot = run_snapshot(&tx, run)?;
     // Claims persist until explicit completion/failure/recovery, including after restart.
-    let id:Option<String>=tx.query_row("SELECT f.id FROM dispatch_items i JOIN functions f ON f.id=i.function_id WHERE i.run_id=? AND i.status='pending' ORDER BY f.path COLLATE BINARY,f.start_byte,f.end_byte,f.node_kind COLLATE BINARY,f.id COLLATE BINARY LIMIT 1",[run],|r|r.get(0)).optional()?;
+    let id: Option<String> = tx
+        .query_row(
+            "SELECT function_id FROM dispatch_items WHERE run_id=? AND status='pending' ORDER BY ordinal LIMIT 1",
+            [run],
+            |r| r.get(0),
+        )
+        .optional()?;
     let Some(id) = id else {
         tx.commit()?;
         return Ok(None);
@@ -51,6 +77,13 @@ fn event(db: &Connection, run: &str, id: &str, kind: &str, details: &Value) -> R
 }
 pub fn complete(db: &mut Connection, run: &str, id: &str, result: Value) -> Result<Value> {
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let out = complete_in(&tx, run, id, result)?;
+    tx.commit()?;
+    Ok(out)
+}
+/// Completes a claimed item inside the caller's transaction, so its result commits together
+/// with any records derived from it.
+pub fn complete_in(tx: &Transaction, run: &str, id: &str, result: Value) -> Result<Value> {
     let (status, old): (String, Option<String>) = tx
         .query_row(
             "SELECT status,result_json FROM dispatch_items WHERE run_id=? AND function_id=?",
@@ -66,13 +99,11 @@ pub fn complete(db: &mut Connection, run: &str, id: &str, result: Value) -> Resu
                 == Some(result),
             "completion conflicts with stored result"
         );
-        tx.commit()?;
         return Ok(json!({"status":"completed","idempotent":true}));
     }
     anyhow::ensure!(status == "claimed", "completion requires a claimed item");
     tx.execute("UPDATE dispatch_items SET status='completed',result_json=? WHERE run_id=? AND function_id=?",params![serde_json::to_string(&result)?,run,id])?;
-    event(&tx, run, id, "completed", &result)?;
-    tx.commit()?;
+    event(tx, run, id, "completed", &result)?;
     Ok(json!({"status":"completed","idempotent":false}))
 }
 pub fn fail(
@@ -122,6 +153,45 @@ pub fn requeue(db: &mut Connection, run: &str, id: &str, recover: bool) -> Resul
     tx.commit()?;
     Ok(json!({"status":"pending"}))
 }
+/// Requeues every claimed item of a run, for use after the only worker has stopped.
+pub fn recover_all(db: &mut Connection, run: &str) -> Result<Value> {
+    let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    run_snapshot(&tx, run)?;
+    let ids: Vec<String> = tx
+        .prepare("SELECT function_id FROM dispatch_items WHERE run_id=? AND status='claimed' ORDER BY ordinal")?
+        .query_map([run], |r| r.get(0))?
+        .collect::<Result<_, _>>()?;
+    for id in &ids {
+        tx.execute(
+            "UPDATE dispatch_items SET status='pending' WHERE run_id=? AND function_id=?",
+            params![run, id],
+        )?;
+        event(&tx, run, id, "recovered", &Value::Null)?;
+    }
+    tx.commit()?;
+    Ok(json!({"run_id":run,"recovered":ids.len()}))
+}
+/// Run status and per-state counts, without the item and event listings of [`status`].
+pub fn summary(db: &Connection, run: &str) -> Result<Value> {
+    let snapshot = run_snapshot(db, run)?;
+    let mut q = db.prepare_cached(
+        "SELECT status,count(*) FROM dispatch_items WHERE run_id=? GROUP BY status",
+    )?;
+    let counts: std::collections::BTreeMap<String, usize> = q
+        .query_map([run], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<Result<_, _>>()?;
+    Ok(json!({"run_id":run,"snapshot_id":snapshot,"status":run_state(&counts),"counts":counts}))
+}
+fn run_state(counts: &std::collections::BTreeMap<String, usize>) -> &'static str {
+    let finished = !counts.contains_key("pending")
+        && !counts.contains_key("claimed")
+        && !counts.contains_key("failed_retryable");
+    if finished {
+        "finished"
+    } else {
+        "active"
+    }
+}
 pub fn status(db: &Connection, run: &str) -> Result<Value> {
     let snapshot = run_snapshot(db, run)?;
     let mut q=db.prepare("SELECT function_id,status,attempt,result_json,error_json FROM dispatch_items WHERE run_id=? ORDER BY function_id")?;
@@ -144,10 +214,7 @@ pub fn status(db: &Connection, run: &str) -> Result<Value> {
     }
     let mut q=db.prepare("SELECT function_id,event,attempt,details_json FROM dispatch_events WHERE run_id=? ORDER BY sequence")?;
     let events=q.query_map([run],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,usize>(2)?,r.get::<_,String>(3)?)))?.collect::<Result<Vec<_>,_>>()?.into_iter().map(|(id,e,a,d)|Ok(json!({"function_id":id,"event":e,"attempt":a,"details":serde_json::from_str::<Value>(&d)?}))).collect::<Result<Vec<_>>>()?;
-    let finished = !counts.contains_key("pending")
-        && !counts.contains_key("claimed")
-        && !counts.contains_key("failed_retryable");
     Ok(
-        json!({"run_id":run,"snapshot_id":snapshot,"status":if finished{"finished"}else{"active"},"counts":counts,"items":records,"events":events}),
+        json!({"run_id":run,"snapshot_id":snapshot,"status":run_state(&counts),"counts":counts,"items":records,"events":events}),
     )
 }

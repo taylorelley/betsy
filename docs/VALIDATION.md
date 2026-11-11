@@ -32,13 +32,13 @@ Per-file counts also match the untouched supplied count oracle. The 47 extended 
 oracles pass for JSX, TSX, Python, Rust, C headers and C++.
 
 Integration tests exercise grammar/version contracts, syntax/encoding/resource failures,
-unreadable files under the ordinary workspace user, strict CLI rejection and partial
+unreadable files (checked only where the test user cannot read a mode-000 file, since root can), strict CLI rejection and partial
 persistence, ignored/glob-excluded files, empty inventory, non-callable files, identical
 source in separate paths, symlink exclusion, unsafe path normalization rejection,
 three-location/traversal-order reproducibility, concurrent source edits using atomic
 file replacement, retrieval after source deletion, immutable SQL triggers, deterministic
 range/order/ID properties, concurrent unique claims, persistent interrupted claims,
-explicit recovery/retry, fault history, final failures, state validation and idempotent
+explicit recovery/retry, migration of v3 dispatch queues to canonical ordinals, fault history, final failures, state validation and idempotent
 completion with rejection of conflicting results.
 
 Full release starter report, manifest and verification JSON are in `artifacts/`.
@@ -55,7 +55,31 @@ across runs and duplicate bodies, determinism under concurrency, interrupted cla
 retryable provider failures, Jev and OpenAI request/response wire shapes, HTTP retry on
 rate limits and halving of oversized requests, trait catalog validity, syntax-only proof
 of trait presence, trait pruning, recall attribution to traits and gated ancestors, and
-schema migration from v1 and v2 databases to v3.
+schema migration from v1, v2 and v3 databases to v4. They also check that rejected
+credentials or an unknown model stop the run and leave every function pending, even when an
+earlier chunk of the same round failed for an ordinary reason, that answers
+paid for before a failure are cached and reused by the retry, that `--recover-claimed`
+requeues interrupted claims, that `run findings --threshold` reports at another threshold,
+that resuming rejects options differing from the run's configuration, that `--no-cache`
+replaces stale cached answers, and that a failed run creation leaves no orphan run.
+
+## Scale
+
+Measured on synthetic Python repositories (50 three-line functions per file) with the release
+build in a cloud container, before and after the v0.2 scaling fixes. The analysis used the
+offline mock provider and one question per function, so it measures BETSY's own overhead.
+
+| Functions | Scan before | Scan after | Analysis before | Analysis after |
+|---|---|---|---|---|
+| 10,000 | 1.1 s | 0.5 s | 219 s | 6.2 s |
+| 20,000 | 4.8 s | 1.0 s | over 14 min, stopped | 13.0 s |
+| 40,000 | 18.1 s | 2.1 s | not attempted | 26.0 s |
+
+The causes were a claim query that sorted the whole run for every claim, a parent search that
+compared every function with every other, line positions recomputed from the start of the
+file, whole-file reads for each function's source, and a rollback journal created and deleted
+on every commit. A single file of 20,000 functions now scans in 0.8 s. Timings depend on the
+disk; these are indicative only.
 
 ## Question wording and detection cards
 
