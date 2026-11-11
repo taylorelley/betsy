@@ -1104,11 +1104,26 @@ impl Provider for Scripted {
     ) -> Result<(Vec<Answer>, Usage), ProviderError> {
         self.requests.fetch_add(1, Ordering::SeqCst);
         if let Some((code, retryable)) = self.error {
-            // One atomic decrement per success: concurrent chunks cannot share a permit.
-            let permit = self
-                .ok_requests
-                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_sub(1));
-            if permit.is_err() {
+            // One atomic decrement per success: concurrent chunks cannot share a permit, and
+            // an exhausted count stays at zero. A compare-exchange loop rather than
+            // fetch_update, which newer toolchains deprecate, while try_update needs a newer
+            // Rust than the 1.90 minimum.
+            let mut left = self.ok_requests.load(Ordering::SeqCst);
+            let permit = loop {
+                let Some(next) = left.checked_sub(1) else {
+                    break false;
+                };
+                match self.ok_requests.compare_exchange_weak(
+                    left,
+                    next,
+                    Ordering::SeqCst,
+                    Ordering::SeqCst,
+                ) {
+                    Ok(_) => break true,
+                    Err(current) => left = current,
+                }
+            };
+            if !permit {
                 return Err(ProviderError {
                     code,
                     message: "scripted".into(),
