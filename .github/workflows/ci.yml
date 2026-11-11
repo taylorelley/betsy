@@ -18,6 +18,7 @@ jobs:
       - run: cargo clippy --locked --offline --all-targets -- -D warnings
       - run: cargo test --locked --offline
       - run: cargo test --locked --offline --release
+      - run: cargo run --locked --offline --quiet -- weaknesses audit --strict > /dev/null
   msrv:
     runs-on: ubuntu-latest
     steps:

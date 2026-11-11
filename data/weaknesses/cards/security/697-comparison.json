@@ -1,0 +1,441 @@
+{
+  "cards": {
+    "CWE-183": {
+      "name": "Permissive List of Allowed Inputs",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check input against an allow list that admits entries, patterns or prefixes broad enough to let dangerous values through?",
+      "present_when": {
+        "any": [
+          "an allow list contains wildcards, broad patterns or prefixes such as allowing any host ending in a domain string without a leading dot",
+          "allowed values are tested with substring or startsWith matches, so evil.example.com.attacker.net passes",
+          "the list of permitted characters, tags, schemes or commands includes ones that are dangerous in the destination context"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is compared exactly against a small fixed set of known-safe values",
+          "domain or path checks parse the value first and compare the full host or canonical path exactly",
+          "the list is a deny list, which is a different weakness"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-185": "the allow list is a regular expression whose anchoring or syntax is wrong",
+        "CWE-187": "the defect is comparing only a prefix or part of a string"
+      }
+    },
+    "CWE-185": {
+      "name": "Incorrect Regular Expression",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a regular expression for validation or matching that is written wrongly, so it accepts or rejects the wrong inputs?",
+      "present_when": {
+        "any": [
+          "a validation regex lacks start and end anchors, or uses search where a full match was intended",
+          "an unescaped dot or other metacharacter makes the pattern broader than intended, such as a domain written with a bare dot",
+          "alternation without grouping, such as ^a|b$, anchors only part of the pattern",
+          "multiline mode lets ^ and $ match at inner line breaks, so a second line bypasses the check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the pattern is fully anchored, metacharacters are escaped and a full-match function is used",
+          "the regex is used only for searching or highlighting text, with no security or correctness decision",
+          "validation is done with a parser rather than a regex"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-186": "the pattern is too strict and rejects valid input",
+        "CWE-1333": "the pattern is correct but can backtrack catastrophically on crafted input"
+      }
+    },
+    "CWE-186": {
+      "name": "Overly Restrictive Regular Expression",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-185"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a regular expression that is too narrow, so harmful variants it was meant to catch slip past it?",
+      "present_when": {
+        "any": [
+          "a pattern meant to detect dangerous input matches only one spelling, such as lower case <script> without a case-insensitive flag",
+          "a deny pattern omits encoded, whitespace or alternative forms of the same token",
+          "a regex filter expects a fixed number of characters or a specific order that attackers can vary"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is canonicalised, for example decoded and lower-cased, before a broad pattern is applied",
+          "the regex is an anchored allow pattern, where narrowness only rejects input",
+          "the regex is not used for security filtering"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-185": "the pattern is too broad or wrongly anchored, so it accepts bad input"
+      }
+    },
+    "CWE-187": {
+      "name": "Partial String Comparison",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1023"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare only part of a string or buffer, such as the first n characters, when the whole value should match?",
+      "present_when": {
+        "any": [
+          "the length passed to a comparison comes from the shorter or the user-supplied string instead of the expected value",
+          "a credential, token or name is checked with startsWith or a prefix match",
+          "the comparison stops at the first mismatch in a way that treats a shorter input as matching"
+        ],
+        "c": [
+          "strncmp or memcmp is called with strlen of the user input or a fixed small length rather than the full expected length"
+        ],
+        "cpp": [
+          "expected.compare(0, input.size(), input) == 0 or expected.starts_with(input), so a shorter input matches"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the full values are compared, with lengths checked to be equal first",
+          "the prefix comparison is intentional, such as routing on a path prefix, and has no security effect"
+        ],
+        "c": [
+          "strcmp is used, or strncmp with the length of the expected constant plus a check that the input ends there"
+        ],
+        "cpp": [
+          "the full std::string values are compared with operator=="
+        ]
+      },
+      "distinguish_from": {
+        "CWE-183": "a whole-value allow list admits entries that are too broad"
+      }
+    },
+    "CWE-478": {
+      "name": "Missing Default Case in Multiple Condition Expression",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-1023"
+      ],
+      "function_checkable": true,
+      "question": "Does this function branch on a value with a switch, match or if/else-if chain that has no default or final else for values it does not list?",
+      "present_when": {
+        "any": [
+          "a switch or multi-way branch over a state, command or enum value lists some cases and has no default branch",
+          "an if/else-if chain over the same variable ends without a final else, and later code assumes a variable set in one of the branches"
+        ],
+        "python": [
+          "a match statement has no case _ arm, or an if/elif chain over a mode or type leaves a result variable unset for other values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a default case or final else handles, rejects or reports unexpected values",
+          "the listed cases cover every possible value and the code after the branch does not depend on one of them running"
+        ],
+        "typescript": [
+          "the switch is over a union or enum and ends with an exhaustiveness check such as assigning to never"
+        ]
+      },
+      "distinguish_from": {
+        "REL-128": "the construct is specifically a C or C++ switch with no default label",
+        "REL-124": "the construct is specifically a C or C++ else-if chain without a closing else"
+      }
+    },
+    "CWE-595": {
+      "name": "Comparison of Object References Instead of Object Contents",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1025"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare two objects, arrays or strings by reference or identity when it means to compare their contents?",
+      "present_when": {
+        "any": [
+          "two distinct objects or arrays are compared with == or ===, which is only true when they are the same object"
+        ],
+        "c": [
+          "two char pointers are compared with == or != instead of strcmp",
+          "struct or buffer contents are compared by comparing their addresses"
+        ],
+        "cpp": [
+          "pointers to objects or C strings are compared instead of the objects or std::string values"
+        ],
+        "python": [
+          "is or is not is used to compare strings, numbers, tuples or other values instead of =="
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "identity comparison is intended, such as checking for the same instance, a sentinel object or null"
+        ],
+        "python": [
+          "is None, is True or comparison with a module-level sentinel"
+        ],
+        "rust": [
+          "== on String, Vec or structs, which compares contents through PartialEq"
+        ],
+        "cpp": [
+          "== on std::string or types with an operator== that compares contents"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-597": "the operands are specifically strings compared with the wrong operator"
+      }
+    },
+    "CWE-597": {
+      "name": "Use of Wrong Operator in String Comparison",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-595"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare strings with an operator that tests identity or address rather than the characters?",
+      "present_when": {
+        "c": [
+          "char pointers or string literals are compared with == or != rather than strcmp or strncmp"
+        ],
+        "cpp": [
+          "two c_str() or data() results, or a const char* and a string literal, are compared with == so addresses are compared"
+        ],
+        "python": [
+          "strings are compared with is or is not, which depends on interning"
+        ],
+        "javascript": [
+          "String objects created with new String are compared with == or ===, or a string is compared with a wrapper object"
+        ],
+        "rust": [
+          "string data is compared by pointer, for example with as_ptr or std::ptr::eq, instead of =="
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "strings are compared with the language's content comparison, such as strcmp, std::string ==, Python == or JavaScript === on primitive strings"
+        ],
+        "c": [
+          "a pointer is compared with NULL or with another pointer to check whether they refer to the same buffer"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-187": "the string comparison is by content but covers only part of the string"
+      }
+    },
+    "CWE-697": {
+      "name": "Incorrect Comparison",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does this function compare values, strings, patterns or floating-point numbers in a way that could give the wrong answer?",
+      "present_when": {
+        "any": [
+          "string, list or regular expression checks used for validation, filtering or access decisions",
+          "comparisons of objects, references, mixed types or partial strings, or switch and if chains deciding on a value",
+          "floating-point equality, tolerance, NaN-sensitive comparisons, sorting or min/max over floats, or floats as map keys",
+          "range checks with only an upper or only a lower bound"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function performs no comparisons beyond simple loop counters against a fixed length",
+          "the function only moves, formats or stores data with no decision logic"
+        ]
+      }
+    },
+    "CWE-839": {
+      "name": "Numeric Range Comparison Without Minimum Check",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-1023"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check that a signed number is below a maximum but never that it is at or above the minimum before using it?",
+      "present_when": {
+        "c": [
+          "a signed int index, length or offset is tested only with value < max or value <= max and then used to index, allocate or copy",
+          "a size from input is stored in a signed type and only an upper limit is checked, so a negative value passes",
+          "the lower bound check is present on some paths but missing on another path that reaches the use"
+        ],
+        "cpp": [
+          "a signed index is checked only as i < static_cast<int>(v.size()) or i < max, then used with operator[] or begin() + i"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "both bounds are checked, for example value >= 0 && value < max",
+          "the value has an unsigned type, or is converted to unsigned before a single upper-bound test",
+          "the value is a constant or comes from a source that cannot be negative, such as sizeof or strlen"
+        ],
+        "cpp": [
+          "the index is std::size_t, or a >= 0 test precedes the comparison with size()"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-129": "the value is an array index whose validation is missing entirely or wrong in another way"
+      }
+    },
+    "CWE-1023": {
+      "name": "Incomplete Comparison with Missing Factors",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function decide something by comparing values while leaving out a factor that the decision needs, such as the full length, a lower bound or a case?",
+      "present_when": {
+        "any": [
+          "a comparison considers only part of the relevant data, for example a prefix, one field of a composite key or the first n bytes",
+          "a range check tests only the upper bound of a signed value, or only the lower bound",
+          "a switch or if chain handles some values and has no branch for the rest"
+        ],
+        "typescript": [
+          "an if chain or switch over a union, enum or discriminant covers only some members, with no default and no never exhaustiveness check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every field and the full length are compared, and both range bounds are tested",
+          "every possible value is handled, including a default or final else"
+        ],
+        "typescript": [
+          "the final branch assigns the value to a variable of type never or calls an assertNever helper, so the compiler reports any missed member"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-187": "the missing factor is the remainder of a string",
+        "CWE-478": "the missing factor is a default or final else branch",
+        "CWE-839": "the missing factor is a minimum bound on a numeric range"
+      }
+    },
+    "CWE-1024": {
+      "name": "Comparison of Incompatible Types",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare values of different types, so the comparison converts one of them or can never be true?",
+      "present_when": {
+        "any": [
+          "a value of one type is compared with a value of an unrelated type, such as a number with a string, or an enum with a raw integer"
+        ],
+        "c": [
+          "a signed value is compared with an unsigned one, such as int with size_t, so a negative value converts to a large positive number",
+          "a pointer is compared with an integer, or char with a value outside its range such as EOF stored in a char"
+        ],
+        "cpp": [
+          "a signed int that may be negative is compared with size(), std::string::npos or another unsigned size_type value"
+        ],
+        "javascript": [
+          "loose == or != between different types, such as a string from input against a number or a boolean"
+        ],
+        "typescript": [
+          "an operand typed any, or one produced by an as cast, is compared with == or === against a number, string or boolean of another type"
+        ],
+        "python": [
+          "a str read from input is compared with == to an int, or bytes with str, so the test is always false"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "both operands are converted explicitly to the same type with validation before comparison"
+        ],
+        "cpp": [
+          "the comparison uses std::cmp_less, std::ssize or operands that are both the container's size_type"
+        ],
+        "javascript": [
+          "strict === or !== is used and both sides have the same type"
+        ],
+        "typescript": [
+          "both operands have declared non-any types and the comparison compiles, as the compiler rejects comparisons between types with no overlap"
+        ],
+        "rust": [
+          "ordinary comparisons, which the compiler rejects across different types unless cast explicitly"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-597": "the operands are strings compared by reference rather than content"
+      }
+    },
+    "CWE-1025": {
+      "name": "Comparison Using Wrong Factors",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare the wrong things, such as the wrong variable, field, size or a value with itself, so the check does not test what it means to?",
+      "present_when": {
+        "any": [
+          "a variable is compared with itself, or with a different but similarly named variable from the one just computed",
+          "a check compares an identity, reference or handle when it needs the contents, or the contents when it needs identity",
+          "a length is compared with a capacity in different units, such as characters against bytes"
+        ],
+        "c": [
+          "sizeof a pointer is used where the size of the pointed-to buffer was meant"
+        ],
+        "cpp": [
+          "sizeof is applied to a std::string, std::vector or std::span object where its size() was meant",
+          "smart pointers, iterators or c_str() pointers are compared with == where the pointed-to contents were meant"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operands are the values the surrounding logic computes and uses, in the same units",
+          "the comparison is a deliberate idiom, such as x != x to detect NaN, with a comment or obvious intent"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-595": "object references are compared where their contents were intended",
+        "REL-191": "the wrong factor is a fixed absolute tolerance for floating-point equality"
+      }
+    },
+    "CWE-1077": {
+      "name": "Floating Point Comparison with Incorrect Operator",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-697"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare floating-point values with an operator that ignores rounding, precision differences or NaN?",
+      "present_when": {
+        "any": [
+          "computed floating-point results are compared with == or !=",
+          "a float of one precision is compared with an expression in another precision",
+          "a floating-point loop counter or accumulator is tested for exact equality with a target value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "comparison uses a suitable relative tolerance or a library closeness function",
+          "the compared values are exact, such as integers stored in floats, zero from assignment, or a constant copied unchanged"
+        ]
+      },
+      "distinguish_from": {
+        "REL-190": "exact equality is tested between computed floating-point values",
+        "REL-204": "a narrower float variable is compared with a wider expression"
+      }
+    }
+  }
+}

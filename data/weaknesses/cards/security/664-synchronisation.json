@@ -1,0 +1,1219 @@
+{
+  "cards": {
+    "CWE-362": {
+      "name": "Concurrent Execution using Shared Resource with Improper Synchronization ('Race Condition')",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Does this function access shared data or a resource that another thread or process can change, with a window where it is not protected by proper synchronisation?",
+      "present_when": {
+        "any": [
+          "a global, static or shared variable is read, tested and then written without holding a lock across the whole sequence",
+          "a check on a shared value or file is followed by an action that relies on the check, with no lock or atomic operation joining them",
+          "some accesses to a shared variable hold a lock and others in this function do not"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the shared accesses happen while holding the same lock, or use atomic operations for the whole read-modify-write",
+          "the data is local, thread-local or immutable after initialisation",
+          "the code is single-threaded and installs no signal handlers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-367": "the race is between checking a file or resource and then using it",
+        "CWE-366": "the race is between threads over a shared variable within one process",
+        "CWE-364": "the race involves a signal handler"
+      }
+    },
+    "CWE-363": {
+      "name": "Race Condition Enabling Link Following",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-367"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a file or directory's status and then open or modify it by path, leaving a gap in which it could be swapped for a link?",
+      "present_when": {
+        "any": [
+          "a path is checked for existence, type, owner or permissions and later opened, written, chmod-ed or deleted by the same path name"
+        ],
+        "c": [
+          "stat, lstat or access on a path followed by open, fopen, chown, chmod or unlink on that same path"
+        ],
+        "cpp": [
+          "std::filesystem::exists, is_regular_file, is_symlink or status on a path, then std::ofstream, permissions or remove on the same path"
+        ],
+        "python": [
+          "os.path.exists, os.path.islink, os.stat or os.access followed by open, os.chmod or shutil calls on the path"
+        ],
+        "javascript": [
+          "fs.existsSync, fs.statSync or fs.access followed by fs.open, fs.writeFile or fs.chmod on the path"
+        ],
+        "rust": [
+          "Path::exists, symlink_metadata or metadata followed by File::open or fs::write on the path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the file is opened first and checks are made on the open descriptor, such as fstat",
+          "the open uses flags that refuse links or require a new file, such as O_NOFOLLOW or O_CREAT with O_EXCL",
+          "the directory involved is private to the process and not writable by others"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-367": "the check and use concern something other than a file that could be replaced with a link"
+      }
+    },
+    "CWE-364": {
+      "name": "Signal Handler Race Condition",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-362"
+      ],
+      "function_checkable": true,
+      "question": "Is this function a signal handler, or does it install one, in a way that lets the handler race with normal code or with itself over shared state?",
+      "present_when": {
+        "c": [
+          "a function registered with signal or sigaction modifies global data that the main code also changes, without blocking the signal",
+          "a handler frees memory, closes files or changes data structures that other code may be using when the signal arrives",
+          "a handler calls longjmp or exit while the interrupted code may be part-way through an update",
+          "a handler that calls signal() to re-install itself, which races where the handler is reset on delivery"
+        ],
+        "cpp": [
+          "a signal handler changes a std::vector, std::string or other object, or locks a std::mutex, that normal code also uses"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the handler only sets a volatile sig_atomic_t flag that the main loop polls",
+          "signals are blocked with sigprocmask or sa_mask around the shared-state updates",
+          "the function neither defines nor installs a signal handler"
+        ],
+        "cpp": [
+          "the handler only stores to a lock-free std::atomic or a volatile std::sig_atomic_t flag"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-479": "the handler calls a non-reentrant library function",
+        "CWE-831": "the same handler is registered for several signals"
+      }
+    },
+    "CWE-366": {
+      "name": "Race Condition within a Thread",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-362"
+      ],
+      "function_checkable": true,
+      "question": "Can two threads run this function's code on the same shared variable or object at once, with a read-modify-write or multi-step update that is not protected by a lock or atomic operation?",
+      "present_when": {
+        "c": [
+          "a global, static or heap object reachable from several threads is updated with ++, +=, or read-then-write, without holding a mutex",
+          "a shared pointer is tested and then freed, replaced or initialised without a lock (for example lazy initialisation without once-semantics)",
+          "a thread routine passed to pthread_create or std::thread modifies data the creating code also uses",
+          "different threads write adjacent bit-fields of one struct, which share a memory location, without a common lock"
+        ],
+        "cpp": [
+          "a std::atomic updated with x = x + 1, x = !x or x = x * 2, which is a separate load and store rather than one atomic operation"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "every access to the shared data happens while holding the same mutex",
+          "the update uses atomic types or atomic intrinsics covering the whole operation",
+          "the data is local or thread-local, or only read after being fully initialised before threads start"
+        ],
+        "cpp": [
+          "initialisation uses std::call_once or a function-local static",
+          "fetch_add, fetch_xor, compare_exchange or a lock makes the update a single atomic step"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-367": "the race is between checking and using a file or external resource",
+        "CWE-364": "the competing code is a signal handler rather than another thread"
+      }
+    },
+    "CWE-367": {
+      "name": "Time-of-check Time-of-use (TOCTOU) Race Condition",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-362"
+      ],
+      "requires": [
+        "filesystem",
+        "resources",
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check the state of a file or other shared resource and then act on it in a separate step, so the state can change in between?",
+      "present_when": {
+        "any": [
+          "a file path is checked (exists, access, stat, permissions, is-symlink) and the same path is then opened, created, deleted or changed by a separate call"
+        ],
+        "c": [
+          "access() or stat() is followed by open() or fopen() on the same path"
+        ],
+        "cpp": [
+          "std::filesystem::exists or status on a path, then std::ifstream, std::ofstream or std::filesystem::rename on that path"
+        ],
+        "python": [
+          "os.path.exists, os.access or os.path.isfile is followed by open, os.remove or os.rename on the same path"
+        ],
+        "javascript": [
+          "fs.existsSync or fs.access is followed by fs.open, fs.writeFile or fs.unlink on the same path"
+        ],
+        "rust": [
+          "Path::exists or fs::metadata is followed by File::create, fs::write or fs::remove_file on the same path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operation is done in one atomic call and its error is handled, such as open with O_CREAT|O_EXCL, or create_new(true)",
+          "the check is made on an already-open handle (fstat on the descriptor) rather than the path",
+          "the resource is private to the process, such as a local variable or an in-memory structure behind a lock held across check and use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-362": "the race is between threads on shared memory rather than a check followed by a use of an external resource"
+      }
+    },
+    "CWE-368": {
+      "name": "Context Switching Race Condition",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-362"
+      ],
+      "requires": [
+        "security_logic"
+      ],
+      "function_checkable": true,
+      "question": "Does this function switch between security contexts (user, privilege level, origin or document) in several non-atomic steps, leaving a window where actions run in the wrong context?",
+      "present_when": {
+        "any": [
+          "privileges, credentials or the current user are changed in separate steps with work done between them",
+          "a navigation, document or origin change updates the security context after new content or callbacks may already run",
+          "the effective identity is lowered or raised for an operation and an error path skips restoring it"
+        ],
+        "c": [
+          "seteuid, setegid or setgroups called in sequence with calls between them that act on files or input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the context switch is done by a single atomic call or completed before any other work happens",
+          "callbacks and untrusted content are blocked until the new context is fully in place",
+          "the function does not change security context"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-362": "the race is over shared data rather than a security context switch"
+      }
+    },
+    "CWE-412": {
+      "name": "Unrestricted Externally Accessible Lock",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely on a lock that outside actors can create, hold or remove, such as a lock file in a shared directory or a lock keyed by user input?",
+      "present_when": {
+        "any": [
+          "a lock file is created or checked in a world-writable directory such as /tmp using a predictable name",
+          "a lock name, key or id comes from user input, letting a caller take or hold the lock",
+          "a lock can be held indefinitely by a client with no timeout or ownership check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the lock lives in a private location or in process memory unreachable from outside",
+          "the lock has a timeout or ownership check so one actor cannot hold it forever",
+          "the function does not use locks"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-414": "the code skips checking the lock rather than using one outsiders control"
+      }
+    },
+    "CWE-413": {
+      "name": "Improper Resource Locking",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Does this function operate on a shared resource that needs exclusive access (file, record, shared memory, global) without locking it for the whole operation?",
+      "present_when": {
+        "any": [
+          "a shared file is read, modified and rewritten with no file lock or atomic replace",
+          "a shared record is read and updated in separate statements with no transaction, row lock or version check",
+          "shared memory or a global is modified while other code may access it, with no lock held"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a lock, transaction or atomic operation covers the whole read-modify-write",
+          "the resource is private to this thread or process"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-362": "the race is a general unsynchronised access rather than a missing lock on an exclusive resource",
+        "CWE-591": "the missing lock is a memory page lock for sensitive data"
+      }
+    },
+    "CWE-414": {
+      "name": "Missing Lock Check",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform a sensitive operation on a resource that is protected by a lock without first checking or acquiring that lock?",
+      "present_when": {
+        "any": [
+          "other code guards the resource with a lock, flag or lock file, but this function modifies it without checking or taking the lock",
+          "a lock-held flag or try-lock result is obtained and then ignored before the operation proceeds"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function acquires the lock or verifies it is held before the operation",
+          "the function's contract states the caller already holds the lock, shown for example by an assertion",
+          "the resource is not shared or not protected by any lock"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-413": "no lock exists for the resource at all",
+        "CWE-412": "the lock exists but outside actors can control it"
+      }
+    },
+    "CWE-432": {
+      "name": "Dangerous Signal Handler not Disabled During Sensitive Operations",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-364"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this signal handler update state shared with other handlers without blocking those other signals while it runs?",
+      "present_when": {
+        "any": [
+          "two or more signal handlers modify the same global or shared variables and none masks the others"
+        ],
+        "c": [
+          "sigaction is used with an empty sa_mask, or signal() is used, for handlers sharing state"
+        ],
+        "python": [
+          "several signal.signal handlers update the same module-level state with no signal.pthread_sigmask around the update"
+        ],
+        "javascript": [
+          "several process.on signal handlers mutate shared state while an async update may be in progress"
+        ],
+        "rust": [
+          "signal-hook or libc handlers for different signals modify the same static data"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each handler only sets its own atomic flag",
+          "other signals are masked while the handler runs, for example via sa_mask",
+          "no state is shared between the handlers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-831": "one handler function is registered for several signals",
+        "CWE-828": "the handler calls code that is not async-signal-safe"
+      }
+    },
+    "CWE-479": {
+      "name": "Signal Handler Use of a Non-reentrant Function",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-828"
+      ],
+      "function_checkable": true,
+      "question": "Does this signal handler call a non-reentrant library function such as malloc, free, printf, strtok or syslog?",
+      "present_when": {
+        "c": [
+          "a function registered with signal or sigaction calls malloc, free, realloc, printf, fprintf, syslog, strtok, localtime or exit",
+          "a handler calls a helper that itself uses stdio or the heap"
+        ],
+        "cpp": [
+          "a signal handler uses std::cout, new or delete, throws, or locks a std::mutex"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the handler calls only async-signal-safe functions such as write, _exit or signal",
+          "the handler only sets a volatile sig_atomic_t flag",
+          "the function is not used as a signal handler"
+        ],
+        "cpp": [
+          "the handler only stores to a lock-free std::atomic or a volatile std::sig_atomic_t flag"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-828": "the handler's unsafe work is changing shared structures rather than calling a non-reentrant function",
+        "REL-168": "the code merely uses signal.h signal handling at all"
+      }
+    },
+    "CWE-543": {
+      "name": "Use of Singleton Pattern Without Synchronization in a Multithreaded Context",
+      "abstraction": "Variant",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-820"
+      ],
+      "function_checkable": true,
+      "question": "Does this C++ function lazily create or return a singleton instance in multithreaded code without making the creation thread-safe?",
+      "present_when": {
+        "any": [
+          "a getInstance-style function tests a static pointer for null and then allocates the instance with new, with no mutex, std::call_once or atomic around the test and assignment",
+          "the singleton check uses a plain (non-atomic) pointer in double-checked form, testing it outside the lock"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the instance is a function-local static (Meyers singleton), whose initialisation is thread-safe since C++11",
+          "creation is wrapped in std::call_once, a held std::mutex, or an atomic with correct ordering",
+          "the instance is created eagerly before any threads start"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-609": "the code uses a lock with a double-checked test and the flaw is the unsafe outer check"
+      }
+    },
+    "CWE-558": {
+      "name": "Use of getlogin() in Multithreaded Application",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-663"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call getlogin() in a program that runs multiple threads?",
+      "present_when": {
+        "c": [
+          "getlogin() is called and its result used, in code reachable from more than one thread",
+          "getlogin() is used to decide on privileges or identity"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "getlogin_r is used with a caller buffer",
+          "the user identity is taken from getuid or geteuid with getpwuid_r",
+          "the function does not call getlogin"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-663": "a different non-reentrant function is called concurrently"
+      }
+    },
+    "CWE-591": {
+      "name": "Sensitive Data Storage in Improperly Locked Memory",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-413"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hold secrets such as keys or passwords in memory that is not locked against being swapped to disk?",
+      "present_when": {
+        "c": [
+          "a buffer for a key, password or private data is allocated with malloc or on the stack with no mlock or VirtualLock",
+          "mlock or VirtualLock is called but its return value is ignored"
+        ],
+        "rust": [
+          "secret material held in an ordinary Vec or String with no memory locking or secrets crate"
+        ],
+        "any": [
+          "long-lived secret material is kept in ordinary memory with no attempt to prevent paging"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the secret buffer is locked with mlock or VirtualLock and the result is checked"
+        ],
+        "any": [
+          "the data handled is not sensitive"
+        ],
+        "python": [
+          "Python and JavaScript offer no page locking for ordinary objects; report only if the code calls a locking API and ignores failure"
+        ],
+        "javascript": [
+          "JavaScript offers no page locking for ordinary objects; report only if the code calls a locking API and ignores failure"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-226": "the secret is not wiped before memory is freed or reused"
+      }
+    },
+    "CWE-662": {
+      "name": "Improper Synchronization",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-664"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does the function touch data, files or resources that other threads, processes, signal handlers or async tasks may use at the same time?",
+      "present_when": {
+        "any": [
+          "global, static or shared variables are read and written, with or without locks",
+          "threads, tasks or processes are started, or locks, mutexes, semaphores or atomics are used",
+          "a signal handler is installed or defined, or a non-reentrant function is called",
+          "a file or resource is checked and then used, where another actor could change it in between"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function works only on local variables and its arguments, with no shared state, threads, locks or signals",
+          "the function is pure computation with no I/O"
+        ]
+      }
+    },
+    "CWE-663": {
+      "name": "Use of a Non-reentrant Function in a Concurrent Context",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a non-reentrant function (one using internal static state) from code that can run concurrently in several threads or a signal handler?",
+      "present_when": {
+        "c": [
+          "strtok, localtime, gmtime, asctime, ctime, rand, getenv-and-modify, readdir or gethostbyname used in thread or handler code",
+          "a helper with function-local static buffers is called from several threads"
+        ],
+        "cpp": [
+          "std::strtok, std::localtime, std::rand or a function-local static that is modified after initialisation, reached from std::thread code"
+        ],
+        "python": [
+          "a function with module-level mutable state is called from several threads without a lock"
+        ],
+        "javascript": [
+          "worker or async code shares a function that keeps state in module variables across await points"
+        ],
+        "rust": [
+          "libc non-reentrant functions such as strtok or localtime called through FFI from several threads"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "reentrant variants such as strtok_r, localtime_r or gmtime_r are used",
+          "calls are serialised by a lock, or the program is single-threaded"
+        ],
+        "cpp": [
+          "only the static's initialisation is shared, which C++11 makes thread-safe, and later access is read-only or under a std::mutex"
+        ],
+        "python": [
+          "the shared state is protected by a lock or is per-thread"
+        ],
+        "javascript": [
+          "the code runs on a single thread and does no await between reading and updating the shared state"
+        ],
+        "rust": [
+          "only safe Rust APIs are used, with shared state behind Mutex or atomics"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-558": "the non-reentrant function is getlogin",
+        "CWE-479": "the call is made from a signal handler"
+      }
+    },
+    "CWE-667": {
+      "name": "Improper Locking",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Does this function acquire or release a lock incorrectly, such as missing a release on some path, releasing twice, or taking locks in an inconsistent order?",
+      "present_when": {
+        "any": [
+          "a lock is acquired and an early return, error branch or exception leaves without releasing it",
+          "a lock is released twice, or released on a path where it was never acquired",
+          "two or more locks are taken in an order that differs from other code in the function",
+          "shared data is touched after the lock protecting it has been released"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "locking uses a scope-based guard, with statement or finally block so release happens on every path"
+        ],
+        "rust": [
+          "locks are held through MutexGuard values released on drop"
+        ],
+        "cpp": [
+          "std::lock_guard, unique_lock or scoped_lock manage the lock"
+        ],
+        "javascript": [
+          "the code runs single-threaded with no explicit lock objects"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-833": "the locking order creates a circular wait",
+        "CWE-764": "the same lock is acquired more times than intended",
+        "CWE-765": "the same lock is released more times than intended"
+      }
+    },
+    "CWE-689": {
+      "name": "Permission Race Condition During Resource Copy",
+      "abstraction": "Compound",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-362"
+      ],
+      "function_checkable": true,
+      "question": "Does this function copy or create a file or resource and set its restrictive permissions only after the content has been written?",
+      "present_when": {
+        "c": [
+          "a file is created with open or fopen using default or broad permissions, filled, and only then chmod-ed or chown-ed",
+          "a directory tree is copied and permissions are applied in a final pass after all content is written"
+        ],
+        "cpp": [
+          "std::ofstream writes the content and std::filesystem::permissions restricts the file only afterwards"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the file is created with restrictive mode bits in the open call, or umask is tightened first",
+          "the copy is made in a private directory and moved into place after permissions are set",
+          "the content is not sensitive and default permissions are intended"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-363": "a file is checked and then used, and could be swapped for a link"
+      }
+    },
+    "CWE-764": {
+      "name": "Multiple Locks of a Critical Resource",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Can this function lock the same lock more times than intended, for example locking a non-recursive mutex it already holds?",
+      "present_when": {
+        "any": [
+          "a lock is acquired and, on some path, acquired again before being released",
+          "the function holds a lock and calls a helper that takes the same lock",
+          "a lock is acquired inside a loop with the release outside it"
+        ],
+        "c": [
+          "pthread_mutex_lock called twice on a default (non-recursive) mutex on one path"
+        ],
+        "cpp": [
+          "a std::lock_guard or m.lock() on a std::mutex the function already holds, such as a member that locks calling another member that locks the same mutex"
+        ],
+        "python": [
+          "a threading.Lock (not RLock) is acquired while already held by the same thread"
+        ],
+        "rust": [
+          "lock() is called on a Mutex while a guard from the same Mutex is still alive"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each acquire is matched by a release before the next acquire on every path",
+          "the lock is explicitly recursive and each acquire has a matching release"
+        ],
+        "cpp": [
+          "the mutex is a std::recursive_mutex with balanced locking, or each scope takes one std::scoped_lock and calls only unlocked helpers"
+        ],
+        "javascript": [
+          "the code uses no explicit lock objects, as ordinary single-threaded JS has none"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-833": "two or more different locks are waited on in a cycle",
+        "CWE-765": "the lock is released too many times"
+      }
+    },
+    "CWE-765": {
+      "name": "Multiple Unlocks of a Critical Resource",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Can this function unlock the same lock more times than it locked it on some path?",
+      "present_when": {
+        "any": [
+          "a lock is released in an error branch and again in common cleanup on the same path",
+          "a release appears in a loop or in several branches that can all run after one acquire"
+        ],
+        "c": [
+          "pthread_mutex_unlock or a semaphore post is called twice for one lock"
+        ],
+        "cpp": [
+          "m.unlock() called manually while a std::lock_guard or std::unique_lock still owns m, so the guard releases it a second time at scope exit"
+        ],
+        "python": [
+          "release() is called both in a branch and in finally after a single acquire()"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each acquire has exactly one release on every path",
+          "locking uses a scope-based guard or with statement that releases once"
+        ],
+        "cpp": [
+          "the lock is held by std::lock_guard or std::scoped_lock with no manual unlock, or owns_lock() is checked before a std::unique_lock is unlocked"
+        ],
+        "javascript": [
+          "the code uses no explicit lock objects, as ordinary single-threaded JS has none"
+        ],
+        "rust": [
+          "the lock is released only by dropping its guard, which cannot happen twice"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-832": "the unlock happens on a lock never acquired at all",
+        "CWE-764": "the lock is acquired too many times"
+      }
+    },
+    "CWE-820": {
+      "name": "Missing Synchronization",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read or modify state shared with other threads, workers or concurrent tasks without any lock, atomic or other synchronisation at all?",
+      "present_when": {
+        "any": [
+          "a global, static, class-level or captured variable is updated by code that the function itself runs on several threads, tasks or callbacks, and no lock or atomic is used anywhere around it",
+          "the function starts threads or workers that all write the same object or counter with plain reads and writes"
+        ],
+        "c": [
+          "a static or global is read-modify-written (count++, list insert) in a thread routine or signal handler with no mutex, atomic or volatile sig_atomic_t"
+        ],
+        "cpp": [
+          "a std::thread, std::async or std::jthread lambda captures by reference and writes a shared counter or container with no std::mutex or std::atomic"
+        ],
+        "javascript": [
+          "a SharedArrayBuffer is read and written by workers with plain indexing instead of Atomics",
+          "module-level state is read before an await and written back after it with no guard against interleaved calls"
+        ],
+        "python": [
+          "a module-level or instance attribute is modified from threading.Thread or executor targets with no Lock"
+        ],
+        "rust": [
+          "a static mut, UnsafeCell or raw pointer is accessed from spawned threads inside unsafe with no Mutex or atomic"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every access to the shared state is inside a lock, atomic operation or other synchronisation primitive",
+          "the state is local to the function or owned by a single thread or task",
+          "the function is not run concurrently, and nothing in it starts threads, workers or concurrent tasks"
+        ],
+        "cpp": [
+          "the shared value is a std::atomic, or every access holds a std::lock_guard on the same mutex"
+        ],
+        "rust": [
+          "the sharing goes through safe Rust types such as Arc<Mutex>, RwLock, atomics or channels, which the compiler checks"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-821": "a lock or other synchronisation is used but is the wrong kind, covers too little, or is applied inconsistently",
+        "CWE-362": "the defect is a check-then-act window between two steps rather than a total absence of synchronisation",
+        "CWE-1096": "the unsynchronised code is specifically the lazy creation of a singleton instance"
+      }
+    },
+    "CWE-821": {
+      "name": "Incorrect Synchronization",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Does this function synchronise access to shared state, but in a way that is wrong or incomplete, such as the wrong lock, too narrow a section or only some accesses guarded?",
+      "present_when": {
+        "any": [
+          "the same shared variable is accessed under a lock on one path and without it on another path in this function",
+          "the lock is released between reading shared state and writing a result based on it, so the update is not atomic as a whole",
+          "different accesses to one shared resource use different locks, or each call creates a fresh lock object"
+        ],
+        "c": [
+          "a volatile qualifier is relied on as if it made a read-modify-write atomic"
+        ],
+        "cpp": [
+          "a std::atomic updated as x.store(x.load() + 1) or x = x + 1, or a std::lock_guard scoped in an inner block that closes before the dependent write"
+        ],
+        "python": [
+          "threading.Lock() is created inside the function on every call, so callers never share it"
+        ],
+        "rust": [
+          "a Mutex guard is dropped and the lock re-acquired between a read and a dependent write inside unsafe or with shared raw pointers"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every access to the shared state is covered by the same lock held for the whole read-modify-write sequence",
+          "the shared state is accessed only through atomic operations that do the full update in one step",
+          "there is no shared state; everything is local or owned by one thread"
+        ],
+        "cpp": [
+          "fetch_add, compare_exchange or one std::lock_guard spanning the whole read-modify-write is used"
+        ],
+        "rust": [
+          "sharing uses safe Rust types and the guard spans the whole update"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-820": "no synchronisation is attempted at all",
+        "CWE-667": "the defect is in acquiring or releasing the lock itself, such as an unlock that is skipped or a lock taken twice",
+        "CWE-362": "the defect is a race window between a check and the dependent action with no lock involved"
+      }
+    },
+    "CWE-828": {
+      "name": "Signal Handler with Functionality that is not Asynchronous-Safe",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-364"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this signal handler do work that is not async-signal-safe, such as allocating memory, taking locks, doing buffered I/O or changing shared structures?",
+      "present_when": {
+        "any": [
+          "a signal handler updates linked lists, counters or other shared structures that normal code also updates"
+        ],
+        "c": [
+          "a handler calls malloc, free, printf, syslog, fopen or a mutex function"
+        ],
+        "cpp": [
+          "a signal handler uses std::cout, std::string, new, std::mutex, a non-lock-free std::atomic or throws an exception"
+        ],
+        "python": [
+          "a signal handler does long work, takes a lock that the main code may hold, or logs through handlers that lock"
+        ],
+        "javascript": [
+          "a process.on signal handler synchronously changes state that an in-progress operation relies on"
+        ],
+        "rust": [
+          "a raw libc signal handler allocates, locks a Mutex or uses println!"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler only sets an atomic or volatile sig_atomic_t flag, or writes to a self-pipe"
+        ],
+        "c": [
+          "the handler calls only async-signal-safe functions such as write or _exit"
+        ],
+        "cpp": [
+          "the handler only stores to a lock-free std::atomic or a volatile std::sig_atomic_t"
+        ],
+        "rust": [
+          "signals are handled through signal-hook flag or iterator helpers rather than custom raw handlers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-479": "the unsafe call is to a specific non-reentrant library function",
+        "CWE-432": "the issue is not masking other signals that share state"
+      }
+    },
+    "CWE-831": {
+      "name": "Signal Handler Function Associated with Multiple Signals",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-364"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function register one handler for several different signals, where that handler touches shared state or has side effects?",
+      "present_when": {
+        "any": [
+          "the same handler function is installed for two or more signals, and it modifies global data, frees resources or calls non-reentrant code"
+        ],
+        "c": [
+          "signal or sigaction is called for SIGINT, SIGTERM, SIGHUP or others all naming one handler that changes globals"
+        ],
+        "python": [
+          "signal.signal is called for several signals with the same function, which changes module-level state"
+        ],
+        "javascript": [
+          "process.on is called for several signal names with one callback that mutates shared state or starts cleanup twice"
+        ],
+        "rust": [
+          "signal-hook or libc registration of one handler for multiple signals that writes static data"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the shared handler only sets an atomic flag or records the signal number atomically",
+          "each signal has its own handler, or the shared handler uses only local data"
+        ],
+        "c": [
+          "the handler's sa_mask blocks the other signals it handles while it runs"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-432": "different handlers share state without masking each other",
+        "CWE-828": "the handler's problem is calling unsafe code regardless of how many signals it serves"
+      }
+    },
+    "CWE-832": {
+      "name": "Unlock of a Resource that is not Locked",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Can this function release a lock that it has not acquired on that path?",
+      "present_when": {
+        "any": [
+          "the acquire is conditional or can fail, but the release in shared cleanup runs regardless",
+          "a function unlocks a lock that is only acquired in some callers, with no check"
+        ],
+        "c": [
+          "pthread_mutex_trylock fails or is skipped, yet pthread_mutex_unlock is called"
+        ],
+        "cpp": [
+          "m.unlock() on a std::mutex in cleanup reached when try_lock() returned false or before lock() ran",
+          "a std::unique_lock made with std::defer_lock or std::try_to_lock is unlocked without checking owns_lock()"
+        ],
+        "python": [
+          "acquire(blocking=False) returns False, yet release() is called"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the release is only reached on paths where the acquire succeeded",
+          "a scope-based guard or with statement manages the lock"
+        ],
+        "cpp": [
+          "a std::unique_lock or std::lock_guard releases at scope exit only what it owns"
+        ],
+        "javascript": [
+          "the code uses no explicit lock objects, as ordinary single-threaded JS has none"
+        ],
+        "rust": [
+          "the lock is released only by dropping the guard returned from a successful lock"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-765": "the lock was acquired once but is released more than once"
+      }
+    },
+    "CWE-833": {
+      "name": "Deadlock",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Can this function deadlock, for example by taking two locks in an order that other code reverses, or by waiting for something while holding the lock it needs?",
+      "present_when": {
+        "any": [
+          "two locks are acquired in nested fashion, and the function also shows or calls code acquiring them in the opposite order",
+          "a thread joins or waits for another thread or task while holding a lock that the other needs",
+          "a blocking call (queue put, channel send, future result) is made while holding a lock the consumer must take"
+        ],
+        "javascript": [
+          "an async function awaits a promise that can only resolve after the same async mutex or semaphore is released"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only one lock is held at a time",
+          "multiple locks are always taken in one fixed order, or together with a deadlock-avoiding helper",
+          "no blocking wait is made while a lock is held"
+        ],
+        "cpp": [
+          "std::scoped_lock or std::lock acquires several mutexes together"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-764": "a single lock is re-acquired by the same thread"
+      }
+    },
+    "CWE-1058": {
+      "name": "Invokable Control Element in Multi-Thread Context with non-Final Static Storable or Member Element",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Does this function, which may run on several threads, write to a mutable static, class-level or shared member field rather than to local or per-call state?",
+      "present_when": {
+        "any": [
+          "the function assigns to or mutates a static variable, class attribute or field of a shared object (such as a handler, servlet-like controller or singleton) that is not constant, without a lock"
+        ],
+        "c": [
+          "a function-scope static or file-scope global that is not const is written in code reachable from multiple threads"
+        ],
+        "cpp": [
+          "a static data member or member of a shared object is modified by a method that request or worker threads call"
+        ],
+        "javascript": [
+          "a worker or request handler mutates module-level or class static state that concurrent requests share"
+        ],
+        "typescript": [
+          "an instance field of a NestJS @Injectable() provider, a singleton by default, is written with per-request data"
+        ],
+        "python": [
+          "a method of a shared object called from threads assigns to a class attribute or self attribute used as scratch storage"
+        ],
+        "rust": [
+          "a static mut is written inside unsafe from code that threads can reach"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the static or member is const, final or never written after initialisation",
+          "writes are protected by a lock or use atomics",
+          "the state written is local, thread-local or per-request"
+        ],
+        "typescript": [
+          "the provider is declared with scope: Scope.REQUEST, or per-request data stays in local variables or the request object"
+        ],
+        "rust": [
+          "only safe Rust is used, so shared statics can be mutated only through Mutex, atomics or other Sync types"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-820": "the code shows shared state used concurrently without synchronisation but not specifically a static or member element",
+        "CWE-488": "the consequence is one user's or session's data being handed to another"
+      }
+    },
+    "CWE-1088": {
+      "name": "Synchronous Access of Remote Resource without Timeout",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-821"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make a blocking call to a remote service, socket or database without a timeout, or with an infinite timeout?",
+      "present_when": {
+        "any": [
+          "a blocking network, HTTP, RPC or database call is made with no timeout argument and no timeout set on the client, connection or socket beforehand",
+          "a timeout is explicitly set to zero, None, -1 or infinite where that means wait forever"
+        ],
+        "c": [
+          "connect, recv, read or SSL_read on a blocking socket with no SO_RCVTIMEO, poll or select deadline",
+          "curl_easy_perform with no CURLOPT_TIMEOUT or CURLOPT_CONNECTTIMEOUT set"
+        ],
+        "cpp": [
+          "a synchronous Boost.Asio connect, read or read_until on a socket with no deadline timer or socket timeout option set"
+        ],
+        "javascript": [
+          "a synchronous child_process.execSync or spawnSync to a remote command with no timeout option, or a request client configured with timeout 0"
+        ],
+        "python": [
+          "requests.get or post, urllib.request.urlopen, socket.recv or a DB connect is called without a timeout argument"
+        ],
+        "rust": [
+          "a blocking TcpStream read or ureq/reqwest blocking call with no read or connect timeout configured"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a finite timeout or deadline is passed to the call or set on the client or socket before it",
+          "the call is to a local in-process function or local file, not a remote resource",
+          "the call is asynchronous and the function wraps it in a timeout or cancellation"
+        ],
+        "cpp": [
+          "asynchronous Asio operations are paired with a steady_timer that cancels them when the deadline passes"
+        ],
+        "javascript": [
+          "the call uses fetch or another promise-based API in non-blocking code with an AbortSignal timeout"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1322": "the issue is a blocking call made inside an event loop or other non-blocking context regardless of any timeout",
+        "CWE-400": "the wider concern is resource exhaustion from many waiting calls rather than one call lacking a timeout"
+      }
+    },
+    "CWE-1096": {
+      "name": "Singleton Class Instance Creation without Proper Locking or Synchronization",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-820"
+      ],
+      "function_checkable": true,
+      "question": "Does this function lazily create a singleton or one-time shared instance in a way that two concurrent callers could both create it?",
+      "present_when": {
+        "any": [
+          "the function tests whether a shared instance exists and creates and stores it if not, with no lock, once-guard or atomic compare-and-set around the test and the store"
+        ],
+        "c": [
+          "a static pointer is checked for NULL and then malloc'd or constructed, without pthread_once, call_once or a mutex"
+        ],
+        "javascript": [
+          "a cached instance or promise is created after an await that sits between the existence check and the assignment, so overlapping calls each create one"
+        ],
+        "python": [
+          "a class attribute or module global such as _instance is checked and assigned in code called from threads without a Lock"
+        ],
+        "rust": [
+          "a static mut Option is checked and assigned inside unsafe instead of using OnceLock, LazyLock or Once"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "creation is protected by a lock held across both the check and the assignment, or by a once primitive",
+          "the instance is created eagerly at start-up before any concurrency begins"
+        ],
+        "cpp": [
+          "the instance is a function-local static, which C++11 initialises thread-safely"
+        ],
+        "javascript": [
+          "the check and assignment happen synchronously with no await between them, so the single-threaded event loop cannot interleave callers"
+        ],
+        "rust": [
+          "OnceLock, LazyLock, OnceCell or lazy_static is used, which guarantee one initialisation"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-543": "the C++ code is a classic getInstance singleton, which is the more precise entry",
+        "CWE-609": "a lock exists but the unsynchronised first check of double-checked locking is the flaw"
+      }
+    },
+    "CWE-1232": {
+      "name": "Improper Lock Behavior After Power State Transition",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Does this firmware function, on resume from sleep or another power state change, restore protected configuration without setting the lock bits again?",
+      "present_when": {
+        "any": [
+          "a resume, wake or power-up handler restores configuration registers but does not set the lock bit or write-protect flag",
+          "the lock bit is written only in cold-boot code, while the warm-resume path skips it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the resume path sets the same lock bits as the cold-boot path after restoring configuration",
+          "the function is not firmware handling power state transitions"
+        ],
+        "python": [
+          "ordinary Python application code does not program hardware lock registers"
+        ],
+        "javascript": [
+          "ordinary JavaScript code does not program hardware lock registers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1234": "the lock is bypassed because a debug or test mode is active"
+      }
+    },
+    "CWE-1234": {
+      "name": "Hardware Internal or Debug Modes Allow Override of Locks",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-667"
+      ],
+      "function_checkable": true,
+      "question": "Does this firmware or low-level function let a debug, test or manufacturing mode skip or override configuration lock protection?",
+      "present_when": {
+        "any": [
+          "a write to a locked register or protected setting is allowed when a debug, test or JTAG flag is set",
+          "the lock bit is not set, or is cleared, when a debug mode is detected at start-up"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "lock enforcement does not depend on any debug or test mode flag",
+          "entering debug mode clears secrets or blocks access to protected settings",
+          "the function is not firmware handling hardware locks"
+        ],
+        "python": [
+          "ordinary Python application code does not program hardware lock registers"
+        ],
+        "javascript": [
+          "ordinary JavaScript code does not program hardware lock registers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1232": "the lock is lost after a power state change rather than through a debug mode"
+      }
+    },
+    "CWE-1264": {
+      "name": "Hardware Logic with Insecure De-Synchronization between Control and Data Channels",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-821"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware logic forwarding data on separate bus or datapath channels, not software function code."
+    },
+    "CWE-1265": {
+      "name": "Unintended Reentrant Invocation of Non-reentrant Code Via Nested Calls",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-662"
+      ],
+      "function_checkable": true,
+      "question": "Can this non-reentrant function call out, through a callback, hook, signal, event or nested call, into code that may re-enter it while its state is half-updated?",
+      "present_when": {
+        "any": [
+          "the function invokes a caller-supplied callback, listener, virtual method or user hook while shared or object state is partly modified and no reentrancy guard is set",
+          "the function updates a static buffer or global and, before finishing, calls something that can call back into the same function"
+        ],
+        "c": [
+          "a signal handler, interrupt routine or callback can call a function that uses static buffers, malloc or stdio while it is running"
+        ],
+        "cpp": [
+          "a loop over a std::vector of listeners calls each one while a callback can add or remove entries in that same vector"
+        ],
+        "javascript": [
+          "an event is emitted or a callback invoked inside a loop over internal state that the listener can modify by calling back in"
+        ],
+        "python": [
+          "__del__, a callback or a dunder method called mid-update can re-enter the method that is mutating the object"
+        ],
+        "rust": [
+          "a callback is invoked while a RefCell borrow_mut is held, so re-entry would panic, or unsafe code mutates state that the callback can reach"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all state changes are complete before any external code is called",
+          "a reentrancy flag, lock or depth counter prevents nested invocation",
+          "the function calls no callbacks, hooks or user-supplied code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-663": "a known non-reentrant library function such as strtok or localtime is called from concurrent threads",
+        "CWE-820": "the problem is concurrent threads accessing shared state, not a nested call on the same thread"
+      }
+    }
+  }
+}

@@ -187,120 +187,117 @@
         "python": ["match_statement"],
         "rust": ["match_expression"]
       }
+    },
+    {
+      "key": "switch_construct",
+      "syntax": true,
+      "present_if": {
+        "c": ["switch_statement"],
+        "cpp": ["switch_statement"],
+        "javascript": ["switch_statement"],
+        "typescript": ["switch_statement"],
+        "tsx": ["switch_statement"],
+        "python": ["match_statement"],
+        "rust": ["match_expression"]
+      }
+    },
+    {
+      "key": "increment",
+      "syntax": true,
+      "present_if": {
+        "c": ["update_expression"],
+        "cpp": ["update_expression"]
+      }
+    },
+    {
+      "key": "enumerator",
+      "syntax": true,
+      "present_if": {
+        "c": ["enumerator"],
+        "cpp": ["enumerator"]
+      }
+    },
+    {
+      "key": "return_statement",
+      "syntax": true,
+      "present_if": {
+        "c": ["return_statement"],
+        "cpp": ["return_statement"]
+      }
+    },
+    {
+      "key": "escape_sequence",
+      "syntax": true,
+      "present_if": {
+        "c": ["escape_sequence"],
+        "cpp": ["escape_sequence"]
+      }
+    },
+    {
+      "key": "designated_initialiser",
+      "syntax": true,
+      "present_if": {
+        "c": ["subscript_designator"],
+        "cpp": ["subscript_designator"]
+      }
+    },
+    {
+      "key": "conditional_compilation",
+      "syntax": true,
+      "present_if": {
+        "c": ["preproc_if", "preproc_ifdef", "preproc_elif", "preproc_else"],
+        "cpp": ["preproc_if", "preproc_ifdef", "preproc_elif", "preproc_else"]
+      }
+    },
+    {
+      "key": "macro_definition",
+      "syntax": true,
+      "present_if": {
+        "c": ["preproc_def", "preproc_function_def"],
+        "cpp": ["preproc_def", "preproc_function_def"],
+        "rust": ["macro_definition"]
+      }
+    },
+    {
+      "key": "macro_use",
+      "syntax": true,
+      "present_if": {
+        "rust": ["macro_invocation", "macro_definition", "attribute_item", "inner_attribute_item"]
+      }
+    },
+    {
+      "key": "division",
+      "syntax": true,
+      "present_if": {
+        "rust": ["/", "%", "/=", "%="]
+      },
+      "present_if_names": {
+        "rust": ["div", "rem", "div_euclid", "rem_euclid", "div_ceil", "div_floor", "div_assign", "rem_assign", "wrapping_div", "wrapping_rem", "wrapping_div_euclid", "wrapping_rem_euclid", "overflowing_div", "overflowing_rem", "overflowing_div_euclid", "overflowing_rem_euclid", "saturating_div", "unchecked_div", "unchecked_rem", "next_multiple_of", "checked_div", "checked_div_euclid", "checked_rem", "checked_rem_euclid", "strict_div", "strict_div_euclid", "strict_rem", "strict_rem_euclid", "checked_next_multiple_of"]
+      }
+    },
+    {
+      "key": "shift",
+      "syntax": true,
+      "present_if": {
+        "rust": ["<<", ">>", "<<=", ">>="]
+      },
+      "present_if_names": {
+        "rust": ["shl", "shr", "shl_assign", "shr_assign", "wrapping_shl", "wrapping_shr", "overflowing_shl", "overflowing_shr", "unchecked_shl", "unchecked_shr", "strict_shl", "strict_shr"]
+      }
+    },
+    {
+      "key": "as_cast",
+      "syntax": true,
+      "present_if": {
+        "rust": ["type_cast_expression"]
+      }
+    },
+    {
+      "key": "unsafe_code",
+      "syntax": true,
+      "present_if": {
+        "rust": ["unsafe"]
+      }
     }
-  ],
-  "requires": {
-    "CWE-118": ["memory_buffers", "pointers"],
-    "CWE-131": ["memory_buffers", "pointers", "dynamic_memory"],
-    "CWE-135": ["memory_buffers"],
-    "CWE-170": ["memory_buffers", "pointers"],
-    "CWE-463": ["memory_buffers", "pointers"],
-    "CWE-468": ["pointers"],
-    "CWE-469": ["pointers"],
-    "CWE-404": ["dynamic_memory", "resources", "pointers"],
-    "CWE-410": ["resources", "dynamic_memory"],
-    "CWE-771": ["resources", "dynamic_memory"],
-    "CWE-911": ["resources", "dynamic_memory", "pointers"],
-    "CWE-662": ["concurrency"],
-    "CWE-432": ["concurrency"],
-    "CWE-828": ["concurrency"],
-    "CWE-831": ["concurrency"],
-    "CWE-666": ["dynamic_memory", "resources", "pointers", "crypto"],
-    "CWE-610": ["network", "filesystem", "parsing", "external_input", "security_logic"],
-    "CWE-706": ["filesystem", "network", "interpreter_output", "external_input"],
-    "CWE-704": ["type_conversion", "pointers", "arithmetic", "parsing"],
-    "CWE-1339": ["floating_point", "arithmetic"],
-    "CWE-1077": ["floating_point"],
-    "CWE-369": ["arithmetic", "floating_point"],
-    "REL-192": ["floating_point"],
-    "REL-194": ["floating_point"],
-    "REL-195": ["floating_point"],
-    "REL-196": ["floating_point"],
-    "REL-198": ["floating_point"],
-    "REL-208": ["floating_point", "arithmetic"],
-    "CWE-284": ["security_logic", "sensitive_data", "filesystem", "network", "crypto", "resources"],
-    "CWE-311": ["sensitive_data", "crypto", "network", "filesystem", "data_store"],
-    "CWE-326": ["crypto"],
-    "CWE-327": ["crypto"],
-    "CWE-330": ["crypto", "security_logic"],
-    "CWE-345": ["network", "crypto", "external_input", "parsing", "security_logic"],
-    "CWE-200": ["sensitive_data", "crypto", "network", "filesystem", "data_store", "security_logic", "interpreter_output"],
-    "CWE-134": ["interpreter_output", "external_input"],
-    "CWE-377": ["filesystem"],
-    "CWE-427": ["filesystem", "interpreter_output", "external_input"],
-    "CWE-428": ["filesystem", "interpreter_output"],
-    "CWE-552": ["filesystem", "network"],
-    "CWE-524": ["sensitive_data", "data_store"],
-    "CWE-669": ["filesystem", "network", "sensitive_data", "external_input", "parsing"],
-    "CWE-74": ["interpreter_output", "filesystem", "network", "data_store", "external_input"],
-    "CWE-116": ["interpreter_output", "network", "parsing"],
-    "CWE-138": ["interpreter_output", "parsing", "external_input", "filesystem"],
-    "CWE-172": ["parsing", "interpreter_output", "memory_buffers"],
-    "CWE-182": ["interpreter_output", "parsing"],
-    "CWE-228": ["parsing", "external_input", "network"],
-    "CWE-435": ["network", "parsing", "interpreter_output"],
-    "CWE-834": ["iteration"],
-    "CWE-1322": ["concurrency", "resources", "network", "filesystem"],
-    "CWE-799": ["security_logic", "network"],
-    "REL-034": ["preprocessor"],
-    "REL-035": ["preprocessor"],
-    "REL-056": ["preprocessor"],
-    "REL-057": ["preprocessor"],
-    "REL-132": ["preprocessor"],
-    "REL-157": ["preprocessor"],
-    "REL-158": ["preprocessor"],
-    "REL-161": ["preprocessor"],
-    "REL-162": ["preprocessor"],
-    "REL-163": ["preprocessor"],
-    "REL-121": ["iteration"],
-    "REL-125": ["switch"],
-    "REL-126": ["switch"],
-    "REL-129": ["switch"],
-    "REL-130": ["switch"],
-    "REL-131": ["switch"],
-    "REL-103": ["pointers"],
-    "REL-144": ["pointers"],
-    "PERF-001": ["data_store", "network"],
-    "PERF-002": ["data_store", "network", "filesystem", "parsing"],
-    "PERF-003": ["data_store"],
-    "PERF-004": ["iteration"],
-    "PERF-005": ["filesystem", "network", "data_store", "resources", "concurrency"],
-    "PERF-008": ["network", "data_store"],
-    "PERF-009": ["floating_point"],
-    "PERF-010": ["arithmetic", "floating_point"],
-    "PERF-011": ["iteration"],
-    "PERF-012": ["iteration"],
-    "PERF-013": ["iteration"],
-    "PERF-016": ["iteration"],
-    "PERF-017": ["iteration"],
-    "PERF-019": ["data_store"],
-    "PERF-020": ["concurrency", "resources"],
-    "PERF-021": ["iteration"],
-    "PERF-023": ["iteration"],
-    "PERF-024": ["iteration"],
-    "PERF-025": ["iteration"],
-    "PERF-026": ["concurrency"],
-    "PERF-027": ["concurrency"],
-    "PERF-028": ["iteration"],
-    "REL-214": ["concurrency"],
-    "REL-215": ["concurrency"],
-    "REL-216": ["type_conversion"],
-    "REL-217": ["iteration"],
-    "REL-225": ["external_input", "parsing"],
-    "REL-227": ["iteration"],
-    "REL-228": ["iteration"],
-    "REL-231": ["iteration"],
-    "REL-237": ["concurrency"],
-    "REL-241": ["concurrency"],
-    "REL-242": ["concurrency"],
-    "REL-252": ["concurrency"],
-    "REL-253": ["concurrency"],
-    "REL-254": ["concurrency"],
-    "REL-255": ["concurrency"],
-    "REL-295": ["concurrency", "resources"],
-    "REL-296": ["concurrency"],
-    "REL-297": ["concurrency"],
-    "REL-298": ["concurrency"],
-    "REL-305": ["network", "data_store"]
-  }
+  ]
 }

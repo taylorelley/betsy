@@ -1,46 +1,52 @@
-# Weakness catalog provenance
+# Weakness card provenance
 
-Copied byte for byte from `taylorelley/scorpius-cli` at commit
-`501fdb9de233fe9d541f3c6091f121059284b04d`, path `src/scorpius_cli/knowledge/data/`.
+The files under `cards/` are the only weakness definitions in this repository. They are
+embedded into `betsy` at build time, and their combined hash is part of every analysis run's
+configuration, so editing a card never silently reuses old decisions. The format is described
+in the [README](../../README.md#weakness-cards) and the cards' status in
+[docs/DETECTION_CARDS.md](../../docs/DETECTION_CARDS.md).
 
-| File | Catalog | Entries | SHA-256 |
+| Content | Cards | Catalog hash (SHA-256 over every file's path and content) |
+|---|---:|---|
+| `cards/` | 1,093 | `c83fd709239195e12e1d856d8f2a56ec5113fcb2fa327132edefa8570f50eb01` |
+
+`betsy weaknesses audit` prints the same hash as `catalog_hash`.
+
+| IDs | Catalog | Cards | Origin |
 |---|---|---:|---|
-| `cwe_database.json` | security (MITRE CWE 4.20) | 969 | `98cdb4808a4e3cdf102470887b4f6f7e47c3e5a9ac7fd1730c5f9580534cf55d` |
-| `reliability_weaknesses.json` | reliability (`REL-`) | 213 | `35866f2432b8fbb2242d8c6e0b6f69cc54b5e40b7baf0f74d95299560418be0a` |
-| `performance_weaknesses.json` | performance (`PERF-`) | 10 | `e8e0a62fb37c25c69d57f55e9cf7a1bac11e51762dd3c55e98b321278de78a1d` |
-| `cwe_metadata.json` | MITRE release metadata | | `fd4053b11464384cc146c9e114f502e88b9887eb3f041844cb76cd10340049f4` |
-| `CWE_NOTICE.txt` | MITRE copyright and license notice | | `e3f34d4d13a81749d965bdad2e4159fdbe750ce19dcaea474a66584ed486e6c1` |
+| `CWE-` | security | 754 | MITRE CWE 4.20 (released 2026-04-30) |
+| `REL-001` to `REL-213` | reliability | 213 | scorpius-cli reliability catalog |
+| `PERF-001` to `PERF-010` | performance | 10 | scorpius-cli performance catalog |
+| `REL-214` to `REL-311` | reliability | 98 | written for BETSY |
+| `PERF-011` to `PERF-028` | performance | 18 | written for BETSY |
 
-The files are embedded into `betsy` at build time. Their combined hash is part of every
-analysis run's configuration, so editing a catalog never silently reuses old decisions.
-CWE content is subject to the MITRE terms reproduced in `CWE_NOTICE.txt`.
+`REL-` and `PERF-` cards name the published rules they were written from in `sources`, by
+standard and rule number. The earlier catalog files recorded none for `REL-001` to `REL-025`.
 
-## BETSY-owned extensions
+## History
 
-These files are not copied from scorpius-cli. They add reliability and performance entries
-written for BETSY, in the same schema and continuing the same ID sequences; see
-[docs/DETECTION_CARDS.md](../../docs/DETECTION_CARDS.md#extension-catalogs). Each entry's
-`mapping_usage` starts with "BETSY-authored". They are not derived from MITRE content.
+The cards were first written as an overlay on catalog files copied byte for byte from
+`taylorelley/scorpius-cli` at commit `501fdb9de233fe9d541f3c6091f121059284b04d`, path
+`src/scorpius_cli/knowledge/data/` (`cwe_database.json`, `reliability_weaknesses.json`,
+`performance_weaknesses.json`, `cwe_metadata.json`), and on two BETSY-owned extension files in
+the same schema. Those files have been removed from the repository and remain in its git
+history. Each card took from its entry the ID, name, abstraction, applicable languages,
+position in the hierarchy and, for `REL-` and `PERF-` cards, the standard and rule numbers it
+maps to; descriptions and other prose were not carried over. The cards were then moved from
+one `cards.json` into the family files under `cards/`.
 
-| File | Catalog | Entries | SHA-256 |
-|---|---|---:|---|
-| `betsy_reliability_weaknesses.json` | reliability (`REL-214` to `REL-306`) | 93 | `eec356898f1fd5d5b4db1cff8a39c178521d0cb0edf20dffa2e3cd986a486dae` |
-| `betsy_performance_weaknesses.json` | performance (`PERF-011` to `PERF-028`) | 18 | `fa713d90e5aa81031681b7aefcc1c052cd2bbde1031ed13303dfd5a074defee5` |
+## MITRE CWE content
 
-## Detection cards
+Cards with `CWE-` IDs use MITRE's identifiers, names and CWE-1000 hierarchy, and their
+questions and patterns are new wording derived from MITRE CWE 4.20. A check, run while the
+source files were still present, rejected any ten consecutive words copied from an entry's
+description. The CWE terms appear to permit derived works when the notice in `CWE_NOTICE.txt`
+is kept; this has not yet been confirmed with Legal and must be before the cards ship.
 
-`cards.json` is not copied from scorpius-cli. It is an overlay written for BETSY that rewrites
-the question for selected entries; see [docs/DETECTION_CARDS.md](../../docs/DETECTION_CARDS.md).
+`CWE_NOTICE.txt` (SHA-256 `e3f34d4d13a81749d965bdad2e4159fdbe750ce19dcaea474a66584ed486e6c1`)
+reproduces MITRE's copyright designation and license. It is the notice as copied from
+scorpius-cli, so its opening and closing lines name that project.
 
-| File | Content | Cards | SHA-256 |
-|---|---|---:|---|
-| `cards.json` | detection cards | 1,082 | `5ef02fadc0fd81871052a5268d369be5fdae58c1a7f4cdb2fc4e69bc171d9356` |
-
-Sources, per card, are the catalog entry it is keyed by and the entries named in its
-`distinguish_from`, as they appear in the files above (MITRE CWE 4.20 for `CWE-` IDs). The
-wording is new (a check rejects any ten consecutive words copied from an entry's description),
-but cards for `CWE-` entries are derived from MITRE content. The CWE terms
-appear to permit derived works when the notice in `CWE_NOTICE.txt` is kept; this has not yet
-been confirmed with Legal and must be before the cards ship.
-
-The cards' hash is part of the catalog hash, so it is part of every analysis run's configuration.
+The `REL-` and `PERF-` cards are not derived from MITRE content. Many `REL-` cards are derived
+from MISRA C:2012 and the SEI CERT coding standards, in new wording; whether that derivation
+may be distributed has not been confirmed with Legal.

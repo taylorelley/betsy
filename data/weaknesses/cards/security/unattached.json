@@ -1,0 +1,150 @@
+{
+  "cards": {
+    "CWE-14": {
+      "name": "Compiler Removal of Code to Clear Buffers",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "requires": [
+        "sensitive_data",
+        "crypto"
+      ],
+      "function_checkable": true,
+      "question": "Does this function wipe a buffer holding a secret with a plain store or memset that an optimising compiler may drop because the buffer is never read again?",
+      "present_when": {
+        "any": [
+          "a buffer holding a key, password, token or other secret is overwritten just before it is freed, goes out of scope or the function returns, and nothing reads it afterwards"
+        ],
+        "c": [
+          "memset, bzero or a hand-written zeroing loop on a local or soon-freed secret buffer, with no volatile access, barrier or secure-clear API"
+        ],
+        "cpp": [
+          "std::fill, memset, clear() or assigning an empty value is applied to a std::string or std::vector secret just before it is destroyed; clear() overwrites nothing"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the buffer does not hold sensitive data",
+          "the buffer is read or passed on after it is cleared"
+        ],
+        "c": [
+          "the wipe uses memset_s, explicit_bzero, SecureZeroMemory, OPENSSL_cleanse or a similar clear that the compiler must keep",
+          "the wipe writes through a volatile pointer or is followed by a compiler barrier"
+        ]
+      }
+    },
+    "CWE-325": {
+      "name": "Missing Cryptographic Step",
+      "abstraction": "Base",
+      "requires": [
+        "crypto"
+      ],
+      "function_checkable": true,
+      "question": "Does this function leave out a step its cryptographic operation needs, such as verifying a tag, using a fresh IV or salt, or checking a signature result?",
+      "present_when": {
+        "any": [
+          "authenticated decryption output is used without verifying the tag, or a MAC or signature is computed but its comparison result is ignored",
+          "a block cipher is used in a chaining mode with a zero, constant or reused IV or nonce",
+          "a password is hashed without a salt or with a single fast hash where a key-derivation step is expected",
+          "a key exchange or handshake omits verifying the peer's public key, certificate or signature"
+        ],
+        "c": [
+          "EVP_DecryptFinal_ex or a verify call's return value is not checked before the plaintext is trusted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a high-level library call performs the full construction, such as an AEAD open that fails on a bad tag, or a password-hashing function with built-in salt",
+          "every verification result is checked and failure stops processing",
+          "IVs or nonces come from a secure random source or a never-repeating counter per key"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-327": "every step is present but the algorithm itself is broken or risky"
+      }
+    },
+    "CWE-382": {
+      "name": "J2EE Bad Practices: Use of System.exit()",
+      "abstraction": "Variant",
+      "function_checkable": false,
+      "reason": "It occurs only in Java, which BETSY does not analyse."
+    },
+    "CWE-564": {
+      "name": "SQL Injection: Hibernate",
+      "abstraction": "Variant",
+      "function_checkable": false,
+      "reason": "It is specific to Hibernate query APIs, which are used from Java, a language BETSY does not analyse."
+    },
+    "CWE-609": {
+      "name": "Double-Checked Locking",
+      "abstraction": "Base",
+      "function_checkable": false,
+      "reason": "It is catalogued for Java only, which BETSY does not analyse."
+    },
+    "CWE-690": {
+      "name": "Unchecked Return Value to NULL Pointer Dereference",
+      "abstraction": "Compound",
+      "function_checkable": false,
+      "reason": "It is a chain of an unchecked return value and a null dereference, each of which has its own card and is asked separately."
+    },
+    "CWE-777": {
+      "name": "Regular Expression without Anchors",
+      "abstraction": "Variant",
+      "function_checkable": true,
+      "question": "Does this function validate or filter a string with a regular expression that is not anchored at both ends, so extra content before or after the match is accepted?",
+      "present_when": {
+        "any": [
+          "a regular expression used to accept or reject input lacks ^ and $ (or \\A and \\z) and is applied with a search-style call",
+          "an allowlist pattern is anchored at only one end"
+        ],
+        "javascript": [
+          "RegExp.test() or String.match() validates input with a pattern lacking ^...$"
+        ],
+        "python": [
+          "re.search() or re.match() is used for validation with no $ or \\Z at the end of the pattern"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the regular expression is used to find, extract or replace text rather than to validate or authorise input",
+          "the pattern is anchored at both ends, or applied with a whole-string call"
+        ],
+        "python": [
+          "re.fullmatch() is used"
+        ],
+        "rust": [
+          "Regex::is_match on a pattern wrapped in ^...$"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1333": "the concern is catastrophic backtracking rather than what the pattern accepts"
+      }
+    },
+    "CWE-1051": {
+      "name": "Initialization with Hard-Coded Network Resource Configuration Data",
+      "abstraction": "Base",
+      "function_checkable": false,
+      "reason": "It is a quality indicator that findings may not be mapped to, and no checkable weakness hangs under it."
+    },
+    "CWE-1106": {
+      "name": "Insufficient Use of Symbolic Constants",
+      "abstraction": "Base",
+      "function_checkable": false,
+      "reason": "It is a quality indicator that findings may not be mapped to, and no checkable weakness hangs under it."
+    },
+    "CWE-1302": {
+      "name": "Missing Source Identifier in Entity Transactions on a System-On-Chip (SOC)",
+      "abstraction": "Base",
+      "function_checkable": false,
+      "reason": "Concerns hardware bus transactions on a system-on-chip, not software function code."
+    },
+    "CWE-1303": {
+      "name": "Non-Transparent Sharing of Microarchitectural Resources",
+      "abstraction": "Base",
+      "function_checkable": false,
+      "reason": "Concerns shared microarchitectural hardware such as caches and branch predictors, not function code."
+    }
+  }
+}

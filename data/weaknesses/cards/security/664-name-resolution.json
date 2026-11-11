@@ -1,0 +1,1313 @@
+{
+  "cards": {
+    "CWE-22": {
+      "name": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-706"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a file path from input and use it without ensuring the result stays inside the intended base directory?",
+      "present_when": {
+        "any": [
+          "input is concatenated or joined onto a base directory and then opened, read, written, deleted or served"
+        ],
+        "c": [
+          "snprintf or strcat builds base + input and the result goes to fopen, open or unlink with no realpath prefix check"
+        ],
+        "cpp": [
+          "std::filesystem::path base / input, where an absolute input replaces the base or .. escapes it, is opened with std::ifstream or std::ofstream"
+        ],
+        "python": [
+          "os.path.join(base, input) or base / input is opened, sent with send_file, or extracted from an archive member name"
+        ],
+        "javascript": [
+          "path.join(base, input) reaches fs or res.sendFile with no resolve-and-startsWith check"
+        ],
+        "rust": [
+          "Path::join(input) or format! builds a path used with fs functions without canonicalize and starts_with"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the path is a constant or derived only from server-generated identifiers"
+        ],
+        "cpp": [
+          "std::filesystem::canonical or weakly_canonical of the joined path is checked, component by component, to lie under the canonical base"
+        ],
+        "python": [
+          "os.path.join with an absolute input would discard the base, so a check of the resolved path is present"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-23": "the escape uses relative .. sequences specifically",
+        "CWE-36": "the escape uses an absolute path supplied as input",
+        "CWE-73": "input names a file but no restricted base directory is involved"
+      }
+    },
+    "CWE-23": {
+      "name": "Relative Path Traversal",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-22"
+      ],
+      "function_checkable": true,
+      "question": "Can input containing .. segments make a path built by this function climb out of its intended directory?",
+      "present_when": {
+        "any": [
+          "input is appended to a base directory and nothing rejects or resolves .. segments before use",
+          "a filter removes ../ only once or only for one slash style, so ....// or ..\\ survive"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the input is rejected if it contains .. or any path separator"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-36": "an absolute path in the input bypasses the base directory",
+        "CWE-24": "the specific escape is a leading ../ sequence"
+      }
+    },
+    "CWE-24": {
+      "name": "Path Traversal: '../filedir'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can a leading ../ in input passed to this function's path building escape the intended directory?",
+      "present_when": {
+        "any": [
+          "input that may begin with ../ is joined to a base directory and used with no check for ../ or a resolved-path check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-23": "the escape uses some other relative .. arrangement"
+      }
+    },
+    "CWE-25": {
+      "name": "Path Traversal: '/../filedir'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input containing /../ make a path built by this function escape its intended directory?",
+      "present_when": {
+        "any": [
+          "input containing /../ is joined after a base directory and used, while any filter only strips a leading ../"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-24": "the escape is a leading ../ without a preceding slash"
+      }
+    },
+    "CWE-26": {
+      "name": "Path Traversal: '/dir/../filename'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input in the form /dir/../filename get past this function's path checks and reach a file outside the intended directory?",
+      "present_when": {
+        "any": [
+          "input is checked for a leading prefix or allowed directory name, yet still contains /dir/../ that is resolved later",
+          "a check looks at the first path component only, then the full path containing ../ is used"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-27": "the input climbs more than one level with dir/../../"
+      }
+    },
+    "CWE-27": {
+      "name": "Path Traversal: 'dir/../../filename'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input with several internal ../ segments, such as dir/../../file, make this function's path escape its intended directory?",
+      "present_when": {
+        "any": [
+          "input beginning with an allowed directory name but containing multiple ../ segments is joined and used without resolving it",
+          "a filter rejects only leading ../ so internal repeated ../ pass"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-26": "only one /dir/../ step is involved"
+      }
+    },
+    "CWE-28": {
+      "name": "Path Traversal: '..\\filedir'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input containing ..\\ (backslash dot dot) make this function's path escape its intended directory on Windows?",
+      "present_when": {
+        "any": [
+          "input is checked only for ../ forward-slash sequences and then used on a platform where backslash is a separator",
+          "input is joined into a Windows path without rejecting ..\\ segments"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-24": "the escape uses forward-slash ../"
+      }
+    },
+    "CWE-29": {
+      "name": "Path Traversal: '\\..\\filename'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input beginning with \\..\\ (leading backslash dot dot) make this function's path escape its intended directory on Windows?",
+      "present_when": {
+        "any": [
+          "input starting with \\..\\ is joined to a base path and used where backslash separates directories",
+          "filtering removes only forward-slash /../ or a leading ..\\ without the leading backslash"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-28": "the input starts with ..\\ without a leading backslash"
+      }
+    },
+    "CWE-30": {
+      "name": "Path Traversal: '\\dir\\..\\filename'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input like \\dir\\..\\filename get past this function's directory check and reach a file outside the intended directory on Windows?",
+      "present_when": {
+        "any": [
+          "input is checked for an allowed leading directory but still contains \\..\\ that is resolved when the file is opened",
+          "only forward-slash traversal is filtered while backslash paths are joined and used"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-26": "the same trick uses forward slashes, /dir/../filename"
+      }
+    },
+    "CWE-31": {
+      "name": "Path Traversal: 'dir\\..\\..\\filename'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input with several internal backslash ..\\ steps, such as dir\\..\\..\\file, make this function's path escape its intended directory?",
+      "present_when": {
+        "any": [
+          "input starting with an allowed name but holding repeated ..\\ segments is joined and opened without resolving it",
+          "a filter strips forward-slash ../ only, leaving backslash traversal intact"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-27": "the repeated steps use forward slashes"
+      }
+    },
+    "CWE-32": {
+      "name": "Path Traversal: '...' (Triple Dot)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input containing ... (three dots) be turned by this function's filtering or the platform into a .. that escapes the intended directory?",
+      "present_when": {
+        "any": [
+          "a filter deletes '.' or '..' substrings once, so ... or .../ collapses into .. afterwards",
+          "input with ... is used on a platform or library that treats it as a parent reference"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the input is rejected outright if it contains two or more consecutive dots"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-33": "the input uses four or more dots",
+        "CWE-23": "a plain .. is used with no filtering trick"
+      }
+    },
+    "CWE-33": {
+      "name": "Path Traversal: '....' (Multiple Dot)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input containing four or more dots (....) collapse into .. through this function's filtering and escape the intended directory?",
+      "present_when": {
+        "any": [
+          "a replace of '..' with '' is done once, so .... or ....// becomes .. or ../ after the replacement",
+          "input with runs of dots is used on a platform that reduces them to a parent reference"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the input is rejected if it contains two or more consecutive dots, or the sanitiser loops until no change"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-32": "exactly three dots are used",
+        "CWE-34": "the payload is specifically ....// relying on a single strip of ../"
+      }
+    },
+    "CWE-34": {
+      "name": "Path Traversal: '....//'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input like ....// survive this function's single pass that strips ../ and become ../ afterwards?",
+      "present_when": {
+        "any": [
+          "the function removes '../' with a non-recursive replace (str.replace, String.replace, a single loop pass) and then uses the result in a path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the sanitiser repeats until the string stops changing, or rejects the input instead of stripping"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-35": "the payload is .../...// with triple dots",
+        "CWE-23": "no stripping is done at all"
+      }
+    },
+    "CWE-35": {
+      "name": "Path Traversal: '.../...//'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-23"
+      ],
+      "function_checkable": true,
+      "question": "Can input like .../...// survive this function's stripping of ../ or ... and become a traversal sequence afterwards?",
+      "present_when": {
+        "any": [
+          "a non-recursive removal of '../' or '...' leaves pieces that join into ../ which is then used in a path"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the sanitiser repeats until the string stops changing, or rejects the input instead of stripping"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-34": "the payload is ....// with four dots"
+      }
+    },
+    "CWE-36": {
+      "name": "Absolute Path Traversal",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-22"
+      ],
+      "function_checkable": true,
+      "question": "Can an absolute path in input (such as /etc/passwd or C:\\file) replace or bypass the base directory when this function builds a path?",
+      "present_when": {
+        "any": [
+          "input is passed to a join function where an absolute second argument discards the base, then used to open or serve a file",
+          "input is used as the path directly with no check that it is relative"
+        ],
+        "python": [
+          "os.path.join(base, input) or Path(base) / input with input possibly starting with / or a drive letter"
+        ],
+        "javascript": [
+          "path.resolve(base, input) or path.join with input that may be absolute, then fs access"
+        ],
+        "rust": [
+          "Path::join(input) where an absolute input replaces the base"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is rejected when it is absolute (os.path.isabs, path.isAbsolute, Path::is_absolute) or contains a drive letter or leading separator",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-23": "the escape uses relative .. segments",
+        "CWE-37": "the absolute path specifically starts with a forward slash"
+      }
+    },
+    "CWE-37": {
+      "name": "Path Traversal: '/absolute/pathname/here'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-36"
+      ],
+      "function_checkable": true,
+      "question": "Can input starting with / (a Unix-style absolute path) make this function access a file outside the intended directory?",
+      "present_when": {
+        "any": [
+          "input that may start with / is used as a path directly or joined in a way that discards the base",
+          "validation looks only for .. and does not reject a leading /"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "a leading / is stripped repeatedly or the input is rejected when it is absolute"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-38": "the absolute path uses backslashes",
+        "CWE-23": "relative .. segments are the escape"
+      }
+    },
+    "CWE-38": {
+      "name": "Path Traversal: '\\absolute\\pathname\\here'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-36"
+      ],
+      "function_checkable": true,
+      "question": "Can input starting with \\ (a backslash absolute path) make this function access a file outside the intended directory on Windows?",
+      "present_when": {
+        "any": [
+          "input that may start with \\ is used as a path or joined so it resolves from the drive root",
+          "validation rejects a leading / but not a leading backslash"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-37": "the absolute path uses forward slashes",
+        "CWE-40": "the input starts with \\\\ naming a UNC share"
+      }
+    },
+    "CWE-39": {
+      "name": "Path Traversal: 'C:dirname'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-36"
+      ],
+      "function_checkable": true,
+      "question": "Can input with a drive letter, such as C:dir or D:\\file, make this function access a file on another volume or outside the intended directory?",
+      "present_when": {
+        "any": [
+          "input that may begin with a letter and colon is joined to a base path or used directly on Windows",
+          "validation rejects slashes and .. but not a drive prefix"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it",
+          "a colon anywhere in the input causes rejection"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-38": "the input starts with a backslash and no drive letter"
+      }
+    },
+    "CWE-40": {
+      "name": "Path Traversal: '\\\\UNC\\share\\name\\' (Windows UNC Share)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-36"
+      ],
+      "function_checkable": true,
+      "question": "Can input naming a Windows UNC share, such as \\\\host\\share\\file, make this function open a remote or unintended location?",
+      "present_when": {
+        "any": [
+          "input that may start with two backslashes or //host is used as a path or joined in a way that keeps it absolute",
+          "validation does not reject leading double separators"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the joined path is canonicalised (realpath, path.resolve, Path.resolve, canonicalize) and checked to start with the allowed base directory before use",
+          "the input is matched against a strict allow-list such as [A-Za-z0-9_-]+ or reduced to its base name before joining",
+          "the code only runs on platforms where backslash is not a path separator and does not normalise it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-38": "the input starts with a single backslash"
+      }
+    },
+    "CWE-41": {
+      "name": "Improper Resolution of Path Equivalence",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-706"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make an access or type decision on a file name by text comparison, when a differently spelled name could refer to the same file?",
+      "present_when": {
+        "any": [
+          "a block-list, extension test or protected-name comparison is applied to the raw input name, then the raw name is opened",
+          "names are compared without normalising trailing dots, spaces, slashes, case, repeated separators or short 8.3 forms"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the name escapes a base directory with .. or absolute components",
+        "CWE-178": "the bypass relies only on upper versus lower case",
+        "CWE-59": "a link redirects to another file"
+      }
+    },
+    "CWE-42": {
+      "name": "Path Equivalence: 'filename.' (Trailing Dot)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can a trailing dot on input (file.txt.) bypass a name or extension check in this function while still opening the same file on Windows?",
+      "present_when": {
+        "any": [
+          "an extension or protected-name check uses endsWith or equality on the raw name and a trailing '.' would defeat it before the name is opened"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "trailing dots and spaces are stripped before the check",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-43": "several trailing dots are used",
+        "CWE-46": "a trailing space is used instead"
+      }
+    },
+    "CWE-43": {
+      "name": "Path Equivalence: 'filename....' (Multiple Trailing Dot)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-42"
+      ],
+      "function_checkable": true,
+      "question": "Can several trailing dots on input (file.txt....) bypass a name or extension check in this function while still opening the same file?",
+      "present_when": {
+        "any": [
+          "a check compares the raw name or its last extension, and a run of trailing dots would defeat it before the file is opened"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "all trailing dots and spaces are stripped before the check",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-42": "a single trailing dot is enough for the bypass"
+      }
+    },
+    "CWE-44": {
+      "name": "Path Equivalence: 'file.name' (Internal Dot)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can an extra internal dot in input (file.ext.name) confuse this function's extension or name check so a dangerous file is accepted?",
+      "present_when": {
+        "any": [
+          "the check looks at the first extension or a substring, such as split('.')[1] or contains('.jpg'), while the file is handled by its last extension"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "the check uses the final extension from a proper path function and compares it against an allow-list",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-45": "several dots in a row are used",
+        "CWE-434": "the main issue is accepting dangerous upload types at all"
+      }
+    },
+    "CWE-45": {
+      "name": "Path Equivalence: 'file...name' (Multiple Internal Dot)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-44"
+      ],
+      "function_checkable": true,
+      "question": "Can repeated internal dots in input (file...name) make this function's name or extension check pass while a different file or type is used?",
+      "present_when": {
+        "any": [
+          "the name is split on '.' or searched with a substring test that consecutive dots throw off, then the raw name is used"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "consecutive dots cause rejection",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-44": "a single internal dot is used"
+      }
+    },
+    "CWE-46": {
+      "name": "Path Equivalence: 'filename ' (Trailing Space)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can a trailing space on input (\"file.txt \") bypass a name or extension check in this function while the same file is opened?",
+      "present_when": {
+        "any": [
+          "a block-list or extension check compares the raw name, and trailing whitespace would defeat it before the file is opened"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "the input is trimmed before both the check and the open",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-42": "a trailing dot is used",
+        "CWE-47": "the space is leading"
+      }
+    },
+    "CWE-47": {
+      "name": "Path Equivalence: ' filename' (Leading Space)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can a leading space on input (\" file.txt\") bypass a name check in this function while the same file is reached?",
+      "present_when": {
+        "any": [
+          "a check uses startsWith, equality or a prefix test on the raw name, and leading whitespace would defeat it before the file is used"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "the input is trimmed before both the check and the open",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-46": "the space is trailing"
+      }
+    },
+    "CWE-48": {
+      "name": "Path Equivalence: 'file name' (Internal Whitespace)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can whitespace inside input (\"file name\") bypass a name check in this function or split the name when it is used later?",
+      "present_when": {
+        "any": [
+          "a name check compares the raw input, while the name is then passed to a shell command or API that treats internal spaces differently",
+          "a block-list compares exact names and internal whitespace makes the comparison miss"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "names containing whitespace are rejected",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the space matters because the name reaches a shell command unquoted"
+      }
+    },
+    "CWE-49": {
+      "name": "Path Equivalence: 'filename/' (Trailing Slash)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can a trailing slash on input (\"dir/\" or \"file/\") bypass a name or directory check in this function?",
+      "present_when": {
+        "any": [
+          "a protected-name or extension check uses equality or endsWith on the raw name and a trailing slash would defeat it before use"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "trailing separators are removed before the check",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-50": "the extra slashes are leading"
+      }
+    },
+    "CWE-50": {
+      "name": "Path Equivalence: '//multiple/leading/slash'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Can multiple leading slashes on input (//dir/file) bypass this function's path prefix or name check?",
+      "present_when": {
+        "any": [
+          "a check such as startsWith('/admin') or a match on the first component is applied to the raw path, and // would defeat it before use",
+          "a URL path with repeated leading slashes is passed to a check that a normalising server later resolves differently"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the name is canonicalised (realpath, resolve, GetFullPathName) before the check and the same canonical name is what gets opened",
+          "the name must match a strict allow-list pattern that rejects the variant characters",
+          "repeated separators are collapsed before the check",
+          "the function makes no security or access decision based on the file name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-49": "the extra slash is trailing",
+        "CWE-40": "two leading backslashes name a UNC share"
+      }
+    },
+    "CWE-51": {
+      "name": "Path Equivalence: '/multiple//internal/slash'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a path from input by string comparison and then use it, without first collapsing repeated internal slashes such as a//b?",
+      "present_when": {
+        "any": [
+          "a path from a parameter or request is tested against a blocklist, prefix or exact name by plain string comparison and then opened or used, with '//' sequences left intact",
+          "the check splits on '/' or matches a pattern that assumes single separators, so 'admin//secret' slips past a rule for 'admin/secret'"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the canonical result is confirmed to lie inside the intended base directory before it is opened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input uses ../ segments to climb out of the base directory rather than an equivalent spelling of an allowed name"
+      }
+    },
+    "CWE-52": {
+      "name": "Path Equivalence: '/multiple/trailing/slash//'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a path from input by string comparison and then use it, without first stripping repeated trailing slashes such as dir//?",
+      "present_when": {
+        "any": [
+          "a path from input is compared to a protected name or suffix by plain string comparison and then used, while trailing '//' are not removed",
+          "a suffix or extension test such as endswith() is applied to a path that may end in extra slashes, which the file system ignores"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the canonical result is confirmed to lie inside the intended base directory before it is opened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input uses ../ segments to climb out of the base directory rather than an equivalent spelling of an allowed name"
+      }
+    },
+    "CWE-53": {
+      "name": "Path Equivalence: '\\multiple\\\\internal\\backslash'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a path from input and then use it on a system that treats backslash as a separator, without collapsing doubled backslashes first?",
+      "present_when": {
+        "any": [
+          "a path from input is matched against a blocklist or prefix that assumes single '\\' separators, then passed to a Windows file API or a library that accepts backslashes",
+          "the check looks only for '/' while the path is later opened where '\\' and '\\\\' also act as separators"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the canonical result is confirmed to lie inside the intended base directory before it is opened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input uses ../ segments to climb out of the base directory rather than an equivalent spelling of an allowed name"
+      }
+    },
+    "CWE-54": {
+      "name": "Path Equivalence: 'filedir\\' (Trailing Backslash)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a file or directory name from input and then use it on Windows-style paths, without removing a trailing backslash first?",
+      "present_when": {
+        "any": [
+          "a name from input is compared to a protected file or directory by exact string or suffix and then opened, while a trailing '\\' that the file system ignores is not stripped",
+          "an extension or type test such as endswith('.txt') is applied to a name that may end in a backslash"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the canonical result is confirmed to lie inside the intended base directory before it is opened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input uses ../ segments to climb out of the base directory rather than an equivalent spelling of an allowed name"
+      }
+    },
+    "CWE-55": {
+      "name": "Path Equivalence: '/./' (Single Dot Directory)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a path from input by string comparison and then use it, without removing single-dot segments such as a/./b?",
+      "present_when": {
+        "any": [
+          "a path from input is compared against a protected name or prefix as a raw string and then used, with '/./' segments left in place",
+          "a filter removes or rejects '../' but not './', and the result is matched against a blocklist"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the canonical result is confirmed to lie inside the intended base directory before it is opened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input uses ../ segments to climb out of the base directory",
+        "CWE-57": "the bypass needs a dir/../ sequence rather than a single dot segment"
+      }
+    },
+    "CWE-56": {
+      "name": "Path Equivalence: 'filedir*' (Wildcard)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass a file name from input to a call that expands wildcards such as * or ?, without rejecting or escaping those characters?",
+      "present_when": {
+        "any": [
+          "a name from input reaches glob(), a shell command, a Windows FindFirstFile-style API or a pattern-matching delete or copy, so 'filedir*' can match protected names",
+          "an access check compares the literal name but the later operation expands wildcards in it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the input is checked to contain no wildcard characters, or they are escaped (for example glob.escape) before use",
+          "the call takes the name literally, such as open() on a POSIX path, with no pattern expansion"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the input is executed as part of a shell command and the concern is command injection rather than file matching"
+      }
+    },
+    "CWE-57": {
+      "name": "Path Equivalence: 'fakedir/../realdir/filename'",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function protect a file or directory by checking a path string from input, without resolving '..' segments first, so a path like other/../protected/file bypasses it?",
+      "present_when": {
+        "any": [
+          "a path from input is checked against a protected directory or name by string prefix or contains-test before '..' segments are resolved, and the raw path is then opened",
+          "the check looks at the first path segment only, so 'fakedir/../realdir/x' passes as if it were under fakedir"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the canonical result is confirmed to lie inside the intended base directory before it is opened"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the path escapes the intended base directory altogether rather than reaching a protected location through a detour",
+        "CWE-55": "the bypass uses single-dot segments rather than dir/.. sequences"
+      }
+    },
+    "CWE-58": {
+      "name": "Path Equivalence: Windows 8.3 Filename",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-41"
+      ],
+      "function_checkable": true,
+      "question": "Does this function restrict access to a Windows file by its long name, without also handling its short 8.3 alias such as PROGRA~1?",
+      "present_when": {
+        "any": [
+          "a name from input is compared to a protected long file or directory name by string match on a Windows code path, and then opened",
+          "a blocklist of names or extensions is applied without converting the input with GetLongPathName or an equivalent first"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is canonicalised before every check and use, for example with realpath(), os.path.realpath() or Path.resolve(), path.resolve() or fs::canonicalize()",
+          "the path is a constant or is built only from values the program controls, not from input",
+          "the name is converted to its long form, or to a canonical handle or final path, before the check",
+          "the code only runs on platforms without 8.3 names, or the name cannot contain '~'"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-178": "the bypass comes from different letter case rather than a short-name alias"
+      }
+    },
+    "CWE-59": {
+      "name": "Improper Link Resolution Before File Access ('Link Following')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-706"
+      ],
+      "function_checkable": true,
+      "question": "Does this function open, write, delete or change permissions on a file by name in a place others can write to, without guarding against the name being a link?",
+      "present_when": {
+        "any": [
+          "a file in a shared or attacker-writable location such as /tmp, an upload or user directory is opened, created, truncated, chmod-ed or removed by path with no check that it is not a link",
+          "a path is checked with stat or exists and then opened by name, so a link can be swapped in"
+        ],
+        "c": [
+          "open() or fopen() on such a path without O_NOFOLLOW, O_EXCL or an lstat comparison of the opened descriptor"
+        ],
+        "cpp": [
+          "std::ofstream or std::filesystem::permissions on a path in a shared directory, as both follow symbolic links by default"
+        ],
+        "python": [
+          "open(), os.chmod() or shutil calls on such a path without follow_symlinks=False or an os.lstat / is_symlink() check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the file is created with exclusive creation (O_CREAT|O_EXCL, 'x' mode) or through a safe temporary-file API",
+          "links are refused, for example O_NOFOLLOW, follow_symlinks=False, or the opened descriptor is compared with lstat",
+          "the directory is private to the process or only writable by trusted users, and the path is constant"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-61": "the link is specifically a UNIX symbolic link and that is the more precise finding",
+        "CWE-367": "the defect is the gap between a check and a later use rather than following a link",
+        "CWE-22": "the path is built from ../ input rather than resolving a link"
+      }
+    },
+    "CWE-61": {
+      "name": "UNIX Symbolic Link (Symlink) Following",
+      "abstraction": "Compound",
+      "parents": [
+        "CWE-59"
+      ],
+      "function_checkable": true,
+      "question": "Does this function open or modify a file by path in a location others can write to, so a planted symbolic link could redirect it to another file?",
+      "present_when": {
+        "any": [
+          "a predictable path in /tmp, a shared or user-writable directory is opened, created, chown-ed or chmod-ed without refusing symbolic links"
+        ],
+        "c": [
+          "open(), fopen(), chmod() or chown() is used where O_NOFOLLOW, lchown, fchmod on an lstat-verified descriptor would be needed"
+        ],
+        "python": [
+          "open(), os.chmod() or shutil.copy() on such a path with no os.path.islink() / lstat check and no follow_symlinks=False"
+        ],
+        "javascript": [
+          "fs.writeFile, fs.chmod or fs.open on such a path without fs.lstat or the O_NOFOLLOW flag"
+        ],
+        "rust": [
+          "File::create or fs::set_permissions on such a path without symlink_metadata or O_NOFOLLOW via OpenOptionsExt"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "links are refused with O_NOFOLLOW, follow_symlinks=False, or the descriptor's identity is checked against lstat after opening",
+          "the file is created exclusively (O_EXCL, 'x' mode) or with mkstemp, tempfile or an equivalent safe API",
+          "the path is in a directory only the program can write to"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-62": "the name could be a hard link rather than a symbolic link",
+        "CWE-377": "the main defect is a predictable temporary file name rather than link handling"
+      }
+    },
+    "CWE-62": {
+      "name": "UNIX Hard Link",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-59"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust a file in a shared directory because of its path or ownership, without checking whether it is a hard link to some other file?",
+      "present_when": {
+        "any": [
+          "a file in a directory other users can write to is opened, chmod-ed, chown-ed or truncated by name and its link count is never checked",
+          "a privileged operation relies on a stat or ownership check of the path that a hard link to a protected file would also pass"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the code checks st_nlink is 1 (or compares device and inode with an expected file) on the opened descriptor before acting",
+          "the file is created exclusively by this function, so no prior link can exist",
+          "the directory is not writable by untrusted users, or the program holds no extra privilege"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-61": "the redirection comes from a symbolic link, detectable with lstat or O_NOFOLLOW",
+        "CWE-65": "the code path targets Windows hard links"
+      }
+    },
+    "CWE-65": {
+      "name": "Windows Hard Link",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-59"
+      ],
+      "function_checkable": true,
+      "question": "Does this function, on a Windows code path, act on a file in a user-writable location without checking whether it is a hard link to a protected file?",
+      "present_when": {
+        "any": [
+          "a privileged Windows operation such as writing, deleting, moving or setting an ACL on a file in a user-writable folder is done by name with no check of the link count",
+          "the file's attributes or owner are checked by path before acting, which a hard link to a protected file would pass"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the opened handle's number of links is checked (for example via GetFileInformationByHandle) before the operation",
+          "the file is created new by this function with exclusive creation",
+          "the code does not run on Windows or runs with no more rights than the user who controls the folder"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-62": "the code path targets UNIX hard links",
+        "CWE-1386": "the redirection is through a junction or mount point on a directory"
+      }
+    },
+    "CWE-66": {
+      "name": "Improper Handling of File Names that Identify Virtual Resources",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-706"
+      ],
+      "function_checkable": true,
+      "question": "Does this function open a file whose name comes from input without rejecting names that refer to devices, streams or other virtual resources rather than ordinary files?",
+      "present_when": {
+        "any": [
+          "a file name from input is opened or read without checking it names a regular file, so device names, alternate streams or special paths reach the open call",
+          "a filter checks only the extension or prefix of the name, not whether it is a reserved or special name"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the opened file is verified to be a regular file (S_ISREG, is_file(), stat().isFile()) before use",
+          "the name is matched against a strict allowlist or generated by the program",
+          "the code only runs on a platform where the name forms in question have no special meaning"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-67": "the special name is a Windows device such as CON, AUX or NUL",
+        "CWE-69": "the name uses a Windows ::$DATA alternate data stream",
+        "CWE-72": "the name uses an HFS+ resource fork path"
+      }
+    },
+    "CWE-67": {
+      "name": "Improper Handling of Windows Device Names",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-66"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build or open a path from input on a Windows code path without rejecting reserved device names such as CON, AUX, NUL, COM1 or LPT1?",
+      "present_when": {
+        "any": [
+          "a file name from input is opened, created or served without checking the base name against Windows reserved device names, including forms with an extension such as aux.txt",
+          "an upload or download handler writes or reads a user-chosen name in a directory on Windows"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the base name is checked case-insensitively against the reserved device list, with any extension removed, before use",
+          "the name is generated by the program or taken from a strict allowlist",
+          "the code runs only on non-Windows platforms where these names are ordinary"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-66": "the special resource is not a Windows device name",
+        "CWE-22": "the input escapes the directory with ../ rather than naming a device"
+      }
+    },
+    "CWE-69": {
+      "name": "Improper Handling of Windows ::DATA Alternate Data Stream",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-66"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check or serve a file name from input on a Windows code path without handling ':' alternate data stream suffixes such as file.asp::$DATA?",
+      "present_when": {
+        "any": [
+          "an access, extension or type check is applied to a name from input that may contain ':' and the name is then opened on NTFS, so a ::$DATA suffix changes what is read",
+          "the code decides how to handle a file (execute, render, deny) from its extension without stripping stream suffixes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "names containing ':' are rejected or the stream suffix is removed before every check",
+          "the name comes from a strict allowlist or is generated by the program",
+          "the code runs only on file systems without alternate data streams"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-72": "the special path is an HFS+ resource fork rather than an NTFS stream",
+        "CWE-178": "the bypass comes from letter case rather than a stream suffix"
+      }
+    },
+    "CWE-72": {
+      "name": "Improper Handling of Apple HFS+ Alternate Data Stream Path",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-66"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check or serve a file path from input on macOS without handling HFS+ fork paths such as file/..namedfork/rsrc?",
+      "present_when": {
+        "any": [
+          "a path from input is checked by extension, name or prefix and then opened on macOS, while '/..namedfork/' or '/rsrc' suffixes are not removed or rejected",
+          "access to a file's data is restricted but its resource fork path is not"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "paths containing '..namedfork' or a resource fork suffix are rejected, or the path is canonicalised and compared to an allowlist",
+          "the name is generated by the program, not taken from input",
+          "the code runs only on systems without HFS+ forks"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-69": "the special path is a Windows alternate data stream"
+      }
+    },
+    "CWE-178": {
+      "name": "Improper Handling of Case Sensitivity",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-706"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare a name, path, key or command case-sensitively to make an access or security decision when the resource it guards treats case as equal?",
+      "present_when": {
+        "any": [
+          "a blocklist or allowlist check on a file name, URL path, host, header or user name uses case-sensitive equality while the later lookup is case-insensitive",
+          "one part of the function lower-cases a value and another compares the original, so two checks disagree"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "both the check and the later use normalise case the same way, for example casefold() or toLowerCase() on both sides",
+          "the resource genuinely distinguishes case, so a case-sensitive comparison matches its behaviour",
+          "the comparison is not used for any access, validation or identity decision"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-58": "the bypass uses a Windows 8.3 short name",
+        "CWE-41": "the alternative spelling is some other path equivalence, such as extra separators or dots"
+      }
+    },
+    "CWE-386": {
+      "name": "Symbolic Name not Mapping to Correct Object",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-706"
+      ],
+      "function_checkable": true,
+      "question": "Does this function look up an object by a fixed name, path or identifier and then rely on it still naming the same object later, although it can be replaced in between?",
+      "present_when": {
+        "any": [
+          "a file, process, user or key is checked by name or id and later acted on by the same name rather than through a handle obtained once",
+          "a pid, file name or numeric id that can be reused or rebound is stored and used again after a delay or another call"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function obtains a handle or descriptor once and performs all checks and actions through it (fstat, pidfd, open file object)",
+          "the named object cannot be changed by anyone else, for example a constant resource owned by the program",
+          "the identity is re-verified (for example device and inode match) immediately before use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-367": "the defect is a check-then-use race on a file system resource and that is the more precise finding",
+        "CWE-59": "the name is redirected through a link"
+      }
+    },
+    "CWE-706": {
+      "name": "Use of Incorrectly-Resolved Name or Reference",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-664"
+      ],
+      "requires": [
+        "filesystem",
+        "network",
+        "interpreter_output",
+        "external_input"
+      ],
+      "function_checkable": true,
+      "question": "Does this function access a file, URL, key or other named resource by a name that can resolve somewhere other than intended (via traversal, links, equivalent names or case)?",
+      "present_when": {
+        "any": [
+          "input is joined into a path or resource name without canonicalising it and checking it stays in the intended area",
+          "a file is opened by name without guarding against symbolic links or alternate names that point elsewhere",
+          "names are compared case-sensitively or textually while the filesystem treats different spellings as the same object"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the resolved name is canonicalised and confirmed to lie inside the allowed area",
+          "names are chosen from a fixed allow-list or generated by the server",
+          "the function uses only constant resource names"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "input can escape a base directory with .. or absolute paths",
+        "CWE-59": "a symbolic or hard link is followed to an unintended file",
+        "CWE-41": "different spellings of the same path bypass a check"
+      }
+    },
+    "CWE-1386": {
+      "name": "Insecure Operation on Windows Junction / Mount Point",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-59"
+      ],
+      "function_checkable": true,
+      "question": "Does this function, on a Windows code path, open or modify a directory or file under a user-writable folder without guarding against a junction or mount point redirecting it?",
+      "present_when": {
+        "any": [
+          "a privileged process creates, deletes, moves or writes files under a folder that users can modify, opening each path by name",
+          "the code walks or recursively deletes a directory tree without checking for reparse points"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the code opens with FILE_FLAG_OPEN_REPARSE_POINT or checks FILE_ATTRIBUTE_REPARSE_POINT and refuses reparse points",
+          "the final path of the opened handle is checked against the intended location before acting",
+          "the code does not run on Windows or has no more privilege than the folder's owner"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-61": "the redirection is through a UNIX symbolic link",
+        "CWE-65": "the redirection is through a hard link to a single file"
+      }
+    }
+  }
+}

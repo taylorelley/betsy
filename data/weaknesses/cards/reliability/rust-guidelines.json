@@ -1,0 +1,655 @@
+{
+  "cards": {
+    "REL-001": {
+      "name": "Ensure reads of union fields produce valid values for the field's type",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "unsafe_code"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read a union field whose current bytes may not be a valid value of that field's type?",
+      "present_when": {
+        "rust": [
+          "an unsafe block reads a union field of type bool, char, an enum, a reference, NonNull or another type with invalid bit patterns",
+          "the field read differs from the field last written, or the union came from raw bytes, FFI or zeroed memory",
+          "a narrower field is written and then a wider field is read, exposing uninitialised bytes"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the field read is the one last written on every path, or a tag checked before the read selects it",
+          "every field is a plain integer, float or byte array type for which all bit patterns are valid",
+          "the value is read through MaybeUninit or an explicit validating conversion"
+        ]
+      }
+    },
+    "REL-002": {
+      "name": "Use strong types to differentiate between logically distinct values",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take or combine several plain primitives that stand for different units or concepts, so they could be swapped or mixed without a type error?",
+      "present_when": {
+        "rust": [
+          "a signature has two or more parameters of the same primitive type, such as u32 or f64, carrying different meanings like an id and a count",
+          "values in different units, such as milliseconds and seconds or metres and feet, are added, compared or assigned as bare numbers",
+          "a primitive is passed where a domain newtype or Duration already exists in the code"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "distinct concepts use newtypes, enums or std types such as Duration and Instant",
+          "the parameters of the same type genuinely share one meaning, such as two coordinates or a range start and end",
+          "the function is a small generic numeric helper with no domain meaning"
+        ]
+      }
+    },
+    "REL-003": {
+      "name": "Do not use an integer type as a divisor during integer division",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "division"
+      ],
+      "function_checkable": true,
+      "question": "Does this function divide integers using a divisor that is a run-time value rather than a non-zero constant or NonZero type?",
+      "present_when": {
+        "rust": [
+          "the / or % operator, or div or rem, has an integer divisor that comes from a parameter, field or calculation",
+          "integer division truncates a value that feeds a decision, scale or index where the remainder matters"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the divisor is a non-zero literal or constant, or has a NonZero type",
+          "checked_div, checked_rem or an equivalent is used and its None case is handled",
+          "the operands are floating point, so this integer rule does not apply"
+        ]
+      },
+      "distinguish_from": {
+        "REL-013": "a run-time divisor can actually be zero on some path and panic"
+      }
+    },
+    "REL-004": {
+      "name": "The 'as' operator should not be used with numeric operands",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "as_cast"
+      ],
+      "function_checkable": true,
+      "question": "Does this function convert between numeric types with the as operator rather than From, Into, TryFrom or TryInto?",
+      "present_when": {
+        "rust": [
+          "an expression such as x as u8, len as i32, f as u64 or n as f32 converts between integer or float types",
+          "the conversion narrows, changes signedness or turns a float into an integer, so the value can be cut, wrapped or saturated"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "conversions use From, Into, TryFrom or TryInto, with the error case handled",
+          "as is used only for non-numeric casts, such as pointer casts or enum discriminants",
+          "the value is a literal or constant that fits the target type exactly"
+        ]
+      },
+      "distinguish_from": {
+        "REL-009": "as turns an integer into a pointer"
+      }
+    },
+    "REL-005": {
+      "name": "Example guideline with bibliography (gui_Bib7x9KmPq2nL)",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "function_checkable": false,
+      "reason": "Placeholder guideline about review process with no technical requirement; nothing in code can show it."
+    },
+    "REL-006": {
+      "name": "Example guideline with bibliography (gui_Bob7x9KmPq2nL)",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "function_checkable": false,
+      "reason": "Placeholder guideline about review process with no technical requirement; nothing in code can show it."
+    },
+    "REL-007": {
+      "name": "Avoid as underscore pointer casts",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "as_cast"
+      ],
+      "function_checkable": true,
+      "question": "Does this function cast a raw pointer with as _, leaving the target pointer type to inference?",
+      "present_when": {
+        "rust": [
+          "an expression such as p as _, p as *const _ or p as *mut _ casts a raw pointer",
+          "a pointer passed to an FFI call or ptr function is cast with an inferred target type"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "every pointer cast names its concrete target, such as as *const u8, or uses cast::<T>() or cast_mut",
+          "the underscore cast is on a numeric value or reference coercion, not a raw pointer"
+        ]
+      },
+      "distinguish_from": {
+        "REL-004": "the cast is between numeric types rather than pointers"
+      }
+    },
+    "REL-008": {
+      "name": "Avoid out-or-range shifts",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "shift"
+      ],
+      "function_checkable": true,
+      "question": "Can this function shift a value by an amount that is negative or not less than the operand's bit width?",
+      "present_when": {
+        "rust": [
+          "the right-hand side of << or >> is a parameter, field or computed value with no check against the type's BITS",
+          "a shift amount is computed by subtraction or comes from a signed type and can go negative",
+          "a literal shift amount equals or exceeds the width of the left operand's type"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the shift amount is a constant below the bit width",
+          "the amount is checked or masked against BITS first, or checked_shl, checked_shr, wrapping_shl or wrapping_shr is used",
+          "the shift operates on a wider type that is converted only after shifting"
+        ]
+      },
+      "distinguish_from": {
+        "REL-010": "the shift count's type is signed or not bounded, rather than a specific value being out of range"
+      }
+    },
+    "REL-009": {
+      "name": "An integer shall not be converted to a pointer",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "pointers",
+        "type_conversion"
+      ],
+      "function_checkable": true,
+      "question": "Does this function turn an integer into a pointer, for example with as *const T, as *mut T or ptr::from_exposed_addr?",
+      "present_when": {
+        "rust": [
+          "an integer, usize or address expression is cast to a raw pointer with as",
+          "transmute converts an integer into a pointer or reference",
+          "ptr::from_exposed_addr, with_exposed_provenance or similar builds a pointer from an address value"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "pointers are derived only from references, allocations or other pointers, using offset, add or with_addr",
+          "the only casts go from pointer to integer, for logging or comparison",
+          "ptr::null or ptr::null_mut is used rather than casting zero"
+        ]
+      },
+      "distinguish_from": {
+        "REL-012": "the specific address used is not shown to be valid, aligned or permitted for access"
+      }
+    },
+    "REL-010": {
+      "name": "Do not shift an expression by a negative number of bits or by greater than or equal to the bitwidth of the operand",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "shift"
+      ],
+      "function_checkable": true,
+      "question": "Does this function shift using a count whose type or range does not rule out negative values or values at least the operand's bit width?",
+      "present_when": {
+        "rust": [
+          "a << or >> shift count is of a signed type, or is cast from one, with no range check",
+          "the count is derived from input, a loop variable or arithmetic without being bounded below BITS"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the count is a constant smaller than the operand's width",
+          "the count is checked against BITS, masked, or the shift uses checked_shl, checked_shr or the wrapping forms",
+          "the count's type is unsigned and narrow enough that it cannot reach the width"
+        ]
+      },
+      "distinguish_from": {
+        "REL-008": "a particular shift amount is already visibly outside the valid range"
+      }
+    },
+    "REL-011": {
+      "name": "Ensure that integer operations do not result in arithmetic overflow",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "arithmetic"
+      ],
+      "function_checkable": true,
+      "question": "Can integer arithmetic in this function exceed its type's range, panicking in debug builds or wrapping in release builds?",
+      "present_when": {
+        "rust": [
+          "+, -, * or += on integers combines values from parameters, input or loop counters with no range check",
+          "a subtraction on an unsigned type can go below zero, such as len - 1 when len may be 0",
+          "pow, negation of a signed minimum or abs on a signed minimum can overflow"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "checked_, saturating_, wrapping_ or overflowing_ operations, or the Wrapping type, are used",
+          "operands are bounded by an earlier comparison on every path so the result fits",
+          "the arithmetic uses a wider type than the inputs, or floating point"
+        ]
+      },
+      "distinguish_from": {
+        "REL-013": "the problem is division or remainder by zero rather than exceeding the range"
+      }
+    },
+    "REL-012": {
+      "name": "An integer shall not be converted to an invalid pointer",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "pointers",
+        "type_conversion"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create a pointer from an integer address and then use it without showing the address is valid, aligned and allowed for that access?",
+      "present_when": {
+        "rust": [
+          "an integer address is cast to a pointer and dereferenced, or passed to read, write, read_volatile or write_volatile",
+          "the address comes from arithmetic, input or configuration with no alignment or range check",
+          "a computed address is turned into a reference with &* or from_raw_parts"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the address is a documented fixed hardware register with the correct alignment, accessed with volatile operations",
+          "the integer was obtained from a valid pointer to the same object and is converted back unchanged",
+          "alignment and range checks against a known region happen before use"
+        ]
+      },
+      "distinguish_from": {
+        "REL-009": "an integer becomes a pointer but the function never dereferences or relies on it"
+      }
+    },
+    "REL-013": {
+      "name": "Do not divide by 0",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "division"
+      ],
+      "function_checkable": true,
+      "question": "Can a division or remainder in this function receive a zero divisor at run time?",
+      "present_when": {
+        "rust": [
+          "/ or % on integers uses a divisor from a parameter, field, length or count that can be zero, such as len() of an empty collection",
+          "div_euclid, rem_euclid, div or rem is called with a divisor that is not checked for zero",
+          "checked_div, checked_rem or checked_next_multiple_of is given a divisor that can be zero and its result is unwrapped, expected or otherwise taken to be Some"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the divisor is checked for zero on every path before the division, or is a non-zero constant or NonZero value",
+          "checked_div, checked_rem or checked_next_multiple_of is used and None is handled",
+          "the division is on floating point values, which give infinity or NaN rather than panic"
+        ]
+      },
+      "distinguish_from": {
+        "REL-003": "the divisor is a run-time integer that cannot be zero, and only truncation or style is the concern"
+      }
+    },
+    "REL-014": {
+      "name": "Recursive function are not allowed",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call itself, directly or through a closure or helper it defines, so its call depth depends on the input?",
+      "present_when": {
+        "rust": [
+          "the body calls the function by its own name or via Self:: or self. on the same method",
+          "a nested fn or closure inside the function calls itself or calls back into the outer function",
+          "the function walks a tree, list or nested structure by calling itself for each child"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the traversal uses a loop with an explicit stack, queue or iterator",
+          "the same-named call targets a different type's method or trait implementation, not this function"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-674": "the recursion has no depth limit and attacker input controls depth"
+      }
+    },
+    "REL-015": {
+      "name": "Assure visibility of unsafe keyword in unsafe code",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "function_checkable": true,
+      "question": "Does this function perform unsafe operations or carry linkage attributes without a visible unsafe marker at that spot?",
+      "present_when": {
+        "rust": [
+          "an unsafe fn body performs unsafe operations directly without its own inner unsafe block",
+          "the function has #[no_mangle], #[export_name] or #[link_section] written without the unsafe(...) wrapper",
+          "an extern block declaring foreign functions is written without unsafe extern"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "every unsafe operation sits inside an explicit unsafe block, even within unsafe fn",
+          "linkage attributes are written as #[unsafe(no_mangle)] and similar",
+          "the function contains no unsafe operations or linkage attributes"
+        ]
+      },
+      "distinguish_from": {
+        "REL-020": "the unsafe code is hidden inside a macro expansion"
+      }
+    },
+    "REL-016": {
+      "name": "Attribute macros shall not be used",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Is this function, or an item inside it, annotated with an attribute macro that rewrites its code, such as #[tokio::main] or a custom proc_macro_attribute?",
+      "present_when": {
+        "rust": [
+          "an attribute with a path or crate name, such as #[tokio::main], #[async_trait] or #[instrument], is applied to the function",
+          "a nested item or impl in the function carries a non-built-in attribute that expands to new code"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "only built-in attributes appear, such as #[inline], #[cfg], #[allow], #[must_use] or #[test]",
+          "only #[derive] is used, which is a derive macro rather than an attribute macro"
+        ]
+      },
+      "distinguish_from": {
+        "REL-018": "the procedural macro used is a derive or function-like one rather than an attribute"
+      }
+    },
+    "REL-017": {
+      "name": "A macro should not be used in place of a function",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does this function define or call a macro_rules! macro whose work an ordinary function or generic function could do?",
+      "present_when": {
+        "rust": [
+          "a macro_rules! defined in or used by the function only computes a value from expressions, like a min, clamp or conversion helper",
+          "the macro takes fixed arguments and needs no repetition, new identifiers or syntax a function cannot accept"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the macro needs variadic arguments, repetition, generated items or compile-time formatting",
+          "only standard macros such as println!, vec!, assert! or format! are used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-022": "any function-like macro use is flagged regardless of whether a function would work"
+      }
+    },
+    "REL-018": {
+      "name": "Procedural macros should not be used",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a procedural macro, such as a custom attribute, a derive on an inner item, or a function-like macro from a proc-macro crate?",
+      "present_when": {
+        "rust": [
+          "the function carries an attribute macro from an external crate, such as #[tokio::main] or #[tracing::instrument]",
+          "an inner type uses #[derive] with a third-party derive such as Serialize or Deserialize",
+          "the body invokes a macro from a proc-macro crate, such as sqlx::query! or html!"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "only built-in attributes, standard derives or macro_rules! macros are used",
+          "no macros or attributes appear in the function"
+        ]
+      },
+      "distinguish_from": {
+        "REL-016": "the macro is specifically an attribute that rewrites the item"
+      }
+    },
+    "REL-019": {
+      "name": "Shall ensure complete hygiene of macros",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does a macro defined or invoked in this function rely on names from the caller's scope, so its behaviour can change where it expands?",
+      "present_when": {
+        "rust": [
+          "a macro_rules! body refers to a local variable or item not passed in as a macro argument",
+          "a macro creates items or uses $crate-less paths that can collide with or be captured by names at the call site"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the macro uses only its own arguments, local bindings it creates, and $crate:: or ::std:: paths",
+          "no user-defined macros are defined or invoked in the function"
+        ]
+      },
+      "distinguish_from": {
+        "REL-021": "the macro uses relative paths to items rather than capturing variables"
+      }
+    },
+    "REL-020": {
+      "name": "Do not hide unsafe blocks within macro expansions",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does this function invoke or define a macro that expands to unsafe code without unsafe appearing at the call site?",
+      "present_when": {
+        "rust": [
+          "a macro_rules! body contains an unsafe block and is invoked without an enclosing unsafe block",
+          "a macro invoked in this function is known from its definition here to call unsafe functions or dereference raw pointers"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the macro is invoked inside an explicit unsafe block, or requires the caller to write unsafe",
+          "the macros used contain no unsafe code"
+        ]
+      },
+      "distinguish_from": {
+        "REL-015": "unsafe code is written directly in the function without a visible marker, not via a macro"
+      }
+    },
+    "REL-021": {
+      "name": "Names in a macro definition shall use a fully qualified path",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_definition"
+      ],
+      "function_checkable": true,
+      "question": "Does a macro defined in this function refer to items by relative or unqualified paths instead of $crate:: or ::std:: style absolute paths?",
+      "present_when": {
+        "rust": [
+          "a macro_rules! body calls a function or names a type such as Vec, Option or helper() without a leading ::, $crate:: or full path",
+          "the macro body relies on a use statement in its defining module to resolve a name"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "every item path in the macro body starts with $crate::, ::core::, ::std:: or ::alloc::",
+          "the names used are only the macro's own arguments or local bindings created by the macro",
+          "no macro is defined in the function"
+        ]
+      },
+      "distinguish_from": {
+        "REL-019": "the macro captures local variables from the call site rather than resolving item paths"
+      }
+    },
+    "REL-022": {
+      "name": "Shall not use Function-like Macros",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does this function invoke or define a function-like macro, written as name!(...), name![...] or name!{...}?",
+      "present_when": {
+        "rust": [
+          "the body invokes a macro such as println!, vec!, format!, assert! or a user macro",
+          "the function contains a macro_rules! definition"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the function contains no ! macro invocations or macro definitions",
+          "the only ! characters are the not operator, != or the never type"
+        ]
+      },
+      "distinguish_from": {
+        "REL-017": "the concern is a specific macro that should have been a function"
+      }
+    },
+    "REL-023": {
+      "name": "Shall not invoke macros",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does this function invoke any macro, including standard ones like println!, vec!, assert! or attribute and derive macros?",
+      "present_when": {
+        "rust": [
+          "a name! invocation appears in the body",
+          "an attribute macro or derive is applied to the function or an item inside it"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "no macro invocations or macro attributes appear in the function",
+          "the only ! uses are logical not, != or the never type"
+        ]
+      },
+      "distinguish_from": {
+        "REL-024": "the function defines a declarative macro with macro_rules! rather than just invoking one"
+      }
+    },
+    "REL-024": {
+      "name": "Shall not use Declarative Macros",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_definition"
+      ],
+      "function_checkable": true,
+      "question": "Does this function define a declarative macro with macro_rules! or the macro keyword?",
+      "present_when": {
+        "rust": [
+          "a macro_rules! name { ... } definition appears inside the function body",
+          "a macro 2.0 definition using the macro keyword appears in the function"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the function only invokes macros and defines none",
+          "no macro definitions appear in the function"
+        ]
+      },
+      "distinguish_from": {
+        "REL-023": "the function only invokes existing macros"
+      }
+    },
+    "REL-025": {
+      "name": "Shall not write code that expands macros",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "requires": [
+        "macro_use"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's code depend on macro expansion, so the compiled code differs from the source text a reviewer reads?",
+      "present_when": {
+        "rust": [
+          "the body invokes macros whose expansion contributes control flow, items or expressions",
+          "the function or its inner items carry attribute or derive macros that generate code"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "no macro invocations, macro definitions or code-generating attributes appear",
+          "only built-in, non-expanding attributes such as #[inline] or #[allow] are used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-023": "the finding is simply that a macro is invoked"
+      }
+    }
+  }
+}

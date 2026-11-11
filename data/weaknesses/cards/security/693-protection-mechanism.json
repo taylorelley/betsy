@@ -1,0 +1,1846 @@
+{
+  "cards": {
+    "CWE-184": {
+      "name": "Incomplete List of Disallowed Inputs",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": true,
+      "question": "Does this function block dangerous input with a deny-list of bad values, patterns or extensions that misses variants an attacker could use?",
+      "present_when": {
+        "any": [
+          "a check rejects specific strings, tags, extensions or commands (such as '<script>', '.php', '../', 'rm') and lets everything else through",
+          "the list is case-sensitive, ignores encodings or alternate spellings, or omits obvious equivalents (such as .phtml, onerror=, %2e%2e)"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses an allow-list of permitted values and rejects anything else",
+          "a vetted library escaping or parameterisation is used rather than filtering",
+          "the list is not a security control, such as a cosmetic profanity or stop-word filter"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-180": "the list may be adequate but is applied before decoding or normalisation"
+      }
+    },
+    "CWE-311": {
+      "name": "Missing Encryption of Sensitive Data",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-693"
+      ],
+      "requires": [
+        "sensitive_data",
+        "crypto",
+        "network",
+        "filesystem",
+        "data_store"
+      ],
+      "function_checkable": true,
+      "question": "Does it store, send, log or cache sensitive data (passwords, keys, tokens, personal or financial data)?",
+      "present_when": {
+        "any": [
+          "secrets or personal data are written to a file, database, registry, cookie, environment variable or log",
+          "secrets or personal data are sent over a socket, HTTP request or message queue",
+          "connection URLs or socket set-up without TLS for data that may be sensitive"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function handles no secrets or personal data",
+          "only non-sensitive public or derived data is stored or transmitted"
+        ]
+      }
+    },
+    "CWE-312": {
+      "name": "Cleartext Storage of Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-311"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store a password, key, token or other sensitive value without encryption where other parties could read it?",
+      "present_when": {
+        "any": [
+          "a secret or personal data is written as plain text to a file, database column, cookie, registry key, environment variable or cache",
+          "credentials are serialised into configuration or local storage unencrypted"
+        ],
+        "javascript": [
+          "a token or password is placed in localStorage, sessionStorage or a non-encrypted cookie"
+        ],
+        "tsx": [
+          "a token, password or personal data is saved to localStorage or sessionStorage in a useEffect, a custom storage hook or a store persister such as redux-persist"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is encrypted, or for passwords hashed with a slow salted hash, before storage",
+          "the stored value is not sensitive (an ID, a public setting)",
+          "storage goes through an OS keychain, secret manager or encrypted store API"
+        ],
+        "tsx": [
+          "the session lives in an httpOnly cookie set by the server, and any token is held only in memory state"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-313": "the store is specifically a file on disk",
+        "CWE-315": "the store is specifically a cookie",
+        "CWE-319": "the data is sent across a network rather than stored"
+      }
+    },
+    "CWE-313": {
+      "name": "Cleartext Storage in a File or on Disk",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write a password, key, token or other sensitive value unencrypted to a file or disk?",
+      "present_when": {
+        "any": [
+          "a secret or personal data is written with an ordinary file write, a config or JSON dump, or a pickle or serialisation to disk"
+        ],
+        "c": [
+          "fprintf, fwrite or write puts a password or key into a file"
+        ],
+        "javascript": [
+          "fs.writeFile or writeFileSync stores credentials or tokens"
+        ],
+        "python": [
+          "open(...).write, json.dump or configparser writes credentials or tokens"
+        ],
+        "rust": [
+          "std::fs::write or a File writer stores credentials or keys"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the data is encrypted or hashed before being written",
+          "the written data contains no secrets",
+          "the file is written through a keystore or secret-manager API"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-532": "the secret ends up in a log file rather than a data or config file"
+      }
+    },
+    "CWE-314": {
+      "name": "Cleartext Storage in the Registry",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store a password, key or other sensitive value unencrypted in the Windows registry?",
+      "present_when": {
+        "any": [
+          "a secret is written to a registry value as plain text"
+        ],
+        "c": [
+          "RegSetValueEx, RegSetKeyValue or a CRegKey setter writes a password, key or token"
+        ],
+        "javascript": [
+          "a registry module (for example winreg or regedit packages) writes a credential value"
+        ],
+        "python": [
+          "winreg.SetValueEx or SetValue writes a credential value"
+        ],
+        "rust": [
+          "a registry crate such as winreg sets a value holding a credential"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is protected first, for example with DPAPI CryptProtectData, before being stored",
+          "only non-sensitive settings are written to the registry",
+          "the function does not touch the registry"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-313": "the plain-text secret is written to an ordinary file rather than the registry"
+      }
+    },
+    "CWE-315": {
+      "name": "Cleartext Storage of Sensitive Information in a Cookie",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put a password, token, personal data or other sensitive value into a cookie in readable, unencrypted form?",
+      "present_when": {
+        "any": [
+          "a cookie is set whose value is a password, account number, role, email or similar secret in plain or merely base64-encoded form"
+        ],
+        "c": [
+          "a Set-Cookie header string is built containing a credential or personal value"
+        ],
+        "javascript": [
+          "res.cookie, document.cookie or a Set-Cookie header carries credentials or personal data directly"
+        ],
+        "python": [
+          "set_cookie or response.cookies[...] stores credentials or personal data directly"
+        ],
+        "rust": [
+          "a Cookie builder value contains a credential or personal value directly"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cookie holds only an opaque random session identifier",
+          "the value is encrypted, or signed and encrypted, by the framework (for example an encrypted session cookie)",
+          "the cookie contains non-sensitive preferences such as language or theme"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-614": "the cookie value may be fine but the Secure attribute is missing"
+      }
+    },
+    "CWE-316": {
+      "name": "Cleartext Storage of Sensitive Information in Memory",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep a password, key or other secret in memory as plain text for longer than needed, or release it without wiping?",
+      "present_when": {
+        "any": [
+          "a secret is held in a long-lived structure, global or cache in plain form after its use is over"
+        ],
+        "c": [
+          "a buffer holding a password or key is freed or goes out of scope without memset_s, explicit_bzero or SecureZeroMemory first",
+          "a plain memset clears the secret just before free, which the compiler may remove"
+        ],
+        "cpp": [
+          "a password or key is kept in a std::string member or static after use; clearing or destroying the string does not wipe its buffer"
+        ],
+        "javascript": [
+          "a password or key is kept in an immutable string or a module-level variable for the life of the process"
+        ],
+        "python": [
+          "a password or key is kept in an immutable str or a global for the life of the process"
+        ],
+        "rust": [
+          "a key is held in a Vec or String that is dropped without zeroize"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the secret is wiped with a non-elidable routine right after use",
+          "the secret is held in a dedicated protected type (for example zeroize, SecureString, locked memory)",
+          "the value is not secret"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-312": "the secret is persisted to storage rather than held in memory"
+      }
+    },
+    "CWE-317": {
+      "name": "Cleartext Storage of Sensitive Information in GUI",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function display or place a password, key or other sensitive value in plain text in a user interface element?",
+      "present_when": {
+        "any": [
+          "a password field is set to show characters, or a secret is written into a label, text box, title, tooltip or page markup",
+          "a full card number, key or token is rendered on screen rather than masked"
+        ],
+        "javascript": [
+          "an input of type text (not password) is used for a password, or a secret is placed in innerHTML, value or a hidden field"
+        ],
+        "tsx": [
+          "a password, key or token from props or state is rendered as JSX text or as the value of an input whose type is not password"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are masked (password input type, asterisks, last four digits only)",
+          "the displayed value is not sensitive",
+          "an explicit user-initiated 'show password' toggle controls display"
+        ],
+        "tsx": [
+          "the secret is masked before rendering, or shown only in an <input type=\"password\"> with no reveal by default"
+        ]
+      }
+    },
+    "CWE-318": {
+      "name": "Cleartext Storage of Sensitive Information in Executable",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function embed a password, key, token or other secret as a literal in the code that ends up in the compiled program or bundle?",
+      "present_when": {
+        "any": [
+          "a string or byte-array literal holding a password, API key, private key or connection string with credentials",
+          "a constant secret compared against input or passed to a crypto or login call"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are read at run time from a secret store, protected file or environment",
+          "the literal is a placeholder, test fixture or empty value clearly not used in production",
+          "the literal is a public value such as a public key or a non-secret identifier"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-798": "the hard-coded secret is a credential used for authentication, the more precise finding"
+      }
+    },
+    "CWE-319": {
+      "name": "Cleartext Transmission of Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-311"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send passwords, tokens, keys or personal data over a network channel without encryption?",
+      "present_when": {
+        "any": [
+          "credentials or personal data sent to an http://, ftp://, telnet or ws:// endpoint",
+          "a plain TCP or UDP socket sends secrets without TLS",
+          "TLS is explicitly disabled or downgraded on the connection carrying secrets"
+        ],
+        "c": [
+          "send or write on a raw socket carries a password or key with no SSL_write or TLS layer"
+        ],
+        "cpp": [
+          "a boost::asio::ip::tcp::socket write carries credentials with no ssl::stream wrapping the socket"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the connection uses https, wss, TLS or SSH",
+          "the data sent is not sensitive",
+          "the endpoint is a local Unix socket or loopback interface within the same host"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-614": "the problem is a session cookie lacking the Secure attribute",
+        "CWE-1428": "the code uses http:// where https was available, regardless of what data is sent"
+      }
+    },
+    "CWE-323": {
+      "name": "Reusing a Nonce, Key Pair in Encryption",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-344"
+      ],
+      "function_checkable": true,
+      "question": "Does this function encrypt with a nonce, IV or key pair that is fixed or reused across messages instead of fresh for each use?",
+      "present_when": {
+        "any": [
+          "a constant or zero nonce or IV passed to AES-GCM, ChaCha20, CTR or a stream cipher",
+          "a nonce stored once (in a field, global or config) and passed to every encrypt call",
+          "a nonce derived from a counter that resets, or from data that repeats, under the same key"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a fresh random nonce is generated for every encryption, or a never-repeating counter is persisted per key",
+          "a misuse-resistant AEAD API generates the nonce internally",
+          "the function decrypts using a nonce supplied with the ciphertext"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-329": "the reused or predictable IV is used with CBC mode",
+        "CWE-1204": "the IV is weak or predictable rather than reused"
+      }
+    },
+    "CWE-326": {
+      "name": "Inadequate Encryption Strength",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-693"
+      ],
+      "requires": [
+        "crypto"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use encryption with a key size or parameters too weak for the protection required?",
+      "present_when": {
+        "any": [
+          "RSA or DSA keys under 2048 bits, or Diffie-Hellman groups under 2048 bits",
+          "symmetric keys shorter than 128 bits, or a password used directly as a short key",
+          "elliptic curves under 224 bits or deliberately reduced key derivation output length"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "keys are at least 2048 bits for RSA or DH, at least 128 bits symmetric, or a curve such as P-256 or X25519",
+          "the key size comes from a vetted library default that meets current guidance",
+          "the code is not used for protection, such as a checksum or test vector"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-327": "the algorithm itself is broken (DES, RC4, MD5), not merely too small",
+        "CWE-916": "the weakness is a fast password hash rather than encryption strength"
+      }
+    },
+    "CWE-327": {
+      "name": "Use of a Broken or Risky Cryptographic Algorithm",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-693"
+      ],
+      "requires": [
+        "crypto"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a broken or risky cryptographic algorithm, mode or protocol?",
+      "present_when": {
+        "any": [
+          "DES, 3DES, RC2, RC4, Blowfish or ECB mode used for encryption",
+          "MD5 or SHA-1 used for signatures, certificates, integrity or password hashing",
+          "SSLv2, SSLv3, TLS 1.0 or 1.1 explicitly enabled, or a home-made cipher or XOR obfuscation used as encryption"
+        ],
+        "c": [
+          "EVP_des_*, EVP_rc4, EVP_*_ecb or MD5()/SHA1() calls used for security"
+        ],
+        "cpp": [
+          "Crypto++ or Botan classes such as DES, MD5, SHA1 or ECB_Mode used for security"
+        ],
+        "javascript": [
+          "crypto.createCipheriv with 'des', 'rc4' or an ecb mode, or createHash('md5') for security"
+        ],
+        "python": [
+          "hashlib.md5/sha1 for security, DES or ARC4 ciphers, or AES.MODE_ECB"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only current algorithms are used, such as AES-GCM, ChaCha20-Poly1305, SHA-256 or above, Ed25519",
+          "MD5 or SHA-1 is used only for non-security purposes such as cache keys or file deduplication"
+        ],
+        "python": [
+          "hashlib.md5(..., usedforsecurity=False) for a non-security checksum"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-328": "the specific problem is a weak hash function",
+        "CWE-780": "the problem is RSA used without OAEP padding",
+        "CWE-326": "the algorithm is sound but the key is too short"
+      }
+    },
+    "CWE-328": {
+      "name": "Use of Weak Hash",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-327"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a weak hash (such as MD5, SHA-1, CRC or a non-cryptographic hash) where a secure hash is needed?",
+      "present_when": {
+        "any": [
+          "MD5, SHA-1, MD4 or CRC32 computes a digest for passwords, signatures, integrity checks, tokens or MACs",
+          "a non-cryptographic hash (FNV, djb2, murmur, hashCode) used to protect integrity or derive secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "SHA-256, SHA-3, BLAKE2 or stronger is used for the security purpose",
+          "the weak hash is used only for non-security uses such as hash tables, caching or deduplication"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-916": "the hash protects passwords and the issue is lack of computational cost",
+        "CWE-759": "the password hash lacks a salt"
+      }
+    },
+    "CWE-329": {
+      "name": "Generation of Predictable IV with CBC Mode",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1204"
+      ],
+      "function_checkable": true,
+      "question": "Does this function encrypt in CBC mode with an IV that is predictable, fixed or reused rather than random for each message?",
+      "present_when": {
+        "any": [
+          "CBC encryption uses a zero, constant or key-derived IV",
+          "the CBC IV is a counter, a timestamp or the last block of the previous ciphertext"
+        ],
+        "c": [
+          "EVP_EncryptInit_ex with an EVP_*_cbc cipher and a static or zero iv buffer"
+        ],
+        "cpp": [
+          "Crypto++ CBC_Mode<...>::Encryption SetKeyWithIV with a constant or zero IV array"
+        ],
+        "javascript": [
+          "createCipheriv('aes-*-cbc', key, iv) where iv is a constant Buffer or Buffer.alloc(16)"
+        ],
+        "python": [
+          "AES.new(key, AES.MODE_CBC, iv) or modes.CBC(iv) where iv is a literal or b'\\x00'*16"
+        ],
+        "rust": [
+          "a cbc Encryptor constructed with a fixed IV array"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a fresh IV is drawn from a CSPRNG for each encryption and sent with the ciphertext",
+          "the code uses an AEAD mode such as GCM instead of CBC"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1204": "the weak IV is used with a mode other than CBC"
+      }
+    },
+    "CWE-330": {
+      "name": "Use of Insufficiently Random Values",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-693"
+      ],
+      "requires": [
+        "crypto",
+        "security_logic"
+      ],
+      "function_checkable": true,
+      "question": "Does it generate or use random or unique values (tokens, keys, nonces, IVs, salts, session or reset IDs) where unpredictability matters?",
+      "present_when": {
+        "any": [
+          "calls to a random number generator, or seeding one",
+          "creation of session IDs, password reset tokens, API keys, nonces, IVs, salts or one-time codes",
+          "identifiers built from counters, timestamps, process IDs or hashes of them",
+          "reuse of a fixed nonce, IV or key across operations"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses no random values and creates no identifiers or crypto parameters",
+          "randomness is used only for non-security purposes such as shuffling a display, sampling or simulations"
+        ]
+      }
+    },
+    "CWE-331": {
+      "name": "Insufficient Entropy",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function produce security values from a source or scheme with too little entropy, so some values are far more likely than others?",
+      "present_when": {
+        "any": [
+          "a token or key built from few random bits, such as a single small random integer, then hashed or padded to look long",
+          "a value derived from time, PID, a counter or user data and used as a secret",
+          "random output reduced with modulo to a range in a way that biases or narrows it for a secret"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value comes directly from a CSPRNG with at least 128 bits of output",
+          "the value is not used for any security purpose"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-338": "the generator itself is a non-cryptographic PRNG",
+        "CWE-334": "the range of possible values is simply too small",
+        "CWE-337": "the PRNG is seeded from a predictable value"
+      }
+    },
+    "CWE-332": {
+      "name": "Insufficient Entropy in PRNG",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-331"
+      ],
+      "function_checkable": true,
+      "question": "Does this function seed or run a pseudo-random generator for security use with too little entropy?",
+      "present_when": {
+        "any": [
+          "a PRNG used for keys or tokens is seeded with a small or low-entropy value",
+          "the code proceeds to generate secrets even though the entropy source reported it was not ready or failed"
+        ],
+        "c": [
+          "RAND_seed or RAND_add given a short or constant buffer, or RAND_status/RAND_bytes failure ignored before generating keys"
+        ],
+        "cpp": [
+          "a std::seed_seq built from one or two std::random_device values seeds an engine that then generates secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the PRNG is the OS CSPRNG (getrandom, /dev/urandom, BCryptGenRandom, secrets, crypto.randomBytes, OsRng) which seeds itself",
+          "a failure of the entropy source is detected and stops generation"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-337": "the seed is specifically predictable, such as the time or PID",
+        "CWE-339": "the seed space is small, such as a 16 or 32 bit seed"
+      }
+    },
+    "CWE-333": {
+      "name": "Improper Handling of Insufficient Entropy in TRNG",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-331"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read from a true or blocking entropy source without handling the case where it blocks, returns short or fails?",
+      "present_when": {
+        "any": [
+          "a read from a hardware RNG or blocking entropy device assumes it always returns the full amount immediately"
+        ],
+        "c": [
+          "read() from /dev/random, getrandom or RDRAND whose short return, EAGAIN or carry-flag failure is ignored",
+          "a buffer is used as key material after a partial read without a retry loop"
+        ],
+        "javascript": [
+          "a hardware RNG or native entropy call is used without handling an error or timeout"
+        ],
+        "python": [
+          "os.read on /dev/random or os.getrandom with GRND_RANDOM or GRND_NONBLOCK without handling BlockingIOError or short reads"
+        ],
+        "rust": [
+          "a getrandom or hardware RNG call whose Err result is unwrapped or ignored in a context that must not fail"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the return value and byte count are checked and short reads are retried or reported",
+          "the code uses a non-blocking OS CSPRNG API that does not fail after boot, such as /dev/urandom via a library"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-332": "a pseudo-random generator is under-seeded rather than a true RNG mishandled"
+      }
+    },
+    "CWE-334": {
+      "name": "Small Space of Random Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function generate a security value (token, code, ID, key) from too few possible values, so it can be brute-forced?",
+      "present_when": {
+        "any": [
+          "a token or session ID drawn from a small range, such as a 4 to 6 digit number without attempt limits, or a 16 or 32 bit integer",
+          "random bytes truncated to a short length before use as a secret",
+          "an identifier picked from a small alphabet with few characters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value has at least 128 bits of random output",
+          "a short code is paired with strict attempt limits and expiry visible in the function",
+          "the value is not secret"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-339": "the small space is in the PRNG seed rather than the output",
+        "CWE-338": "the generator itself is not cryptographically strong"
+      }
+    },
+    "CWE-335": {
+      "name": "Incorrect Usage of Seeds in Pseudo-Random Number Generator (PRNG)",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function seed a pseudo-random generator incorrectly, such as with a fixed, predictable, small or reused seed, for security use?",
+      "present_when": {
+        "any": [
+          "a PRNG is seeded with a constant, time, PID or other guessable value before generating secrets",
+          "the generator is re-seeded with the same value on every call",
+          "a seed is exposed or logged"
+        ],
+        "c": [
+          "srand(time(NULL)), srand(getpid()) or srand(constant) followed by rand() for security values"
+        ],
+        "cpp": [
+          "std::mt19937 or std::default_random_engine seeded with the time or a constant, or default-constructed, then used for security values"
+        ],
+        "python": [
+          "random.seed(...) with a constant or time before producing tokens"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a CSPRNG that seeds itself from the OS is used and no seed is supplied",
+          "fixed seeds appear only in tests or simulations where reproducibility is the aim"
+        ],
+        "cpp": [
+          "secrets come from an OS CSPRNG such as RAND_bytes or getrandom, not from a <random> engine"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-336": "the same constant seed is used every time",
+        "CWE-337": "the seed is guessable, such as time or PID",
+        "CWE-339": "the seed has too few possible values"
+      }
+    },
+    "CWE-336": {
+      "name": "Same Seed in Pseudo-Random Number Generator (PRNG)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-335"
+      ],
+      "function_checkable": true,
+      "question": "Does this function seed a pseudo-random generator with the same fixed value every time before producing security values?",
+      "present_when": {
+        "any": [
+          "a literal or constant seed passed to a PRNG seed call or constructor used for tokens, keys or IVs"
+        ],
+        "c": [
+          "srand(1234) or a constant seed followed by rand() for secrets"
+        ],
+        "cpp": [
+          "std::mt19937 gen(42), or a default-constructed engine, which always starts from the same seed, generates tokens or keys"
+        ],
+        "javascript": [
+          "a seeded PRNG library initialised with a constant for security values"
+        ],
+        "python": [
+          "random.seed(constant) or random.Random(constant) used for tokens"
+        ],
+        "rust": [
+          "StdRng::seed_from_u64(constant) or from_seed with a fixed array for secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the generator is seeded from the OS or is an OS CSPRNG",
+          "a fixed seed is used only in tests, simulations or procedural content where repeatability is wanted"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-337": "the seed varies but is guessable (time, PID)"
+      }
+    },
+    "CWE-337": {
+      "name": "Predictable Seed in Pseudo-Random Number Generator (PRNG)",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-335"
+      ],
+      "function_checkable": true,
+      "question": "Does this function seed a pseudo-random generator from a guessable value such as the current time, process ID or a counter?",
+      "present_when": {
+        "any": [
+          "the seed comes from the clock, uptime, PID, thread ID, address of a variable or a user-visible value"
+        ],
+        "c": [
+          "srand(time(NULL)) or srand(getpid()) before generating secrets"
+        ],
+        "cpp": [
+          "std::mt19937 seeded from std::chrono clock now().time_since_epoch().count() or a std::thread::id hash"
+        ],
+        "javascript": [
+          "a seeded PRNG initialised with Date.now() or performance.now()"
+        ],
+        "python": [
+          "random.seed(time.time()) or random.seed(os.getpid())"
+        ],
+        "rust": [
+          "seed_from_u64 using SystemTime or process::id"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the seed or generator comes from the OS CSPRNG",
+          "the generator is used only for non-security purposes"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-336": "the seed is the same constant every time",
+        "CWE-341": "an identifier itself, not a PRNG seed, is derived from observable state"
+      }
+    },
+    "CWE-338": {
+      "name": "Use of Cryptographically Weak Pseudo-Random Number Generator (PRNG)",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a non-cryptographic random generator to produce tokens, keys, passwords, salts, nonces or other security values?",
+      "present_when": {
+        "any": [
+          "a general-purpose PRNG output used as a secret or unguessable identifier"
+        ],
+        "c": [
+          "rand(), random(), drand48() or std::mt19937 used for keys, tokens or IVs"
+        ],
+        "cpp": [
+          "a <random> distribution or std::shuffle driven by std::mt19937_64, std::minstd_rand or std::default_random_engine produces a password, token or salt"
+        ],
+        "javascript": [
+          "Math.random() used for a token, ID, key or nonce"
+        ],
+        "python": [
+          "the random module (random.random, randint, choice) used for passwords, tokens or keys"
+        ],
+        "rust": [
+          "a non-crypto RNG such as SmallRng or a hand-written xorshift used for secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a CSPRNG is used, such as getrandom, /dev/urandom, RAND_bytes, crypto.randomBytes, crypto.getRandomValues, secrets, os.urandom or OsRng",
+          "the random value has no security role, such as jitter, sampling or a game"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-335": "the generator may be acceptable but is seeded incorrectly",
+        "CWE-334": "the output range is too small whatever the generator"
+      }
+    },
+    "CWE-339": {
+      "name": "Small Seed Space in PRNG",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-335"
+      ],
+      "function_checkable": true,
+      "question": "Does this function seed a pseudo-random generator for security use with a seed of too few bits, such as 16 or 32?",
+      "present_when": {
+        "any": [
+          "the seed is a short integer, such as a 32-bit value or less, for a generator producing keys or tokens",
+          "a long seed is truncated or cast down to a narrow type before seeding"
+        ],
+        "c": [
+          "srand() with an unsigned int seed, used for security values"
+        ],
+        "cpp": [
+          "std::mt19937 seeded with a single 32-bit std::random_device{}() value and used for security output"
+        ],
+        "rust": [
+          "seed_from_u64 with a value from a small range for secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the generator is a CSPRNG seeded with at least 128 bits, or seeded by the OS",
+          "the generator is not used for security"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-334": "the output space, not the seed, is too small"
+      }
+    },
+    "CWE-340": {
+      "name": "Generation of Predictable Numbers or Identifiers",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create identifiers or numbers that should be unguessable using a predictable scheme, such as counters, timestamps or derived values?",
+      "present_when": {
+        "any": [
+          "session IDs, reset tokens, filenames or object IDs built from an incrementing counter, timestamp, PID or hash of these",
+          "a token derived deterministically from public data such as user ID or email",
+          "UUID version 1 or a time-based ID used as a secret"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the identifier comes from a CSPRNG or a random UUID version 4 from a secure source",
+          "the identifier is not used for access control or secrecy (for example a database primary key checked with authorisation)"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-341": "the predictability comes from observable system state such as time or PID",
+        "CWE-342": "the next value can be computed exactly from earlier ones",
+        "CWE-338": "the only problem is a weak PRNG"
+      }
+    },
+    "CWE-341": {
+      "name": "Predictable from Observable State",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-340"
+      ],
+      "function_checkable": true,
+      "question": "Does this function derive a value that should be secret or unguessable from state an attacker can observe, such as time, process ID, or network data?",
+      "present_when": {
+        "any": [
+          "a token, nonce, temp filename or ID computed from the current time, PID, hostname, IP address, port or sequence number",
+          "hashing observable values (for example md5(time + username)) to make a secret-looking token"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value comes from a CSPRNG",
+          "observable data is only combined with an unpredictable secret or random component of sufficient length"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-337": "the observable value seeds a PRNG rather than forming the value directly",
+        "CWE-342": "the value follows exactly from earlier values"
+      }
+    },
+    "CWE-342": {
+      "name": "Predictable Exact Value from Previous Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-340"
+      ],
+      "function_checkable": true,
+      "question": "Does this function generate security values whose next value can be calculated exactly from values already issued?",
+      "present_when": {
+        "any": [
+          "tokens or IDs that increment by a fixed step or follow a simple formula",
+          "a linear congruential or similar generator whose outputs are exposed and used for secrets",
+          "a sequence number or nonce used as an unguessable value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each value is drawn independently from a CSPRNG",
+          "sequential values are used only where predictability is harmless and access is checked separately"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-343": "previous values only narrow the next value to a small range, not an exact one",
+        "CWE-338": "the problem is a weak PRNG without exposure of prior outputs shown"
+      }
+    },
+    "CWE-343": {
+      "name": "Predictable Value Range from Previous Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-340"
+      ],
+      "function_checkable": true,
+      "question": "Does this function generate security values where knowing earlier outputs narrows the next one to a small range?",
+      "present_when": {
+        "any": [
+          "values combine a predictable increasing part (counter, time) with only a few random bits",
+          "random offsets added to a known base or previous value, so successive values cluster"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each value contains at least 128 bits from a CSPRNG independent of earlier values",
+          "the values have no security role"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-342": "the next value can be computed exactly"
+      }
+    },
+    "CWE-344": {
+      "name": "Use of Invariant Value in Dynamically Changing Context",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a fixed constant where a value that varies per installation, session or use is needed, such as a key, salt, nonce or secret?",
+      "present_when": {
+        "any": [
+          "a hard-coded key, IV, nonce, salt or secret token used in crypto or authentication",
+          "a fixed seed, session ID or CSRF token assigned rather than generated",
+          "the same identifier or secret reused across every user or every deployment"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is generated per use or per installation from a secure source",
+          "the constant is a public parameter that is meant to be fixed, such as a curve name or protocol version"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-323": "a nonce or key pair is reused in encryption",
+        "CWE-760": "the constant is a password salt"
+      }
+    },
+    "CWE-345": {
+      "name": "Insufficient Verification of Data Authenticity",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-693"
+      ],
+      "requires": [
+        "network",
+        "crypto",
+        "external_input",
+        "parsing",
+        "security_logic"
+      ],
+      "function_checkable": true,
+      "question": "Does it accept data, messages, requests, files or updates whose origin or integrity ought to be verified?",
+      "present_when": {
+        "any": [
+          "processing of signed tokens, cookies, messages, webhooks, downloads, updates or packets",
+          "checks of Origin, Referer, source address, signatures, MACs, checksums or certificates",
+          "state-changing web request handlers that could be forged cross-site",
+          "loading code or data from a remote or untrusted location"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function only processes data it created itself in memory",
+          "pure computation with no external input"
+        ]
+      }
+    },
+    "CWE-346": {
+      "name": "Origin Validation Error",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust where a request or message came from without properly checking its origin?",
+      "present_when": {
+        "any": [
+          "a postMessage, WebSocket or CORS handler accepts messages or origins without comparing against an exact allow-list",
+          "origin checked with substring, startsWith or a loose regex that a crafted domain can satisfy",
+          "trust granted based on the source IP address, Host header, Referer or a client-supplied header such as X-Forwarded-For"
+        ],
+        "javascript": [
+          "a message event listener uses event.data without checking event.origin, or Access-Control-Allow-Origin reflects the request Origin"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the origin is compared for exact equality against a fixed list of trusted origins",
+          "authenticity is established cryptographically (signature, MAC, mutual TLS) rather than by claimed origin",
+          "the data is public and its origin does not affect any decision"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-352": "a state-changing web request lacks a CSRF token or origin check",
+        "CWE-347": "a cryptographic signature is present but verified incorrectly"
+      }
+    },
+    "CWE-347": {
+      "name": "Improper Verification of Cryptographic Signature",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use signed data, such as a token, package or message, without verifying its signature correctly before trusting it?",
+      "present_when": {
+        "any": [
+          "a token, update or message is decoded and its claims or contents used without calling a signature verify routine",
+          "verification is called but its result is ignored, or failure is caught and processing continues",
+          "the algorithm or key is taken from the signed data itself, for example accepting alg none or a key embedded in the token",
+          "a JWT library is called in a mode that skips verification, such as decoding without a key or with verify disabled"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a verify call with a fixed, trusted key and algorithm runs before use and its failure stops processing on every path",
+          "the data is not security relevant or carries no signature, and the function only formats or forwards it",
+          "the function creates signatures rather than consuming signed data"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-354": "the data carries a checksum, hash or MAC rather than a public-key signature and that value is not checked",
+        "CWE-494": "code or a plugin is downloaded and run without any integrity check at all"
+      }
+    },
+    "CWE-348": {
+      "name": "Use of Less Trusted Source",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read the same fact from two places and choose the one an attacker can more easily control?",
+      "present_when": {
+        "any": [
+          "the client address is taken from a header such as X-Forwarded-For or Client-IP when the socket peer address is also available",
+          "a user identity or role is read from a request parameter or cookie although the verified session or token holds it",
+          "a value from the request body or URL overrides the same value already held in server-side state"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses the more trusted source, such as the socket peer or the verified session, for the security relevant value",
+          "the forwarded header is only honoured when the direct peer is a configured trusted proxy",
+          "the less trusted value is used only for logging or display, not for a decision"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-807": "there is only one source and it is untrusted input driving a security decision"
+      }
+    },
+    "CWE-349": {
+      "name": "Acceptance of Extraneous Untrusted Data With Trusted Data",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function merge untrusted fields into data it has verified or trusts, and then treat the whole result as trusted?",
+      "present_when": {
+        "any": [
+          "after a signature or authenticity check on part of a message, unsigned fields or headers from the same message are also used as trusted",
+          "request parameters are copied wholesale into a trusted object, such as a session, config or verified record, with an object spread, update or merge",
+          "a trusted response is combined with extra entries the peer included, and all entries are processed the same way"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only the fields covered by verification are read, and other fields are ignored or rejected",
+          "untrusted fields are copied into the trusted object only from an explicit allow list of harmless keys",
+          "nothing in the function is treated as trusted; every input field is validated on its own"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-915": "the defect is binding arbitrary request keys onto model attributes without a trust check, with no verified data involved"
+      }
+    },
+    "CWE-351": {
+      "name": "Insufficient Type Distinction",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function treat values of different kinds as interchangeable, so that one kind can be passed off as another to reach a security decision?",
+      "present_when": {
+        "any": [
+          "a check accepts a value without testing its kind, for example an array, object or number where a string identifier was expected",
+          "different message or record types are told apart only by a field the sender controls, and are then handled with the same authority",
+          "a parameter that may be a single item or a list is used in a check that behaves differently for each, such as membership versus equality"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function tests the value's type or tag explicitly and rejects unexpected kinds before the check",
+          "the type is fixed by a static type system or a strict schema that has already been applied in this function",
+          "the values are only displayed or logged, with no security effect"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1287": "the problem is simply not checking that input has the expected type, without one kind impersonating another"
+      }
+    },
+    "CWE-352": {
+      "name": "Cross-Site Request Forgery (CSRF)",
+      "abstraction": "Compound",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this request handler change state on behalf of a cookie-authenticated user without checking an anti-forgery token or equivalent?",
+      "present_when": {
+        "any": [
+          "a POST, PUT, DELETE or state-changing GET handler that relies on the session cookie performs an update with no CSRF token comparison",
+          "CSRF protection is explicitly turned off for the handler, for example with an exempt decorator or by skipping the middleware",
+          "a token is read but compared incorrectly, for example only when present, or against a value the attacker can also supply"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler or its framework decorator verifies a per-session CSRF token before acting",
+          "authentication uses a header the browser does not send automatically, such as a bearer token, rather than a cookie",
+          "the handler only reads data and changes no state"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1385": "the endpoint is a WebSocket upgrade accepted without an Origin check"
+      }
+    },
+    "CWE-353": {
+      "name": "Missing Support for Integrity Check",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send or accept data over a channel or format with no checksum, hash or MAC that would reveal corruption or tampering?",
+      "present_when": {
+        "any": [
+          "a message, packet, file or record format is built or parsed with no integrity field at all",
+          "the function encrypts data with a mode that has no authentication, such as CBC or CTR without a separate MAC",
+          "a protocol frame is assembled and transmitted where neither side can detect altered bytes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the format includes a checksum, CRC, hash, MAC or signature that the function computes or checks",
+          "the data travels over a channel that provides integrity, such as TLS, or uses authenticated encryption like AES-GCM",
+          "the data is transient and internal, never leaving the process"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-354": "an integrity value exists in the format but the function does not check it, or checks it wrongly"
+      }
+    },
+    "CWE-354": {
+      "name": "Improper Validation of Integrity Check Value",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function receive data with a checksum, hash or MAC but skip that check, compare it wrongly, or carry on when it fails?",
+      "present_when": {
+        "any": [
+          "a received checksum or MAC field is parsed but never compared with a value computed from the data",
+          "the comparison result is ignored, logged only, or a mismatch still lets processing continue",
+          "the value is compared over only part of the data, or with the wrong length or byte order"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the integrity value is recomputed over the whole payload and a mismatch rejects the data on every path",
+          "the format carries no integrity value at all, which is a different weakness",
+          "the function only computes integrity values for outgoing data"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-353": "the format has no integrity value at all",
+        "CWE-347": "the value being checked is a public-key signature"
+      }
+    },
+    "CWE-357": {
+      "name": "Insufficient UI Warning of Dangerous Operations",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": true,
+      "question": "Does this function carry out a destructive, irreversible or security-weakening action requested from the user interface without warning the user or asking for confirmation?",
+      "present_when": {
+        "any": [
+          "a UI event handler deletes data, overwrites files, sends payments or disables protection immediately with no confirmation step",
+          "a dialog that should warn about a dangerous action is skipped, shown with misleading wording, or defaults to the dangerous choice",
+          "opening an untrusted file or link from the interface runs content without any prompt"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the action is preceded by an explicit confirmation or a clear warning that names the consequence",
+          "the action is easily undone, such as moving an item to a recycle bin",
+          "the function has no user-facing trigger, such as a batch job or internal helper"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-450": "the user's input could mean two different things and the code silently picks one"
+      }
+    },
+    "CWE-360": {
+      "name": "Trust of System Event Data",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function act on a system or window event, signal or message as if it must have come from a trusted source, without checking the sender?",
+      "present_when": {
+        "any": [
+          "a handler for window messages, broadcast intents, signals or inter-process events performs a privileged action based solely on receiving the event",
+          "a browser message event handler uses event.data without checking event.origin or event.source",
+          "the event carries parameters such as a callback address or command that are used directly"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler verifies the sender, for example comparing event.origin to an expected value or checking the sending process credentials",
+          "the event only triggers a harmless refresh with no data taken from it",
+          "the event source is created within the same function and cannot be reached by other parties"
+        ]
+      }
+    },
+    "CWE-450": {
+      "name": "Multiple Interpretations of UI Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-357"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take user input that could mean two different things and silently act on one meaning, possibly the less safe one?",
+      "present_when": {
+        "any": [
+          "an input string is tried first as one kind of target, such as a command or URL, and otherwise as another, such as a file path or search term",
+          "a name that matches both a local item and a remote or privileged item is resolved without telling the user which was chosen",
+          "an input is parsed loosely so that different formats, such as a date or number in two locales, are accepted with no indication of which reading was used"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function requires the input type to be stated explicitly, such as a prefix, separate field or flag",
+          "an ambiguous input is rejected or the user is asked to choose",
+          "only one interpretation is possible for the accepted input format"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-357": "the input is unambiguous but a dangerous action proceeds without warning"
+      }
+    },
+    "CWE-494": {
+      "name": "Download of Code Without Integrity Check",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function download code, a plugin, script or update and run or install it without checking a signature or known hash?",
+      "present_when": {
+        "any": [
+          "content fetched over a network is written to disk and then executed, loaded as a library or imported",
+          "a remote script is piped into an interpreter or passed to eval after download",
+          "an update or package is installed from a URL with no hash comparison or signature verification before use"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the downloaded file's hash or signature is checked against a pinned value before it is run, and failure aborts",
+          "the downloaded content is data that is parsed, not executed",
+          "the code is loaded from a local, read-only location rather than fetched"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-347": "a signature check exists but is performed incorrectly"
+      }
+    },
+    "CWE-526": {
+      "name": "Cleartext Storage of Sensitive Information in an Environment Variable",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-312"
+      ],
+      "function_checkable": true,
+      "question": "Does this function place a password, key or other secret unencrypted into an environment variable, or expose environment variables holding secrets?",
+      "present_when": {
+        "any": [
+          "a secret is assigned to an environment variable for the current or a child process"
+        ],
+        "c": [
+          "setenv, putenv or an envp array for exec includes a password or key"
+        ],
+        "javascript": [
+          "process.env.X = secret, or a child_process env object containing a secret"
+        ],
+        "python": [
+          "os.environ[...] = secret, os.putenv, or a subprocess env dict containing a secret"
+        ],
+        "rust": [
+          "std::env::set_var or Command::env passes a secret"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function only reads configuration from the environment and does not set or reveal it",
+          "secrets are passed through a file descriptor, protected file or secret manager instead",
+          "the variable holds non-sensitive configuration"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-312": "the secret is stored in some other place, such as a file or database"
+      }
+    },
+    "CWE-602": {
+      "name": "Client-Side Enforcement of Server-Side Security",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely on checks done in client-side code for a rule that the server must enforce?",
+      "present_when": {
+        "any": [
+          "a server handler trusts a field computed or validated by the client, such as a price, total, role, isAdmin flag or validated marker",
+          "access control or input validation exists only in browser or mobile code, for example hiding a button or disabling a field, and the matching server path does not repeat it",
+          "a server endpoint skips validation because a comment or flag says the client already did it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the server handler independently re-checks permissions and validates input before acting",
+          "the client-side check is only for user convenience and the server code path it calls also enforces the rule",
+          "the function runs entirely on a trusted server with no client involvement"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-807": "a server-side security decision reads an untrusted cookie, header or parameter rather than relying on client logic",
+        "CWE-862": "the server handler simply has no authorisation check at all"
+      }
+    },
+    "CWE-614": {
+      "name": "Sensitive Cookie in HTTPS Session Without 'Secure' Attribute",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-319"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set a session or other sensitive cookie without the Secure attribute?",
+      "present_when": {
+        "any": [
+          "a Set-Cookie header for a session, auth or CSRF cookie lacks the Secure flag"
+        ],
+        "javascript": [
+          "res.cookie or a cookie options object for a sensitive cookie sets secure: false or omits secure"
+        ],
+        "python": [
+          "set_cookie for a session or auth cookie without secure=True, or SESSION_COOKIE_SECURE set to False"
+        ],
+        "rust": [
+          "a cookie builder for an auth cookie without .secure(true)"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the Secure flag is set on the cookie",
+          "the cookie is non-sensitive, such as a display preference",
+          "the framework default visible in the function enforces Secure"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-315": "the cookie's value itself exposes sensitive data in readable form"
+      }
+    },
+    "CWE-646": {
+      "name": "Reliance on File Name or Extension of Externally-Supplied File",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function decide how to treat an uploaded or external file only from its name, extension or declared content type?",
+      "present_when": {
+        "any": [
+          "an upload is accepted or rejected by checking the filename's extension, for example endswith('.jpg')",
+          "the client-supplied Content-Type or MIME field decides whether a file is safe or how it is processed",
+          "the extension picks a handler or interpreter for the file contents"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function inspects the file contents, such as magic bytes or a full parse with a strict decoder, before trusting it",
+          "the file is stored under a server-generated name in a non-executable location and served as a download",
+          "the extension is used only to label or display the file"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-434": "dangerous file types can be uploaded with no type check at all"
+      }
+    },
+    "CWE-649": {
+      "name": "Reliance on Obfuscation or Encryption of Security-Relevant Inputs without Integrity Checking",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust a value it gets back from the client, such as an encrypted or encoded cookie or hidden field, because it is encrypted, without checking integrity?",
+      "present_when": {
+        "any": [
+          "a value round-tripped through the client is decrypted and used for a security decision with no MAC or signature check",
+          "data is encrypted with an unauthenticated mode, or merely encoded, and decrypting without error is taken as proof it is genuine",
+          "a role, price or user id is recovered from an obfuscated parameter and trusted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is protected with authenticated encryption or a MAC that is verified before use",
+          "the security relevant value is kept on the server and the client holds only an opaque random session key",
+          "the decoded value is treated as untrusted input and validated like any other"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-565": "a plain unencrypted cookie is trusted for a security decision"
+      }
+    },
+    "CWE-693": {
+      "name": "Protection Mechanism Failure",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does it implement, configure or depend on a security protection such as encryption, hashing, random tokens, input filtering, authenticity checks or TLS?",
+      "present_when": {
+        "any": [
+          "cryptographic calls: encryption, hashing, signing, key generation, random number generation",
+          "a deny-list, sanitiser or input filter applied as a security control",
+          "verification of signatures, origins, checksums, certificates or tokens",
+          "storage or transmission of passwords, keys or personal data, or HTTP/cookie security settings"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function only does arithmetic, formatting or data structure work with no security control involved",
+          "pure UI layout or rendering code with no security decision"
+        ]
+      }
+    },
+    "CWE-757": {
+      "name": "Selection of Less-Secure Algorithm During Negotiation ('Algorithm Downgrade')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": true,
+      "question": "Does this function negotiate a protocol version, cipher or algorithm in a way that lets a peer or attacker push it to a weaker option?",
+      "present_when": {
+        "any": [
+          "the minimum accepted TLS or protocol version is set to an outdated one, or old versions such as SSLv3 and TLS 1.0 are explicitly enabled",
+          "the algorithm is chosen from the peer's offered list without filtering out weak entries, or the weakest common choice is picked",
+          "after a handshake failure the code retries with a lower version or weaker cipher set",
+          "the algorithm name is read from the received message or token header and used as given"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only strong versions and ciphers are allowed, with the minimum version set to a current standard",
+          "the algorithm is fixed by the code or configuration and the peer cannot influence it",
+          "the function uses the library's secure defaults without overriding versions or cipher lists"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-327": "a weak algorithm is used directly with no negotiation involved"
+      }
+    },
+    "CWE-759": {
+      "name": "Use of a One-Way Hash without a Salt",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-916"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hash a password or similar secret with a one-way hash but without any salt?",
+      "present_when": {
+        "any": [
+          "a password is passed straight to a hash call (sha256(password), md5(password)) with nothing else mixed in",
+          "the stored digest is compared directly with a hash of the supplied password and no salt is fetched or stored"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a random per-user salt is generated and stored alongside the hash",
+          "a password hashing library (bcrypt, scrypt, Argon2, framework hasher) that salts automatically is used",
+          "the input is a high-entropy random token rather than a password"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-760": "a salt is used but is predictable or constant",
+        "CWE-916": "a salt is present but the hash is too fast"
+      }
+    },
+    "CWE-760": {
+      "name": "Use of a One-Way Hash with a Predictable Salt",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-916"
+      ],
+      "function_checkable": true,
+      "question": "Does this function salt a password hash with a value that is predictable, constant or reused, such as the username or a fixed string?",
+      "present_when": {
+        "any": [
+          "the salt is a hard-coded literal or global constant",
+          "the salt is derived from the username, email, user ID or timestamp",
+          "one salt value is shared across all users"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the salt comes from a cryptographically secure random generator per password",
+          "a password hashing library generates the salt internally"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-759": "there is no salt at all"
+      }
+    },
+    "CWE-780": {
+      "name": "Use of RSA Algorithm without OAEP",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-327"
+      ],
+      "function_checkable": true,
+      "question": "Does this function encrypt with RSA using no padding or old PKCS#1 v1.5 padding instead of OAEP?",
+      "present_when": {
+        "any": [
+          "RSA encryption is performed without OAEP padding"
+        ],
+        "c": [
+          "RSA_public_encrypt or EVP_PKEY_encrypt with RSA_NO_PADDING or RSA_PKCS1_PADDING"
+        ],
+        "cpp": [
+          "Crypto++ RSAES_PKCS1v15_Encryptor, or Botan encryption with an EME-PKCS1-v1_5 or raw padding string"
+        ],
+        "javascript": [
+          "crypto.publicEncrypt with padding set to RSA_PKCS1_PADDING or RSA_NO_PADDING, or a library's raw RSA"
+        ],
+        "python": [
+          "PKCS1_v1_5 cipher from PyCryptodome or padding.PKCS1v15() used for RSA encryption, or raw pow(m, e, n)"
+        ],
+        "rust": [
+          "an RSA crate using Pkcs1v15Encrypt or textbook RSA for encryption"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "OAEP padding is specified, such as RSA_PKCS1_OAEP_PADDING, PKCS1_OAEP or padding.OAEP",
+          "RSA is used only for signing (where PSS or PKCS#1 v1.5 signature padding applies), not encryption"
+        ],
+        "cpp": [
+          "Crypto++ RSAES_OAEP_SHA_Encryptor or a Botan OAEP padding such as \"OAEP(SHA-256)\" is used"
+        ],
+        "javascript": [
+          "publicEncrypt called with default padding, which is OAEP in Node.js"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-327": "a different broken algorithm or mode is in use"
+      }
+    },
+    "CWE-807": {
+      "name": "Reliance on Untrusted Inputs in a Security Decision",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make an authentication, authorisation or other security decision from a value the caller can set, such as a cookie, header, hidden field or parameter?",
+      "present_when": {
+        "any": [
+          "a role, isAdmin, authenticated or user id value from a cookie, header, query or form field is tested to grant access",
+          "a security check depends on a reverse DNS name, Referer, User-Agent or X-Forwarded-For value",
+          "an environment variable or file supplied by an unprivileged user decides whether a privileged action runs"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the decision uses server-side state such as a verified session, signed token or database lookup",
+          "the untrusted value is protected by a verified signature or MAC before it is used",
+          "the value influences only presentation, such as language or layout, not access"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-348": "a more trusted source of the same value is available and the code chooses the weaker one",
+        "CWE-565": "the untrusted value is specifically a cookie used without validation"
+      }
+    },
+    "CWE-916": {
+      "name": "Use of Password Hash With Insufficient Computational Effort",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-328"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hash passwords with a fast hash or too few iterations instead of a deliberately slow password hashing scheme?",
+      "present_when": {
+        "any": [
+          "a password is hashed with a single pass of MD5, SHA-1 or SHA-256, salted or not",
+          "PBKDF2 or similar is used with a very low iteration count, such as under a few thousand",
+          "bcrypt, scrypt or Argon2 with cost parameters reduced to minimal values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "passwords are hashed with bcrypt, scrypt, Argon2 or PBKDF2 using a high iteration count",
+          "the value hashed is not a password but a high-entropy random token",
+          "a framework password hasher with its default work factor is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-759": "the specific gap is that no salt is used",
+        "CWE-760": "the specific gap is that the salt is predictable"
+      }
+    },
+    "CWE-924": {
+      "name": "Improper Enforcement of Message Integrity During Transmission in a Communication Channel",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send or receive messages over a connection without any mechanism that detects modification in transit?",
+      "present_when": {
+        "any": [
+          "a socket or network connection exchanges commands or data in plaintext with no MAC, signature or authenticated channel",
+          "TLS certificate or hostname verification is disabled for the connection, so an intermediary can alter traffic",
+          "encrypted messages use a mode without authentication and the receiver acts on them"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the connection uses TLS with certificate verification left on, or another authenticated channel",
+          "each message carries a MAC or signature that the receiver verifies before acting",
+          "the communication is within the process or over a local pipe not reachable by others"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-295": "the only defect shown is disabled or incorrect certificate validation",
+        "CWE-353": "the issue is a stored file or record format that lacks an integrity field"
+      }
+    },
+    "CWE-1039": {
+      "name": "Inadequate Detection or Handling of Adversarial Input Perturbations in Automated Recognition Mechanism",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the output of a machine learning or automated recognition model for a security decision without guarding against misleading inputs?",
+      "present_when": {
+        "any": [
+          "a classifier, face, voice or content-recognition result directly grants access, blocks content or approves a transaction",
+          "the top predicted label is used with no confidence threshold, input sanity checks or second factor",
+          "raw untrusted images, audio or text go straight into the model with no preprocessing or anomaly check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the model result is one signal combined with other checks, or is reviewed by a person before any security effect",
+          "low-confidence or anomalous results are rejected or escalated",
+          "the model output has no security consequence, such as tagging photos for search"
+        ]
+      }
+    },
+    "CWE-1204": {
+      "name": "Generation of Weak Initialization Vector (IV)",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-330"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create an initialisation vector or nonce for encryption that is predictable, constant or not unique?",
+      "present_when": {
+        "any": [
+          "the IV is all zeros, a literal, derived from the key or password, or copied from the previous ciphertext block",
+          "the IV comes from a counter, timestamp or non-cryptographic random generator",
+          "the IV is omitted where the API defaults to a fixed value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the IV is generated per message from a CSPRNG with the cipher's block or nonce size",
+          "the crypto library creates the IV internally and returns it with the ciphertext",
+          "the function is decrypting with an IV read from the message"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-329": "the predictable IV is used specifically with CBC mode",
+        "CWE-323": "a nonce is reused across messages with the same key"
+      }
+    },
+    "CWE-1253": {
+      "name": "Incorrect Selection of Fuse Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns the logic level chosen for hardware fuses, which is a hardware design property rather than function source code."
+    },
+    "CWE-1278": {
+      "name": "Missing Protection Against Hardware Reverse Engineering Using Integrated Circuit (IC) Imaging Techniques",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns physical chip protection against imaging attacks, which no software function can show."
+    },
+    "CWE-1291": {
+      "name": "Public Key Re-Use for Signing both Debug and Production Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns key management practice for signing builds, a process and deployment matter not visible in one function."
+    },
+    "CWE-1293": {
+      "name": "Missing Source Correlation of Multiple Independent Data",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-345"
+      ],
+      "function_checkable": true,
+      "question": "Does this function base a security or integrity decision on a single external data source when the code has, or could cheaply consult, an independent second source?",
+      "present_when": {
+        "any": [
+          "a reading, time, location or reputation value from one external source is used for a security decision with no cross-check",
+          "several sources are fetched but only the first response is used and the others are ignored",
+          "a fallback silently switches to a single source without comparing results"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function compares values from independent sources and rejects or flags disagreement",
+          "the value is not security relevant, or comes from a local trusted component",
+          "the single source is authenticated and is the only authority by design, such as a signed response from the issuer"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-348": "two sources are available and the code picks the less trusted one"
+      }
+    },
+    "CWE-1338": {
+      "name": "Improper Protections Against Hardware Overheating",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-693"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware thermal protection features rather than software function code."
+    },
+    "CWE-1385": {
+      "name": "Missing Origin Validation in WebSockets",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-346"
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept a WebSocket connection or upgrade request without checking the Origin header against an allowed list?",
+      "present_when": {
+        "any": [
+          "a WebSocket upgrade or connection handler accepts the client and starts reading messages with no test of the Origin header",
+          "the Origin is read but compared loosely, for example with a substring, startsWith or endsWith test that a hostile domain can satisfy",
+          "an origin check option is disabled or set to accept everything, such as a check function that always returns true"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler compares the Origin header exactly against a fixed allow list and rejects the upgrade otherwise",
+          "the connection is authenticated with a per-connection token that is not sent automatically by the browser, such as one passed in the first message",
+          "the function is a WebSocket client, or only formats or sends messages on an already accepted connection"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-352": "the request is an ordinary HTTP state-changing request without an anti-forgery token, not a WebSocket upgrade"
+      }
+    },
+    "CWE-1428": {
+      "name": "Reliance on HTTP instead of HTTPS",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-319"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use or serve plain HTTP for a connection where HTTPS is available and should be used?",
+      "present_when": {
+        "any": [
+          "a hard-coded http:// URL for an API, login, download or update endpoint",
+          "a server or redirect configured to listen on or link to http without upgrading to https",
+          "a client switches off TLS or follows a downgrade from https to http"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the URLs and listeners use https",
+          "the http URL is localhost, a loopback test server or an XML namespace identifier that is never fetched",
+          "the http listener only redirects to https"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-319": "the specific concern is sensitive data being sent unencrypted"
+      }
+    }
+  }
+}

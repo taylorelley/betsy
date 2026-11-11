@@ -83,8 +83,21 @@ fn decisions(db: &rusqlite::Connection, run: &str) -> Vec<(String, String, Strin
         .unwrap()
 }
 
+/// Planned nodes, optionally of one round, that the parser does not rule out for a function.
+fn askable(db: &rusqlite::Connection, f: &betsy::model::Function, wave: Option<u32>) -> usize {
+    let stored = store::get(db, &f.snapshot_id, &f.id).unwrap();
+    let absent = weakness::scan_traits(&f.language, stored.source.as_deref().unwrap()).absent;
+    weakness::plan(&f.language, &Selection::default())
+        .unwrap()
+        .nodes
+        .iter()
+        .filter(|n| wave.is_none_or(|w| n.wave == w))
+        .filter(|n| n.requires.is_none_or(|r| r & !absent != 0))
+        .count()
+}
+
 #[test]
-fn catalogs_copied_intact_and_ids_normalize() {
+fn cards_are_the_whole_catalog_and_ids_normalize() {
     let c = weakness::catalog();
     let count = |cat: &str| c.entries.iter().filter(|w| w.catalog == cat).count();
     assert_eq!(
@@ -93,27 +106,50 @@ fn catalogs_copied_intact_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (969, 213 + 93, 10 + 18)
+        (754, 311, 28)
     );
-    // The scorpius-cli copies stay byte for byte as recorded in PROVENANCE.md; BETSY's own
-    // entries live in the betsy_ files.
+    // The card files are the only weakness definitions; PROVENANCE.md records their hash.
     let provenance = include_str!("../data/weaknesses/PROVENANCE.md");
-    for bytes in [
-        &include_bytes!("../data/weaknesses/cwe_database.json")[..],
-        include_bytes!("../data/weaknesses/reliability_weaknesses.json"),
-        include_bytes!("../data/weaknesses/performance_weaknesses.json"),
-    ] {
-        let digest = hash(bytes);
-        assert!(provenance.contains(&digest["sha256:".len()..]), "{digest}");
-    }
+    assert!(
+        provenance.contains(&c.hash["sha256:".len()..]),
+        "{}",
+        c.hash
+    );
+    let definitions: Vec<String> = std::fs::read_dir("data/weaknesses")
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter(|f| f.ends_with(".json") && f != "traits.json")
+        .collect();
+    assert!(definitions.is_empty(), "{definitions:?}");
     assert_eq!(c.get("cwe_89").unwrap().id, "CWE-89");
     assert_eq!(c.get("89").unwrap().id, "CWE-89");
     assert_eq!(c.get("REL-1").unwrap().id, "REL-001");
     assert_eq!(c.get("perf 2").unwrap().id, "PERF-002");
     assert!(c.get("CWE-0").is_none() && c.get("nope").is_none());
-    let metadata: Value =
-        serde_json::from_str(include_str!("../data/weaknesses/cwe_metadata.json")).unwrap();
-    assert_eq!(metadata["entry_count"], 969);
+}
+
+#[test]
+fn audit_finds_no_defects_and_always_asked_cards_match_golden() {
+    let report = betsy::audit::audit().unwrap();
+    assert_eq!(report["errors"], json!([]), "card defects");
+    // A finding asked of every function costs one question per function, so adding one is a
+    // deliberate act: give the card a parent or a `requires`, or add it to the golden.
+    let golden: Value = serde_json::from_str(include_str!("expected/always_asked.json")).unwrap();
+    for language in LANGUAGES {
+        assert_eq!(
+            report["languages"][language]["round1"]["always_asked_findings"], golden[language],
+            "{language}"
+        );
+    }
+    let cards = &report["cards"];
+    let statuses: u64 = cards["by_status"]
+        .as_object()
+        .unwrap()
+        .values()
+        .map(|v| v.as_u64().unwrap())
+        .sum();
+    assert_eq!(cards["total"].as_u64().unwrap(), statuses);
+    assert_eq!(cards["total"], weakness::catalog().entries.len());
 }
 
 #[test]
@@ -152,6 +188,12 @@ fn plans_account_for_every_weakness_and_match_golden() {
     assert!(has("c", "CWE-787") && !has("python", "CWE-787"));
     assert!(has("python", "CWE-89") && has("rust", "REL-001") && !has("c", "REL-001"));
     assert!(has("python", "PERF-001"));
+    // TypeScript accepts JavaScript, so code injection cards reach it too; races are not
+    // limited to C and C++.
+    assert!(has("typescript", "CWE-94") && has("tsx", "CWE-470"));
+    assert!(LANGUAGES.iter().all(|l| has(l, "CWE-362")));
+    assert!(has("tsx", "REL-307") && has("rust", "REL-310") && !has("python", "REL-310"));
+    assert!(has("python", "REL-311") && has("rust", "REL-311") && !has("javascript", "REL-311"));
     // BETSY-owned extensions: language-specific entries reach only their languages.
     assert!(has("python", "REL-226") && !has("javascript", "REL-226"));
     assert!(has("javascript", "REL-214") && has("tsx", "REL-214") && !has("python", "REL-214"));
@@ -182,7 +224,7 @@ fn plans_account_for_every_weakness_and_match_golden() {
 }
 
 #[test]
-fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
+fn reliability_entries_hang_under_listed_parents_and_only_children_are_spliced() {
     let c = weakness::catalog();
     let p = weakness::plan("c", &Selection::default()).unwrap();
     let rel = p.nodes.iter().filter(|n| n.id.starts_with("REL-"));
@@ -190,15 +232,8 @@ fn reliability_entries_hang_under_peer_cwes_and_only_children_are_spliced() {
     assert!(attached > 100, "{attached} REL entries attached");
     for n in rel.filter(|n| n.parent.is_some()) {
         let parent = &p.nodes[n.parent.unwrap()].id;
-        let peers: Vec<&str> = c
-            .get(&n.id)
-            .unwrap()
-            .related_weaknesses
-            .iter()
-            .filter(|r| r.nature == "PeerOf")
-            .map(|r| r.cwe_id.as_str())
-            .collect();
-        assert!(peers.contains(&parent.as_str()), "{} under {parent}", n.id);
+        let parents = &c.get(&n.id).unwrap().parents;
+        assert!(parents.contains(parent), "{} under {parent}", n.id);
     }
     for n in &p.nodes {
         let siblings = n.parent.map(|q| p.nodes[q].children.len());
@@ -279,7 +314,8 @@ fn hierarchy_gates_children_of_negative_answers() {
     ));
     let (run, out) = run_with(&mut db, &m.snapshot_id, none.clone(), false, 4);
     assert_eq!(out["counts"]["completed"], 37);
-    let roots: usize = m
+    let roots: usize = m.functions.iter().map(|f| askable(&db, f, Some(1))).sum();
+    let unfiltered: usize = m
         .functions
         .iter()
         .map(|f| {
@@ -288,13 +324,21 @@ fn hierarchy_gates_children_of_negative_answers() {
                 .first_wave()
         })
         .sum();
+    assert!(
+        roots < unfiltered,
+        "syntax traits spare some round-1 questions"
+    );
     assert_eq!(
         none.questions.load(Ordering::SeqCst),
         roots,
-        "only roots and their spliced chains asked"
+        "only roots and their spliced chains asked, less those the parser rules out"
     );
     let d = decisions(&db, &run);
     assert!(d.iter().any(|x| x.2 == "gated"));
+    assert!(
+        d.iter().any(|x| x.2 == "trait"),
+        "the parser rules cards out without --traits"
+    );
     assert!(analyze::findings(&db, &run, None).unwrap()["findings"]
         .as_array()
         .unwrap()
@@ -396,20 +440,11 @@ fn max_rounds_asks_remaining_subtrees_at_once() {
         )
         .unwrap();
     assert_eq!(max_round, 2);
-    let planned: usize = m
-        .functions
-        .iter()
-        .map(|f| {
-            weakness::plan(&f.language, &Selection::default())
-                .unwrap()
-                .nodes
-                .len()
-        })
-        .sum();
+    let planned: usize = m.functions.iter().map(|f| askable(&db, f, None)).sum();
     assert_eq!(
         mock.questions.load(Ordering::SeqCst),
         planned,
-        "all passed, all asked"
+        "all passed, all asked but what the parser rules out"
     );
     assert!(
         Config::new(mock.as_ref(), Selection::default(), 0.5, 0.15, false)
@@ -749,14 +784,21 @@ fn trait_catalog_is_valid_against_grammars_and_catalog() {
         for (language, kinds) in &tr.present_if {
             let g = betsy::languages::grammar(language).unwrap();
             for k in kinds {
-                assert_ne!(g.id_for_node_kind(k, true), 0, "{language} has no node {k}");
+                assert!(
+                    g.id_for_node_kind(k, true) != 0 || g.id_for_node_kind(k, false) != 0,
+                    "{language} has no node {k}"
+                );
             }
         }
     }
     let p = weakness::plan("c", &Selection::default()).unwrap();
     for n in &p.nodes {
         if let Some(q) = n.parent {
-            let tagged = t.requires.contains_key(&n.id);
+            let tagged = weakness::catalog()
+                .get(&n.id)
+                .unwrap()
+                .requires_mask
+                .is_some();
             if !tagged {
                 assert_eq!(n.requires, p.nodes[q].requires, "{} inherits", n.id);
             }
