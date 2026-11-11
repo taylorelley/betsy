@@ -1173,6 +1173,7 @@ mod tests {
             "a.wrapping_rem(b)",
             "a.checked_div(b).unwrap()",
             "a.strict_rem_euclid(b)",
+            "a.checked_next_multiple_of(b).unwrap()",
             "a.r#div_euclid(b)",
             // Passed by name rather than called here.
             "[b].into_iter().fold(a, i32::div_euclid)",

@@ -310,13 +310,14 @@
       "present_when": {
         "rust": [
           "/ or % on integers uses a divisor from a parameter, field, length or count that can be zero, such as len() of an empty collection",
-          "div_euclid, rem_euclid, div or rem is called with a divisor that is not checked for zero"
+          "div_euclid, rem_euclid, div or rem is called with a divisor that is not checked for zero",
+          "checked_div, checked_rem or checked_next_multiple_of is given a divisor that can be zero and its result is unwrapped, expected or otherwise taken to be Some"
         ]
       },
       "not_present_when": {
         "rust": [
           "the divisor is checked for zero on every path before the division, or is a non-zero constant or NonZero value",
-          "checked_div or checked_rem is used and None is handled",
+          "checked_div, checked_rem or checked_next_multiple_of is used and None is handled",
           "the division is on floating point values, which give infinity or NaN rather than panic"
         ]
       },
