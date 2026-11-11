@@ -202,22 +202,6 @@
       }
     },
     {
-      "key": "comma_operator",
-      "syntax": true,
-      "present_if": {
-        "c": ["comma_expression"],
-        "cpp": ["comma_expression"]
-      }
-    },
-    {
-      "key": "sizeof",
-      "syntax": true,
-      "present_if": {
-        "c": ["sizeof_expression"],
-        "cpp": ["sizeof_expression"]
-      }
-    },
-    {
       "key": "increment",
       "syntax": true,
       "present_if": {
@@ -286,6 +270,9 @@
       "syntax": true,
       "present_if": {
         "rust": ["/", "%", "/=", "%="]
+      },
+      "present_if_names": {
+        "rust": ["div", "rem", "div_euclid", "rem_euclid", "div_ceil", "div_floor", "div_assign", "rem_assign", "wrapping_div", "wrapping_rem", "wrapping_div_euclid", "wrapping_rem_euclid", "overflowing_div", "overflowing_rem", "overflowing_div_euclid", "overflowing_rem_euclid", "saturating_div", "unchecked_div", "unchecked_rem", "next_multiple_of"]
       }
     },
     {
@@ -293,6 +280,9 @@
       "syntax": true,
       "present_if": {
         "rust": ["<<", ">>", "<<=", ">>="]
+      },
+      "present_if_names": {
+        "rust": ["shl", "shr", "shl_assign", "shr_assign", "wrapping_shl", "wrapping_shr", "overflowing_shl", "overflowing_shr", "unchecked_shl", "unchecked_shr"]
       }
     },
     {

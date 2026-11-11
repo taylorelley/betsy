@@ -7,7 +7,7 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 |---|---|
 | `cargo fmt --check` | Passed |
 | `cargo clippy --locked --offline --all-targets -- -D warnings` | Passed, no warnings |
-| `cargo test --locked --offline` | Passed: 81 tests (27 unit, 16 integration, 32 analysis, 6 external analyzer), 0 failures; re-run 2026-11-11 after the cards were restructured. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
+| `cargo test --locked --offline` | Passed: 82 tests (27 unit, 17 integration, 32 analysis, 6 external analyzer), 0 failures; re-run 2026-11-11 after the cards were restructured. Run as root, `unreadable_source_is_a_gap` needs `USER=root` set, as before this change |
 | `cargo test --locked --offline --release` | Not re-run since the weakness cards were added |
 | `cargo +1.90 test --locked --offline` (minimum supported Rust version) | Not re-run since the weakness cards were added |
 | `cargo deny check licenses bans sources` (cargo-deny 0.20.2, all target platforms) | bans ok, licenses ok, sources ok |
@@ -15,7 +15,7 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
 | `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 40,441 naive questions (1,093 cards for each of 37 functions); 28,179 after prefilter; hierarchical lower bound 1,239, before syntax traits |
-| `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function), 1,071 questions asked and 168 subtrees ruled out by the parser |
+| `./target/release/betsy analyze --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function), 1,085 questions asked and 154 subtrees ruled out by the parser |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
 | `./target/debug/betsy weaknesses audit --strict` | Exit 0; `errors` empty |
@@ -96,7 +96,9 @@ holds only its catalog's cards and that the catalog hash covers file paths; that
 becomes a trait mask and unknown traits are rejected; that `sources` and `status` are
 validated; that a `detached` card has no parents; that traits are validated; and that the
 parser settles syntax traits as absent only for a clean parse and only for languages that list
-node kinds. All 1,093 cards load, and the 1,013 checkable ones render within the limit for all
+node kinds, and that division and shifts written as method calls count as present. An
+integration test checks that a Rust function's span includes its attributes when comments sit
+between them and the function. All 1,093 cards load, and the 1,013 checkable ones render within the limit for all
 seven languages. They have not been run against a provider or
 labelled code.
 

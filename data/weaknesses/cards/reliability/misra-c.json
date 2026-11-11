@@ -2670,9 +2670,6 @@
         "c",
         "cpp"
       ],
-      "requires": [
-        "comma_operator"
-      ],
       "sources": [
         {
           "standard": "MISRA C:2012",
@@ -2936,9 +2933,6 @@
       "languages": [
         "c",
         "cpp"
-      ],
-      "requires": [
-        "sizeof"
       ],
       "sources": [
         {

@@ -69,10 +69,10 @@ The cards were restructured so that each one is self-contained and gaps are visi
     language.
   - Five `distinguish_from` links named cards that are never planned for the same language;
     they were removed.
-- **Fewer questions in round 1.** 32 cards about one syntactic construct now require a
+- **Fewer questions in round 1.** 30 cards about one syntactic construct now require a
   syntax trait, which the parser settles for free, and 13 other root cards gained trait
   requirements that `--traits` can use. For C and C++, the findings asked of every function
-  whatever its content fell from 24 to 12; for Rust from 33 to 6; for the other languages
+  whatever its content fell from 24 to 14; for Rust from 33 to 6; for the other languages
   from between 8 and 11 to 3 or 4. The
   remaining ones are pinned in `tests/expected/always_asked.json`. No model-asked gate cards
   were added, since their effect on recall cannot be measured without provider runs.
@@ -242,7 +242,11 @@ These came up while drafting and are the first places to look when reviewing res
   them, and `parents` in order of preference; a card with no planned parent is asked of every
   function as a root.
 - Add `requires` when the card cannot apply without a trait. Prefer a syntax trait when the
-  card is about one construct the parser can see; add a new one to `traits.json` if needed. A
+  card is about one construct the parser can see; add a new one to `traits.json` if needed.
+  Check every `present_when` pattern against it first: if any pattern can hold without the
+  node kinds or names the trait lists (a method call that does the same thing, or a macro
+  that expands to the construct), extend the trait or leave the requirement out. REL-106
+  (comma operator) and REL-113 (`sizeof` operand) have none for that reason. A
   finding with neither a parent nor a `requires` is asked of every function, and a test fails
   until it is added to `tests/expected/always_asked.json`.
 - Give `REL-` and `PERF-` cards their `sources`. Leave `status` out until a person has

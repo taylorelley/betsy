@@ -343,13 +343,16 @@ To keep this fast and cheap, BETSY layers six measures:
      so a missing `requires` can only cost questions, never a finding.
    - Each node carries its own requirement and the union over its subtree, as bitmasks. A
      node is skipped only when every trait in its requirement is settled and absent.
-   - **Syntax traits** (`"syntax": true`: a switch or match, the comma operator, `sizeof`,
+   - **Syntax traits** (`"syntax": true`: a switch or match, `++` and `--`,
      an enumerator, conditional compilation, a macro definition, Rust division, shifts, `as`
      casts and so on) are settled by the parser alone, at no cost, so they apply to every run
      except `--exhaustive`. One is present when a `present_if` node kind occurs in the
      function, and absent when none does and the function parses without error. A function
      that does not parse cleanly, or a language the trait lists no node kinds for, leaves it
-     unsettled, and the card is asked. They are not shown to the provider.
+     unsettled, and the card is asked. They are not shown to the provider. Where a construct
+     can also be spelled as a call, `present_if_names` lists the identifiers that count, such
+     as `div_euclid` for division. A card whose patterns include something the parser cannot
+     see, such as a macro that expands to the construct, must not require a syntax trait.
    - **Asked traits** (buffer access, pointers, concurrency, file system, network, crypto,
      iteration and so on) need `--traits`, which is off by default until tuned. An extra first
      round asks those some planned card requires. Syntax nodes under `present_if` prove one
@@ -361,7 +364,7 @@ To keep this fast and cheap, BETSY layers six measures:
      whose own traits are absent but whose descendants' are present is skipped, and its
      children are considered in the same round.
    - On the 37 fixture functions with every answer negative, syntax traits and the parent
-     fixes below take round 1 from 1,341 questions to 1,071; with `--traits` it is 560.
+     fixes below take round 1 from 1,341 questions to 1,085; with `--traits` it is 574.
 4. **Batching.** All of a round's questions go into one request, or `ceil(n/limit)` requests
    (`--max-questions`; default 100 for Jev, 400 for OpenAI, its documented maximum). A 413 or
    422 halves the chunk and retries.

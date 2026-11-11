@@ -276,6 +276,10 @@ pub struct Trait {
     /// A syntax trait is undecided, and so counts as present, in a language it does not list.
     #[serde(default)]
     pub present_if: BTreeMap<String, Vec<String>>,
+    /// Per language, identifiers whose use proves the trait, for constructs that are spelled
+    /// as a call rather than as syntax, such as `div_euclid` for division.
+    #[serde(default)]
+    pub present_if_names: BTreeMap<String, Vec<String>>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -294,10 +298,17 @@ impl Traits {
         anyhow::ensure!(keys.len() == file.traits.len(), "duplicate trait key");
         for t in &file.traits {
             let key = &t.key;
-            for (language, kinds) in &t.present_if {
+            for (language, kinds) in t.present_if.iter().chain(&t.present_if_names) {
                 anyhow::ensure!(
                     LANGUAGES.contains(&language.as_str()) && !kinds.is_empty(),
                     "trait {key}: bad present_if for {language}"
+                );
+            }
+            // Names only add to what node kinds find; alone they could not settle absence.
+            for language in t.present_if_names.keys() {
+                anyhow::ensure!(
+                    t.present_if.contains_key(language),
+                    "trait {key}: present_if_names for {language} needs present_if too"
                 );
             }
             if t.syntax {
@@ -364,14 +375,19 @@ pub struct Syntax {
 /// cleanly can still prove presence, but never absence.
 pub fn scan_traits(language: &str, source: &str) -> Syntax {
     let t = traits();
-    let wanted: Vec<(u64, &[String])> = t
+    const NONE: &[String] = &[];
+    let wanted: Vec<(u64, &[String], &[String])> = t
         .traits
         .iter()
         .enumerate()
         .filter_map(|(i, tr)| {
+            let names = tr
+                .present_if_names
+                .get(language)
+                .map_or(NONE, Vec::as_slice);
             tr.present_if
                 .get(language)
-                .map(|k| (1u64 << i, k.as_slice()))
+                .map(|k| (1u64 << i, k.as_slice(), names))
         })
         .collect();
     if wanted.is_empty() {
@@ -390,9 +406,15 @@ pub fn scan_traits(language: &str, source: &str) -> Syntax {
     let mut found = 0;
     let mut cursor = tree.walk();
     'walk: loop {
-        let kind = cursor.node().kind();
-        for (bit, kinds) in &wanted {
-            if kinds.iter().any(|k| k == kind) {
+        let node = cursor.node();
+        let kind = node.kind();
+        // Identifier-like leaves only: a name inside a string or comment proves nothing.
+        let name = (node.child_count() == 0 && kind.ends_with("identifier"))
+            .then(|| node.utf8_text(source.as_bytes()).ok())
+            .flatten();
+        for (bit, kinds, names) in &wanted {
+            if kinds.iter().any(|k| k == kind) || name.is_some_and(|n| names.iter().any(|x| x == n))
+            {
                 found |= bit;
             }
         }
@@ -408,7 +430,7 @@ pub fn scan_traits(language: &str, source: &str) -> Syntax {
             }
         }
     }
-    let decidable = wanted.iter().fold(0, |m, (bit, _)| m | bit) & t.syntax_mask();
+    let decidable = wanted.iter().fold(0, |m, (bit, ..)| m | bit) & t.syntax_mask();
     let absent = if tree.root_node().has_error() {
         0
     } else {
@@ -971,6 +993,7 @@ mod tests {
             r#"{"traits":[{"key":"a","syntax":true}]}"#,
             r#"{"traits":[{"key":"a","syntax":true,"present_if":{"go":["x"]}}]}"#,
             r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":[]}}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":["x"]},"present_if_names":{"rust":["n"]}}]}"#,
             r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":["x"]}},{"key":"a","syntax":true,"present_if":{"c":["x"]}}]}"#,
             r#"{"traits":[],"requires":{}}"#,
         ] {
@@ -1113,11 +1136,11 @@ mod tests {
     fn the_parser_settles_syntax_traits_only_for_clean_parses() {
         let t = traits();
         let bit = |k: &str| t.bit(k).unwrap();
-        let (switch, comma) = (bit("switch_construct"), bit("comma_operator"));
+        let (switch, comma) = (bit("switch_construct"), bit("increment"));
         let with = scan_traits("c", "int f(int x) { switch (x) { default: return 1; } }");
         assert!(with.found & switch != 0 && with.absent & switch == 0);
         assert!(with.absent & comma != 0);
-        let without = scan_traits("c", "int f(int x) { return x, 1; }");
+        let without = scan_traits("c", "int f(int x) { return x++; }");
         assert!(without.absent & switch != 0);
         assert!(without.found & comma != 0 && without.absent & comma == 0);
         // A snippet that does not parse can hide anything, so nothing is settled as absent.
@@ -1138,6 +1161,23 @@ mod tests {
                 != 0
         );
         assert!(scan_traits("rust", "fn f(a: u32) -> u32 { a + 1 }").absent & bit("division") != 0);
+        // Division and shifts spelled as method calls count, but not a name in a string.
+        for call in [
+            "a.div_euclid(b)",
+            "a.rem_euclid(b)",
+            "std::ops::Div::div(a, b)",
+            "a.wrapping_rem(b)",
+        ] {
+            let s = scan_traits("rust", &format!("fn f(a: i32, b: i32) -> i32 {{ {call} }}"));
+            assert!(
+                s.found & bit("division") != 0 && s.absent & bit("division") == 0,
+                "{call}"
+            );
+        }
+        let shifted = scan_traits("rust", "fn f(a: u32, b: u32) -> u32 { a.wrapping_shl(b) }");
+        assert!(shifted.found & bit("shift") != 0);
+        let text = scan_traits("rust", "fn f() -> &'static str { \"div_euclid\" }");
+        assert!(text.absent & bit("division") != 0);
     }
 
     #[test]
