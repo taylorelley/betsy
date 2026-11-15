@@ -1,0 +1,1345 @@
+{
+  "cards": {
+    "REL-182": {
+      "name": "Catastrophic Cancellation When Subtracting Nearly Equal Computed Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.4"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function subtract two nearly equal floating-point values that were themselves computed with rounding error, so the difference is mostly noise?",
+      "present_when": {
+        "any": [
+          "a discriminant computed as b*b - 4*a*c where the two terms can be close",
+          "variance computed as mean of squares minus square of mean in one pass",
+          "a difference of two large computed quantities, such as cos(x) - 1 or two cumulative sums, is used as a small result"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a stable reformulation is used, such as Welford's algorithm for variance, fma for the discriminant, or an identity that avoids the subtraction",
+          "the operands are exact inputs rather than computed values, or are known to differ greatly",
+          "the result's accuracy does not matter for its use, such as a coarse display"
+        ]
+      },
+      "distinguish_from": {
+        "REL-183": "the cancellation is specifically in the textbook quadratic root formula",
+        "REL-184": "a small quantity is lost when added to a much larger one before a function is applied"
+      }
+    },
+    "REL-183": {
+      "name": "Numerically Unstable Quadratic Formula Root Computation",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.4"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 4.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function compute quadratic roots with the textbook formula (-b plus or minus sqrt(discriminant)) divided by 2a for both roots?",
+      "present_when": {
+        "any": [
+          "both roots are computed as (-b + sqrt(d)) / (2*a) and (-b - sqrt(d)) / (2*a), so one numerator subtracts nearly equal values when b*b is much larger than 4ac"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the stable form is used: q = -(b + sign(b) * sqrt(d)) / 2, then roots q / a and c / q",
+          "a library polynomial or root solver is called instead",
+          "the coefficients are known to keep b*b and 4ac of similar size"
+        ]
+      },
+      "distinguish_from": {
+        "REL-182": "the cancellation happens in some other formula, or in the discriminant itself"
+      }
+    },
+    "REL-184": {
+      "name": "Small Quantity Lost When Added to a Much Larger Value",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.4"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function add a small value to 1 or another much larger value before applying log, pow, exp or a subtraction, losing the small value's digits?",
+      "present_when": {
+        "any": [
+          "log(1 + x) or exp(x) - 1 with x that can be very small",
+          "pow(1 + r / n, n) for compound interest or similar with a small rate",
+          "a tiny increment added to a large accumulator and then the difference taken"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "log1p, expm1 or an equivalent accurate library function is used",
+          "x is known to be large enough that the low-order digits do not matter",
+          "the calculation uses exact or extended precision arithmetic"
+        ]
+      },
+      "distinguish_from": {
+        "REL-182": "two nearly equal computed values are subtracted without a small added term",
+        "REL-186": "the loss accumulates over a long summation"
+      }
+    },
+    "REL-185": {
+      "name": "Decimal Fractions Assumed Exactly Representable in Binary Floating Point",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-1339",
+        "CWE-681"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function hold money, rates or decimal step values in binary floating point and expect exact decimal results, totals or comparisons?",
+      "present_when": {
+        "any": [
+          "prices, balances, tax or currency amounts are stored or computed as float or double and summed, compared with == or split",
+          "a value such as 0.1 or 0.01 is added repeatedly or compared exactly with a decimal literal"
+        ],
+        "javascript": [
+          "currency arithmetic on Number values, such as 0.1 + 0.2 compared to 0.3, or toFixed used to hide error before further calculation"
+        ],
+        "python": [
+          "float values for money rather than decimal.Decimal or integer cents"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "amounts are kept as integers in the smallest unit, or a decimal type is used (Decimal, BigDecimal-style libraries, rust_decimal)",
+          "comparisons use a tolerance and the domain accepts approximate results, such as physical measurements"
+        ]
+      },
+      "distinguish_from": {
+        "REL-188": "the issue is a loop or schedule driven by repeated fractional increments",
+        "REL-189": "the error comes from a hand-written rounding rule"
+      }
+    },
+    "REL-186": {
+      "name": "Naive Summation of Many Floating-Point Terms",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.3"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 4.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function add up a long or unbounded series of floating-point numbers by plain repeated addition into one total?",
+      "present_when": {
+        "any": [
+          "a loop does total += x[i] over many floating-point elements with no compensation",
+          "small terms are added to a large running sum, such as accumulating per-sample energy or probabilities"
+        ],
+        "python": [
+          "sum() or a += loop over a large list of floats"
+        ],
+        "javascript": [
+          "reduce((a, b) => a + b) over a large array of numbers"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "compensated or pairwise summation is used, such as Kahan summation, math.fsum, numpy's pairwise sum or sorting by magnitude",
+          "the number of terms is small and fixed, or the values are integers",
+          "the accuracy needed is far coarser than the accumulated error"
+        ]
+      },
+      "distinguish_from": {
+        "REL-187": "the accumulator type is too narrow for the data",
+        "REL-184": "a single small value is added to a larger one before a function is applied"
+      }
+    },
+    "REL-187": {
+      "name": "Accumulator or Intermediate Product Kept at Insufficient Precision",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-681"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.1"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.1"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 4.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep a running sum, dot product or residual in a type only as wide as its data, or narrow each product before adding it?",
+      "present_when": {
+        "any": [
+          "a float accumulator collects products or sums of float data in a loop where a double was needed"
+        ],
+        "c": [
+          "float sum += a[i] * b[i], or double total += (float)(x * y) that narrows each product first"
+        ],
+        "cpp": [
+          "std::accumulate(v.begin(), v.end(), 0) or with 0.0f on double data, so the running sum takes the int or float type of the initial value"
+        ],
+        "python": [
+          "numpy float32 or float16 arrays summed or dotted with a float32 dtype accumulator"
+        ],
+        "javascript": [
+          "a Float32Array or Math.fround used to hold a running sum"
+        ],
+        "rust": [
+          "an f32 accumulator for f32 data in a long loop or dot product"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the accumulator is wider than the data, such as double for float data, and products are formed in that wider type",
+          "the loop is short or the accuracy needed is low"
+        ],
+        "cpp": [
+          "std::accumulate or std::inner_product starts from a double such as 0.0, or from a wider type than the data"
+        ],
+        "python": [
+          "plain Python floats, which are double precision, with double precision data"
+        ],
+        "javascript": [
+          "ordinary Number arithmetic, which is double precision"
+        ]
+      },
+      "distinguish_from": {
+        "REL-186": "the accumulator is wide enough but naive summation still loses accuracy",
+        "REL-205": "a single-precision constant or operand limits an otherwise double computation"
+      }
+    },
+    "REL-188": {
+      "name": "Floating-Point Loop Counter or Repeated Increment Used to Reach a Target",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-1077",
+        "CWE-835"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.1"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function step a floating-point variable by a fractional amount many times and compare it with an end or target value to decide what to do?",
+      "present_when": {
+        "any": [
+          "t += 0.1 (or another fractional step) in a loop, timer or schedule, then a test like t < end, t == end or t >= next_time decides an action",
+          "a position, time or angle is advanced by a constant float increment many times and compared with an exact target"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "an integer counter drives the loop and the value is computed as start + i * step",
+          "the comparison uses a tolerance or rounds to the step size before comparing",
+          "the step is exactly representable, such as 0.5 or 0.25, and the number of steps is small"
+        ]
+      },
+      "distinguish_from": {
+        "REL-114": "a C or C++ for-loop counter itself is a float",
+        "REL-185": "the decimal values are money or exact quantities rather than a stepping target"
+      }
+    },
+    "REL-189": {
+      "name": "Biased Hand-Rolled Rounding of Floating-Point Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 1.5"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function implement its own rounding of floating-point numbers, for example adding 0.5 then flooring or truncating to an integer?",
+      "present_when": {
+        "any": [
+          "floor(x + 0.5), (int)(x + 0.5), Math.floor(x + 0.5) or int(x + 0.5) used to round",
+          "a custom rule that always rounds halves upward in financial or statistical code where unbiased rounding is expected",
+          "rounding to n decimals by multiplying by a power of ten, adding 0.5 and truncating"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a library rounding function with defined behaviour is used, such as round, lround, nearbyint, rint, Math.round with known semantics, f64::round or decimal quantize",
+          "the values are known non-negative and a small bias does not matter for the use"
+        ]
+      },
+      "distinguish_from": {
+        "REL-203": "a value is rounded twice through an intermediate precision",
+        "REL-185": "the error comes from decimal fractions not being exact in binary"
+      }
+    },
+    "REL-190": {
+      "name": "Exact Equality Comparison of Computed Floating-Point Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1077",
+        "CWE-697"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function use == or != on floating-point values produced by arithmetic, or on decimal literals that cannot be represented exactly?",
+      "present_when": {
+        "any": [
+          "the result of addition, multiplication, division or a maths function is compared with == or != against a literal such as 0.3 or another computed value",
+          "a running sum or a loop variable stepped by a fraction is tested with == to end a loop or select a branch",
+          "a value converted from text or between units is compared for exact equality"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "comparison uses a relative tolerance or a library closeness function",
+          "the compared value is assigned directly from a constant or another variable and not computed, such as a sentinel 0.0 or -1.0",
+          "the operands are integers, or the comparison is x != x used deliberately to detect NaN"
+        ]
+      },
+      "distinguish_from": {
+        "REL-191": "a tolerance is used but it is a fixed absolute constant",
+        "REL-204": "the inequality arises from storing in a narrower type and comparing with a wider expression"
+      }
+    },
+    "REL-191": {
+      "name": "Fixed Absolute Tolerance Used for Floating-Point Equality",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1025",
+        "CWE-1077"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function test floating-point values for equality using a single hard-coded absolute tolerance, such as abs(a - b) < 1e-9?",
+      "present_when": {
+        "any": [
+          "abs(a - b) or fabs(a - b) is compared with a fixed literal epsilon or a global EPS constant to decide equality",
+          "the same absolute tolerance is applied to values whose magnitude can vary widely, such as sensor readings, money or computed totals"
+        ],
+        "c": [
+          "DBL_EPSILON or FLT_EPSILON is used directly as the absolute tolerance without scaling by the operands"
+        ],
+        "cpp": [
+          "std::abs(a - b) < std::numeric_limits<double>::epsilon() used as an absolute tolerance for values of any magnitude"
+        ],
+        "rust": [
+          "(a - b).abs() < f64::EPSILON or a similar fixed constant decides equality"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the tolerance is relative, scaled by the larger operand's magnitude, or combines relative and absolute bounds",
+          "the values have a known fixed scale and the tolerance is documented for that scale, such as comparing angles in radians",
+          "the function compares integers or fixed-point values"
+        ],
+        "python": [
+          "math.isclose with rel_tol, or numpy.isclose with a relative tolerance"
+        ]
+      },
+      "distinguish_from": {
+        "REL-190": "computed floating-point values are compared with exact == or != and no tolerance at all"
+      }
+    },
+    "REL-192": {
+      "name": "NaN-Unaware Comparison and Loop Condition Logic",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-697",
+        "CWE-835",
+        "CWE-1077"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.1"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.3.1"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Could a NaN operand send this function's branch or loop logic down the wrong path, because a comparison and its negation are both treated as covering every case?",
+      "present_when": {
+        "any": [
+          "a range check like if (x > max) reject else accept lets NaN through the accept path",
+          "a negated comparison such as !(a < b) is used as if it meant a >= b on values that can be NaN",
+          "a loop condition on a float, such as while (err > tol), exits or never ends when the value becomes NaN"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is checked with isnan, isfinite or an equivalent before the comparison",
+          "the condition is written so NaN falls to the safe branch, for example accepting only when x >= min && x <= max",
+          "the operands cannot be NaN, such as integers or values validated as finite earlier in the function"
+        ]
+      },
+      "distinguish_from": {
+        "REL-194": "NaN breaks a sort, ranking or min/max over a collection",
+        "REL-193": "the defect is accepting or emitting NaN at an input or output boundary without validation"
+      }
+    },
+    "REL-193": {
+      "name": "Missing NaN or Infinity Validation at Input and Output Boundaries",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-20",
+        "CWE-754",
+        "CWE-1287"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.1"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function accept floating-point input, or emit floating-point results to storage, other systems or actuators, without checking they are finite?",
+      "present_when": {
+        "any": [
+          "a float parsed from text, a message or a sensor is used without testing for NaN or infinity",
+          "a computed float is written to a file, database, network message or output device with no finiteness check",
+          "range checks such as x < min || x > max are relied on to reject bad values, which NaN passes"
+        ],
+        "python": [
+          "float() is called on external text, which accepts 'nan' and 'inf'"
+        ],
+        "javascript": [
+          "Number() or parseFloat on input, or a computed value sent out, without Number.isFinite"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "values are checked with isfinite, Number.isFinite, math.isfinite or is_finite at the boundary and rejected otherwise",
+          "the function only handles integers or values validated earlier in the same function",
+          "the function is internal arithmetic that neither receives external input nor emits results"
+        ],
+        "typescript": [
+          "a schema such as z.number().finite() or class-validator @IsNumber() with its default allowNaN and allowInfinity false checks the value"
+        ]
+      },
+      "distinguish_from": {
+        "REL-192": "NaN causes a wrong branch inside internal logic rather than crossing an input or output boundary"
+      }
+    },
+    "REL-194": {
+      "name": "Ordering, Min/Max or Sorting over Values That May Contain NaN",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-697",
+        "CWE-754"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function sort, rank or take the min or max of floating-point values using plain comparisons, when the values could include NaN?",
+      "present_when": {
+        "any": [
+          "a comparator built from < or > or a - b is used to sort or order floating-point data from input or computation",
+          "a manual min or max loop uses if (x < best), so a NaN element is skipped or poisons the result depending on position"
+        ],
+        "cpp": [
+          "std::sort, std::set or std::map is used with float keys and the default less-than comparison"
+        ],
+        "python": [
+          "sorted, list.sort, min or max is applied to floats that may contain NaN"
+        ],
+        "javascript": [
+          "array.sort((a, b) => a - b) or Math.min and Math.max over values that may be NaN"
+        ],
+        "rust": [
+          "sort_by with partial_cmp(...).unwrap(), or f64::max and f64::min folds over data that may contain NaN"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "NaN values are removed or rejected before ordering",
+          "the values are integers, or were validated as finite earlier in the function"
+        ],
+        "rust": [
+          "sort_by(f64::total_cmp) or an ordered-float wrapper is used"
+        ],
+        "c": [
+          "the comparator explicitly orders NaN, for example placing it last"
+        ]
+      },
+      "distinguish_from": {
+        "REL-192": "NaN sends a single branch or loop condition the wrong way, with no ordering of a collection"
+      }
+    },
+    "REL-195": {
+      "name": "Floating-Point Values Used as Hash, Map or Set Keys",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-697",
+        "CWE-1077"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.3"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function key a hash map, set, dictionary or cache by floating-point values, or by tuples or structs that contain them?",
+      "present_when": {
+        "any": [
+          "a float or double value, or a tuple or struct containing one, is used as a key to insert or look up in a map, set or memo cache"
+        ],
+        "python": [
+          "a dict or set keyed by floats, or functools cache on a function taking float arguments, with computed values"
+        ],
+        "javascript": [
+          "a Map or Set keyed by computed numbers, or an object keyed by numbers converted to strings"
+        ],
+        "cpp": [
+          "std::unordered_map, std::map or std::set with float or double keys"
+        ],
+        "rust": [
+          "a HashMap or HashSet keyed by f64::to_bits or an ordered-float wrapper over computed values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "floats are quantised to integers, such as fixed-point cents or rounded grid indices, before being used as keys",
+          "the float keys are exact constants copied unchanged and NaN and negative zero are ruled out"
+        ],
+        "rust": [
+          "ordinary f64 keys, which the compiler rejects for HashMap because floats do not implement Eq and Hash"
+        ]
+      },
+      "distinguish_from": {
+        "REL-190": "computed floats are compared with == directly rather than through a container"
+      }
+    },
+    "REL-196": {
+      "name": "Mishandled Signed Zero in Floating-Point Code",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-682",
+        "CWE-697"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.3"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function mishandle the sign of a floating-point zero, such as subtracting from zero to negate, or a less-than-zero test that cannot see -0.0?",
+      "present_when": {
+        "any": [
+          "0.0 - x is used for negation, or -x is used where the result feeds 1/x, atan2, copysign, sqrt or log of complex values",
+          "the sign of a value that may be zero is tested with x < 0 or x >= 0 when -0.0 must be treated as negative",
+          "a result that may be -0.0 is used as a key, printed or compared by bits and expected to match +0.0"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "signbit, copysign, Math.sign with Object.is, math.copysign or f64::is_sign_negative is used where the sign of zero matters",
+          "the code never produces or relies on a zero result's sign, for example integer arithmetic or only magnitude comparisons"
+        ]
+      },
+      "distinguish_from": {
+        "REL-210": "an algebraic rewrite changes the result for reasons other than the sign of zero"
+      }
+    },
+    "REL-197": {
+      "name": "Division Guard Defeated by Flush-to-Zero Underflow",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-369",
+        "CWE-1339"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.4"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function guard a floating-point division by testing that two values differ, or are non-zero, and then divide by their difference or a derived tiny quantity?",
+      "present_when": {
+        "any": [
+          "a test that two floats are unequal guards a division by their difference, for example a slope or reciprocal of x minus y, where that difference may be subnormal",
+          "a test like if (d != 0.0) followed by division by d * k, d * d or another value that can underflow to zero"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the guard checks the actual divisor's magnitude against a safe threshold, for example fabs(x - y) > tiny, before dividing",
+          "the divisor is checked for non-zero after it is computed, immediately before the division",
+          "the result is checked for infinity or NaN and handled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-369": "there is no guard at all on the divisor",
+        "REL-213": "the code expects floating-point division by zero to raise an error"
+      }
+    },
+    "REL-198": {
+      "name": "Infinity Arithmetic Yielding a Plausible but Wrong Finite Result",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682",
+        "CWE-1339"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.2"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Can an intermediate in this function overflow to infinity and then be divided into or absorbed so the final result looks finite and normal but is wrong?",
+      "present_when": {
+        "any": [
+          "a value is normalised by a norm computed with squares, such as a / sqrt(a*a + b*b), so overflow gives 0 instead of nearly 1",
+          "a finite value is divided by a product or exponential that can overflow, giving 0, or exp(-x) with x infinite, giving 0",
+          "the result of such a formula passes a range check without being tested for overflow"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "inputs are scaled or the formula is restructured to avoid overflow, such as hypot or log-domain arithmetic",
+          "intermediates are checked with isfinite or an equivalent before use",
+          "input ranges are bounded so no intermediate can overflow"
+        ]
+      },
+      "distinguish_from": {
+        "REL-199": "the overflowing squares produce an infinite or zero magnitude directly",
+        "REL-213": "the code expects an exception from overflow or division by zero"
+      }
+    },
+    "REL-199": {
+      "name": "Premature Overflow or Underflow in Magnitude Computation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function compute a length, norm or distance by squaring components, summing and taking a square root, where the squares could overflow or underflow?",
+      "present_when": {
+        "any": [
+          "the square root of a sum of squared components (sqrt, Math.sqrt, math.sqrt) taken on values whose magnitude is not known to be moderate",
+          "a vector norm accumulated as a sum of squares in a loop, then square-rooted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "hypot, Math.hypot, math.hypot, f64::hypot or a library norm that scales internally is used",
+          "the components are scaled by the largest magnitude before squaring",
+          "the inputs are bounded to a range where squaring cannot overflow or underflow, such as screen coordinates"
+        ]
+      },
+      "distinguish_from": {
+        "REL-198": "an overflowing intermediate is later absorbed into a plausible finite result",
+        "REL-200": "the squared magnitude is the denominator of a complex division"
+      }
+    },
+    "REL-200": {
+      "name": "Complex Division Using Unscaled Textbook Formula",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.4"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function divide complex numbers by multiplying through by the conjugate and dividing by c*c + d*d without scaling?",
+      "present_when": {
+        "any": [
+          "a complex quotient is formed as ((a*c + b*d) / (c*c + d*d), (b*c - a*d) / (c*c + d*d)) with no scaling of the divisor components"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "Smith's algorithm or another scaled method divides by the larger of |c| and |d| first",
+          "the language or library complex type performs the division, such as std::complex, C99 complex, Python complex or num_complex",
+          "divisor components are bounded so their squares cannot overflow or underflow"
+        ]
+      },
+      "distinguish_from": {
+        "REL-199": "the squares form a magnitude or distance rather than a division denominator"
+      }
+    },
+    "REL-201": {
+      "name": "Long Floating-Point Product Without Log-Space or Scaling",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.3.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function multiply many floating-point factors, such as probabilities or growth rates, into one running product that could underflow to zero or overflow to infinity?",
+      "present_when": {
+        "any": [
+          "a loop that does product *= term for each probability or rate over an unbounded or long sequence",
+          "a factorial, binomial coefficient or power series term computed as a direct product before being divided or normalised"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the work is done in log space (summing logarithms, log-sum-exp, lgamma) or the product is rescaled periodically",
+          "the number of factors is small and fixed, or the factors are near 1",
+          "the values are integers in a type with arbitrary precision"
+        ]
+      },
+      "distinguish_from": {
+        "REL-198": "an infinity already produced is absorbed into a misleading finite result",
+        "REL-186": "the issue is accuracy lost in a long sum rather than range in a product"
+      }
+    },
+    "REL-202": {
+      "name": "Insufficient Digits When Serialising Floating-Point Values",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.1.2"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 4.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function write floating-point values as text for storage, transmission or comparison with too few significant digits to read back the same value?",
+      "present_when": {
+        "any": [
+          "a double is serialised to a file, message, key or cache with a fixed short precision, such as %f, %g, %.6g or %.15g",
+          "a value printed with limited digits is later parsed back and compared or reused as data"
+        ],
+        "c": [
+          "printf, snprintf or std::ostream with default precision used to save data"
+        ],
+        "cpp": [
+          "std::to_string(double), which before C++26 formats like %f with six decimal places, used to save or transmit the value"
+        ],
+        "javascript": [
+          "toFixed or toPrecision with few digits used for serialisation rather than display"
+        ],
+        "python": [
+          "str.format, f-strings or '%.6f' used to write data, rather than repr or json"
+        ],
+        "rust": [
+          "format! with {:.N} for small N used to store or send values"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "shortest round-trip formatting is used (for example %.17g, %a, repr(), JSON.stringify, Rust's default Display or ryu)",
+          "the text is only for human display and is never parsed back",
+          "the value is stored in a binary format that keeps the exact bits"
+        ],
+        "cpp": [
+          "std::to_chars, std::format(\"{}\", x) or a stream with std::setprecision(std::numeric_limits<double>::max_digits10) is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-203": "a value is rounded twice through an intermediate precision rather than printed with too few digits"
+      }
+    },
+    "REL-203": {
+      "name": "Double Rounding Through an Intermediate Precision",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-681"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 4.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function round a value to an intermediate precision and then again to a narrower target, so halfway cases can end up one unit off?",
+      "present_when": {
+        "any": [
+          "a double result is converted to float after being computed in long double or extended precision",
+          "a decimal value is rounded to one number of places and then rounded again to fewer places",
+          "a value is converted through text with limited digits and then rounded or narrowed again"
+        ],
+        "c": [
+          "arithmetic held in long double or x87 registers is stored to double, then cast to float"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is rounded once, directly from the exact or widest result to the target precision",
+          "a rounding mode or library routine designed for correct rounding is used, such as round-to-odd before the final step",
+          "the precision involved makes one-unit differences irrelevant to the use"
+        ]
+      },
+      "distinguish_from": {
+        "REL-189": "a single hand-written rounding rule is biased",
+        "REL-202": "values are printed with too few digits to round-trip"
+      }
+    },
+    "REL-204": {
+      "name": "Narrow Precision Variable Compared With Wider Expression",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1077",
+        "CWE-681",
+        "CWE-1339"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare a single-precision float variable with an expression evaluated in double or wider precision?",
+      "present_when": {
+        "c": [
+          "a float variable is compared with a double literal such as 0.1 without an f suffix, or with a double expression",
+          "a float is assigned from a double expression and later compared with that same expression"
+        ],
+        "rust": [
+          "an f32 value is cast to f64 and compared with an f64 expression, or vice versa"
+        ],
+        "javascript": [
+          "a value read from a Float32Array or produced by Math.fround is compared with a normal number expression"
+        ],
+        "python": [
+          "a numpy float32 value or array element is compared with a Python float or float64 expression"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "both sides are computed and stored in the same precision, or the wider side is rounded to the narrow type before comparing",
+          "comparison uses a tolerance suited to single precision"
+        ],
+        "python": [
+          "ordinary Python floats, which all share one double precision"
+        ],
+        "javascript": [
+          "ordinary numbers, which all share one double precision"
+        ]
+      },
+      "distinguish_from": {
+        "REL-190": "both operands have the same precision and the problem is exact comparison of computed values"
+      }
+    },
+    "REL-205": {
+      "name": "Single-Precision Constant or Operand Limiting Double Computation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-681"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function mix a single-precision literal, constant or variable into a calculation that is otherwise double precision?",
+      "present_when": {
+        "c": [
+          "an f-suffixed literal such as 0.1f, 3.14159f or 1e-3f appears in an expression that produces or uses a double",
+          "a float constant or field, such as a float PI, or FLT_EPSILON is used in double arithmetic"
+        ],
+        "python": [
+          "numpy.float32 scalars or arrays combined with float64 data in a calculation expected to be double precision"
+        ],
+        "javascript": [
+          "Math.fround or Float32Array elements fed into calculations meant to use full Number precision"
+        ],
+        "rust": [
+          "an f32 value or literal is cast with `as f64` into an f64 calculation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all literals and operands in the calculation are already double precision",
+          "the whole computation is intentionally single precision and the result type is float"
+        ],
+        "python": [
+          "plain Python floats, which are always double precision"
+        ],
+        "javascript": [
+          "ordinary Number values with no Float32 conversion"
+        ]
+      },
+      "distinguish_from": {
+        "REL-187": "the accumulator itself is too narrow rather than one operand"
+      }
+    },
+    "REL-206": {
+      "name": "Integer Division Where Floating-Point Division Was Intended",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682",
+        "CWE-1339"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function divide two integers and only afterwards convert or combine the quotient with floating point, so the fraction is lost where a real ratio was intended?",
+      "present_when": {
+        "any": [
+          "an average, ratio or percentage is assigned to a floating variable from an integer quotient, such as double avg = total / count"
+        ],
+        "c": [
+          "(double)(a / b), 100 * done / all stored to a double, or 1 / n where n is an int"
+        ],
+        "cpp": [
+          "double mean = sum / v.size() where sum is an integer, or an integer std::accumulate result divided by a count"
+        ],
+        "rust": [
+          "(a / b) as f64 with integer a and b"
+        ],
+        "python": [
+          "// is used for a ratio, average or percentage that is then used as a float"
+        ],
+        "javascript": [
+          "Math.floor, Math.trunc or | 0 applied to a quotient that is then used as a fractional ratio"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "an operand is converted to floating point before the division, such as (double)total / count or a as f64 / b as f64",
+          "integer division is intended, such as page counts, bucket indices or integer averages"
+        ],
+        "python": [
+          "the ordinary / operator in Python 3, which performs true division"
+        ],
+        "javascript": [
+          "the ordinary / operator, which always gives a fractional Number result"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-369": "the divisor may be zero"
+      }
+    },
+    "REL-207": {
+      "name": "Large Integer Stored in Floating-Point Type",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-681",
+        "CWE-197",
+        "CWE-1339"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function store large integers such as ids, timestamps, counters or money in minor units in a floating-point type that cannot hold them exactly?",
+      "present_when": {
+        "c": [
+          "an integer id, 64-bit counter or nanosecond timestamp is held in a float or double"
+        ],
+        "cpp": [
+          "a std::chrono nanoseconds count() or a 64-bit id converted to double, for example through a JSON number API"
+        ],
+        "javascript": [
+          "a 64-bit id or large integer from JSON, a database or BigInt is converted to Number, or JSON.parse reads ids above 2^53"
+        ],
+        "typescript": [
+          "an entity or interface types a 64-bit id or bigint column as number, or Number() converts such a value"
+        ],
+        "python": [
+          "an integer id or timestamp is converted with float(), divided with / , or stored in a float numpy array"
+        ],
+        "rust": [
+          "a u64 or i64 id, counter or timestamp is cast to f32 or f64 with 'as'"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the values are known to stay well inside the exact range (2^24 for float, 2^53 for double)",
+          "integers are kept in an integer type, BigInt, string or Decimal"
+        ],
+        "typescript": [
+          "the value is typed bigint or kept as a string from the database or JSON through to its use"
+        ],
+        "python": [
+          "the value stays a Python int and integer division // is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-681": "the numeric conversion loses data for a reason other than floating-point precision"
+      }
+    },
+    "REL-208": {
+      "name": "Real-Valued Exponentiation With Negative Base or Undefined Cases",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682",
+        "CWE-754"
+      ],
+      "requires": [
+        "floating_point",
+        "arithmetic"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a real-valued power operation on a possibly negative base with a non-integer exponent, or without handling negative bases or undefined cases such as 0 to a negative power?",
+      "present_when": {
+        "any": [
+          "pow(x, y), Math.pow, x ** y, math.pow or powf with a base that can be negative and an exponent that may not be an integer, such as a cube root via pow(x, 1.0/3)",
+          "the result is used without checking for NaN, error or a complex value"
+        ],
+        "python": [
+          "(-x) ** (1/3) silently producing a complex number, or math.pow raising ValueError, not handled"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the base is known non-negative, for example after abs or a domain check, or the exponent is an integer",
+          "a dedicated function such as cbrt, Math.cbrt or np.cbrt is used for odd roots",
+          "NaN, exceptions or complex results are explicitly checked and handled"
+        ]
+      },
+      "distinguish_from": {
+        "REL-213": "the code expects invalid floating-point results to raise errors in general"
+      }
+    },
+    "REL-209": {
+      "name": "Unsafe Floating-Point Optimisation Flags Enabled in Build",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function's own source turn on a value-changing floating-point mode, such as fast-math or flush-to-zero, that its arithmetic does not tolerate?",
+      "present_when": {
+        "any": [
+          "a pragma, attribute or decorator in or on the function enables fast-math style optimisation, and the function relies on exact IEEE behaviour such as NaN checks or compensated summation"
+        ],
+        "c": [
+          "__attribute__((optimize(\"fast-math\"))), #pragma GCC optimize(\"Ofast\"), #pragma float_control or fp_contract(on), or _MM_SET_FLUSH_ZERO_MODE called in the function"
+        ],
+        "python": [
+          "a Numba decorator such as @njit(fastmath=True) on a function that tests for NaN or infinity or uses compensated summation"
+        ],
+        "rust": [
+          "fast-math intrinsics such as fadd_fast or fmul_fast used where exact rounding matters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "nothing in the function itself changes floating-point optimisation or rounding modes; build flags elsewhere are outside this function",
+          "the function's arithmetic does not depend on NaN, infinity, signed zero or evaluation order"
+        ],
+        "javascript": [
+          "JavaScript code, which has no fast-math switch at function level"
+        ]
+      },
+      "distinguish_from": {
+        "REL-210": "the code itself rewrites an expression into an algebraically equal but numerically different form"
+      }
+    },
+    "REL-210": {
+      "name": "Algebraically Equivalent Rewrite Changes Floating-Point Result",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1339",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function use an algebraic rewrite of a floating-point expression, such as multiplying by 0.1 instead of dividing by 10, that changes the computed result?",
+      "present_when": {
+        "any": [
+          "division by a constant is replaced by multiplication by its rounded reciprocal, such as x * 0.1 or x * (1.0 / 3.0), where the result is compared, rounded or used as a boundary",
+          "a factored form is expanded or reordered, such as x*y - x*z instead of x*(y - z), or a sum regrouped, where accuracy matters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the reciprocal is exact, such as multiplying by 0.5 or 0.25",
+          "the original division or factored form is kept, or fma is used for accuracy",
+          "the result only needs approximate accuracy, for example graphics or display values"
+        ]
+      },
+      "distinguish_from": {
+        "REL-182": "the loss comes from subtracting nearly equal computed values regardless of rewriting",
+        "REL-209": "the change is made by a compiler optimisation mode rather than by the source"
+      }
+    },
+    "REL-211": {
+      "name": "Floating-Point Environment Modified Without Restoration on All Exits",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-460",
+        "CWE-682"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.3.3"
+        },
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function change the floating-point rounding mode, exception masks or flush-to-zero setting without restoring the previous setting on every exit path?",
+      "present_when": {
+        "c": [
+          "fesetround, fesetenv, feenableexcept or _controlfp is called and a return or error path skips restoring the saved value",
+          "MXCSR or FPCR is written via intrinsics such as _mm_setcsr and not reset before every return"
+        ],
+        "cpp": [
+          "std::fesetround is called and an exception can be thrown before the previous mode is restored"
+        ],
+        "python": [
+          "decimal.getcontext() precision or rounding is changed in place, or numpy.seterr is called, with no restore in finally or a context manager"
+        ],
+        "rust": [
+          "inline assembly or an intrinsic alters the floating-point control register without restoring it on every return"
+        ],
+        "any": [
+          "a call that sets rounding, trap or flush-to-zero state is followed by a return, throw or jump path that does not restore the earlier setting"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the old state is saved and restored on every return and exception path, for example in a scope guard or finally block",
+          "the function does not modify any floating-point control state"
+        ],
+        "cpp": [
+          "an RAII guard object restores the saved rounding mode or environment in its destructor"
+        ],
+        "python": [
+          "the change is made inside decimal.localcontext() or numpy.errstate() as a with block"
+        ],
+        "javascript": [
+          "JavaScript offers no way to change the floating-point environment, so ordinary JS or TS code cannot show this"
+        ]
+      }
+    },
+    "REL-212": {
+      "name": "Floating-Point Format Properties Estimated by Probing Loops",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1339",
+        "CWE-835"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function find machine epsilon, the smallest positive number or the overflow threshold with a halving or doubling loop instead of library constants?",
+      "present_when": {
+        "any": [
+          "a loop that keeps halving a candidate until adding it to 1.0 no longer changes the sum, to estimate epsilon",
+          "a loop that halves a value until it becomes zero, or doubles it until it becomes infinite, to find the format's limits"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "library constants are used, such as DBL_EPSILON, std::numeric_limits, sys.float_info, Number.EPSILON or f64::EPSILON",
+          "the loop is a numeric algorithm that converges on a solution rather than probing the format's properties"
+        ]
+      },
+      "distinguish_from": {
+        "REL-188": "a fractional step is accumulated to reach a target, not to probe the format"
+      }
+    },
+    "REL-213": {
+      "name": "Floating-Point Division by Zero Assumed to Raise an Error",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-369",
+        "CWE-754"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely on an exception, signal or crash to detect floating-point division by zero, overflow or invalid results, when the arithmetic would actually give infinity or NaN?",
+      "present_when": {
+        "any": [
+          "floating-point division or sqrt/log of possibly invalid values sits inside a try block or handler expected to catch the error, and the result is not checked for infinity or NaN",
+          "a later comparison such as if (x > limit) is relied on to reject bad results, which NaN passes"
+        ],
+        "c": [
+          "a SIGFPE handler is installed to catch float division with no feenableexcept or equivalent trap enabling"
+        ],
+        "cpp": [
+          "a try/catch around floating division or std::sqrt expecting std::domain_error or std::overflow_error, which built-in arithmetic never throws"
+        ],
+        "javascript": [
+          "try/catch around x / y expecting division by zero to throw"
+        ],
+        "python": [
+          "NumPy array arithmetic wrapped in except ZeroDivisionError or FloatingPointError without np.seterr enabling raises"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "results are checked with isfinite, isnan or Number.isFinite before use",
+          "the divisor is tested before division, so no exception is needed"
+        ],
+        "python": [
+          "plain Python float division, which does raise ZeroDivisionError, is the operation guarded"
+        ],
+        "rust": [
+          "the code checks is_finite() or is_nan() rather than expecting a panic"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-369": "integer division by zero with no guard at all",
+        "REL-198": "infinity is produced and then absorbed into a plausible finite answer"
+      }
+    }
+  }
+}

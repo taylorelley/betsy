@@ -1,0 +1,1141 @@
+{
+  "cards": {
+    "PERF-001": {
+      "name": "N+1 Query Pattern",
+      "abstraction": "Base",
+      "requires": [
+        "data_store",
+        "network"
+      ],
+      "function_checkable": true,
+      "question": "Does this function issue a database or API query inside a loop over the results of an earlier query, one round trip per item?",
+      "present_when": {
+        "any": [
+          "a loop over fetched rows or records calls a query, find, get or HTTP request for each element",
+          "a lazily loaded relation or attribute is accessed per item inside the loop, triggering a fetch each time"
+        ],
+        "python": [
+          "an ORM loop accesses a related field per object, such as obj.author.name, without select_related or prefetch_related"
+        ],
+        "javascript": [
+          "await inside a for loop calls a repository, fetch or SQL query keyed by each item's id"
+        ],
+        "typescript": [
+          "a TypeORM or Prisma call such as findOne or findUnique is awaited inside a for...of over earlier results, or a lazy relation is awaited per item"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "related data is loaded up front with a join, IN clause, batch request or eager loading",
+          "the loop works only on data already in memory",
+          "the loop runs over a small fixed set, such as a handful of configuration keys"
+        ],
+        "typescript": [
+          "related rows are loaded in one query with relations or include, or ids are batched with In() or a where id in filter"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "a single query loads too much data rather than many small queries"
+      }
+    },
+    "PERF-002": {
+      "name": "Unbounded Data Loading",
+      "abstraction": "Base",
+      "requires": [
+        "data_store",
+        "network",
+        "filesystem",
+        "parsing"
+      ],
+      "function_checkable": true,
+      "question": "Does this function load an entire table, collection or result set into memory with no limit, pagination or streaming?",
+      "present_when": {
+        "any": [
+          "a SELECT with no LIMIT or WHERE, or a find all or list call with no page size, is fully materialised",
+          "an API or storage listing is read in full into a list or array before processing"
+        ],
+        "python": [
+          "calls such as .all(), fetchall(), list(queryset) or read() of a whole file load everything at once"
+        ],
+        "javascript": [
+          "find({}) or findAll() with no limit, or toArray() on a whole cursor, is used"
+        ],
+        "typescript": [
+          "repository.find() or prisma.model.findMany() is called with no take, cursor or narrowing where clause"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the query has a limit, page size, cursor, keyset pagination or a bounded filter",
+          "results are streamed or iterated in batches without collecting them all",
+          "the data source is known to be small and fixed, such as an enum table"
+        ],
+        "typescript": [
+          "the query passes take and skip or a cursor, or rows are streamed in batches"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-001": "many queries are issued per item rather than one oversized query"
+      }
+    },
+    "PERF-003": {
+      "name": "Missing Database Index on Filtered Column",
+      "abstraction": "Base",
+      "requires": [
+        "data_store"
+      ],
+      "function_checkable": false,
+      "reason": "Depends on the database schema's indexes, which are not in the function's code."
+    },
+    "PERF-004": {
+      "name": "Inefficient String Concatenation in Loop",
+      "abstraction": "Base",
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a string by repeated concatenation inside a loop?",
+      "present_when": {
+        "any": [
+          "inside a loop, a string variable is extended with += or s = s + ... on each iteration"
+        ],
+        "javascript": [
+          "a string is grown with += across loop iterations that can run many times"
+        ],
+        "python": [
+          "a str is grown with += in a for or while loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "parts are collected into a list or array and joined once after the loop",
+          "a builder or buffer is used, such as io.StringIO, a String with push_str, or std::string with reserve and append",
+          "the loop has a small fixed number of iterations"
+        ],
+        "rust": [
+          "push_str or write! onto a String, which grows in amortised constant time"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-006": "the cost comes from recomputing the same value on each iteration rather than from copying a growing string"
+      }
+    },
+    "PERF-005": {
+      "name": "Blocking I/O in Hot Path",
+      "abstraction": "Base",
+      "requires": [
+        "filesystem",
+        "network",
+        "data_store",
+        "resources",
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make a blocking network, disk or subprocess call while acting as a request handler, event loop callback or tight loop body?",
+      "present_when": {
+        "any": [
+          "a request handler, async function or per-frame or per-message callback performs synchronous file, socket or subprocess I/O",
+          "a sleep or blocking wait runs on a request or event-loop path"
+        ],
+        "javascript": [
+          "readFileSync, writeFileSync, execSync or other *Sync calls run inside a server handler or async function"
+        ],
+        "python": [
+          "an async def calls requests, time.sleep, open().read or subprocess.run without awaiting a non-blocking version"
+        ],
+        "rust": [
+          "an async fn calls std::fs, std::net, std::thread::sleep or Command::output without spawn_blocking"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the I/O is asynchronous and awaited, or moved to a worker thread or blocking pool",
+          "the call runs only at start-up, in a CLI tool or batch script, or in tests"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-008": "the repeated call could be cached rather than the call being blocking"
+      }
+    },
+    "PERF-006": {
+      "name": "Redundant Repeated Computation",
+      "abstraction": "Base",
+      "function_checkable": true,
+      "question": "Does this function recompute an expensive result that never changes between calls, such as compiling a regex or building a lookup table, on every call or loop pass?",
+      "present_when": {
+        "any": [
+          "a regular expression is compiled, a configuration file parsed or a lookup table built inside the function or a loop with constant inputs",
+          "a loop recomputes the same value each pass, such as a length, hash or derived key that does not depend on the loop variable"
+        ],
+        "python": [
+          "re.compile, json.loads of a constant or a large dict literal is built inside a frequently called function"
+        ],
+        "javascript": [
+          "new RegExp with a constant pattern or JSON.parse of a constant runs inside a handler or loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the result is computed once at module level, in a static or lazy initialiser, or cached",
+          "the inputs vary between calls, so the work is not redundant",
+          "the computation is cheap, such as simple arithmetic or a literal regex the runtime caches"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-008": "the repeated work is an external request rather than a pure computation"
+      }
+    },
+    "PERF-007": {
+      "name": "Inefficient Membership Test on Sequence",
+      "abstraction": "Base",
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function repeatedly test membership or search for keys in a list or array inside a loop, where a set or map would make each lookup constant time?",
+      "present_when": {
+        "any": [
+          "inside a loop, x in list, list.index, Array.includes, indexOf, find or a nested loop searches a sequence that grows with the input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the lookup is against a set, dict, map or hash table",
+          "the searched sequence is small and fixed, such as a literal of a few items",
+          "the membership test runs once rather than per iteration"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-006": "the repeated work is a computation unrelated to searching a sequence"
+      }
+    },
+    "PERF-008": {
+      "name": "Missing Cache on Expensive Repeated Request",
+      "abstraction": "Base",
+      "requires": [
+        "network",
+        "data_store"
+      ],
+      "function_checkable": true,
+      "question": "Does this function repeat an expensive external call or lookup for the same inputs without any cache or memoisation?",
+      "present_when": {
+        "any": [
+          "a loop or per-request path fetches the same reference data, permission or feature flag with unchanged arguments",
+          "the same remote call or query appears more than once in the function with identical inputs"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "results are cached in a map, memoisation decorator, request-scoped cache or shared cache layer",
+          "the value is fetched once and reused for the rest of the function",
+          "freshness matters, such as a balance or lock state, so repeating the call is intended"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-006": "the repeated work is a local pure computation rather than an external call"
+      }
+    },
+    "PERF-009": {
+      "name": "Subnormal Floating-Point Values Slowing Hot Numeric Loops",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1050",
+        "CWE-400"
+      ],
+      "requires": [
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 2.2.4"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does a tight numeric loop in this function repeatedly compute with floating-point values that can decay towards zero into the subnormal range?",
+      "present_when": {
+        "any": [
+          "a loop repeatedly multiplies a value by a factor below one (decay, damping, filter feedback) with no flush to zero",
+          "an iterative filter, reverb, physics or probability update whose state shrinks towards zero without a threshold",
+          "very small probabilities or weights multiplied together in a loop instead of working in log space"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "values below a small threshold are set to zero, or a tiny offset is added, each iteration",
+          "the code enables flush-to-zero or denormals-are-zero mode before the loop",
+          "the arithmetic is integer or fixed point, or probabilities are kept in log space"
+        ],
+        "python": [
+          "the work is ordinary Python floats in a non-hot loop where interpreter overhead dominates"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1050": "the loop is slowed by acquiring platform resources rather than by floating-point values"
+      }
+    },
+    "PERF-010": {
+      "name": "Exact or Arbitrary-Precision Arithmetic in Hot Numeric Paths",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-407",
+        "CWE-1050"
+      ],
+      "requires": [
+        "arithmetic",
+        "floating_point"
+      ],
+      "sources": [
+        {
+          "standard": "Goldberg 1991",
+          "rule": "Section 3.2.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function do exact rational or arbitrary-precision arithmetic inside a loop where the operand sizes keep growing and bounded floating point would serve?",
+      "present_when": {
+        "any": [
+          "a loop repeatedly multiplies or adds fractions or big integers, accumulating into the same exact value",
+          "an iterative numeric method (series, simulation, matrix step) carried out in exact or unbounded types"
+        ],
+        "python": [
+          "fractions.Fraction or decimal.Decimal with a large precision used as an accumulator in a hot loop"
+        ],
+        "javascript": [
+          "BigInt or a big-number or rational library used for repeated accumulation inside a loop"
+        ],
+        "c": [
+          "GMP mpq_t or mpz_t, or MPFR at high precision, updated repeatedly in a loop"
+        ],
+        "cpp": [
+          "boost::multiprecision cpp_int or cpp_rational, or GMP mpq_class or mpz_class, updated repeatedly inside a loop"
+        ],
+        "rust": [
+          "num::BigRational, BigInt or similar arbitrary-precision types accumulated in a loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "exact types are used only once or a fixed few times, not in a loop",
+          "the exactness is required, such as money, cryptography or exact combinatorics, and values are rounded or reduced each step",
+          "ordinary fixed-width integers or floating point are used"
+        ]
+      }
+    },
+    "PERF-011": {
+      "name": "Front Insertion or Removal on an Array-Backed Sequence in a Loop",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-407"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does a loop in this function repeatedly insert at or remove from the front of a contiguous list, array or vector, shifting all remaining elements each time?",
+      "present_when": {
+        "any": [
+          "a loop over input-sized data takes items from index 0 or adds items at index 0 of an array-backed sequence"
+        ],
+        "python": [
+          "list.pop(0), list.insert(0, x) or del lst[0] inside a while or for loop"
+        ],
+        "javascript": [
+          "array.shift() or array.unshift(x) inside a loop that runs once per item, such as a queue drained with while (queue.length)"
+        ],
+        "cpp": [
+          "vec.erase(vec.begin()) or vec.insert(vec.begin(), x) on a std::vector inside a loop"
+        ],
+        "rust": [
+          "Vec::remove(0) or Vec::insert(0, x) inside a loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the sequence is a deque or linked structure with constant-time front operations",
+          "the sequence is small and bounded by a constant, or the front operation runs once outside any loop"
+        ],
+        "python": [
+          "collections.deque with popleft or appendleft"
+        ],
+        "cpp": [
+          "std::deque or std::list"
+        ],
+        "rust": [
+          "VecDeque with pop_front or push_front"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-007": "the repeated cost is searching a sequence for a value, not shifting elements"
+      }
+    },
+    "PERF-012": {
+      "name": "Independent Async Operations Awaited One at a Time in a Loop",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-1050",
+        "CWE-400"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function await independent asynchronous calls one after another inside a loop, so each waits for the previous one to finish?",
+      "present_when": {
+        "javascript": [
+          "await fetch, a database call or another promise inside for or for...of, where no iteration uses an earlier iteration's result"
+        ],
+        "python": [
+          "await of an aiohttp, httpx, database or other coroutine inside a for loop over independent items"
+        ],
+        "rust": [
+          ".await on a request or I/O future created per item inside a for or while loop over independent items"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each iteration depends on the result of the previous one, such as pagination with a cursor or ordered writes",
+          "the loop deliberately serialises calls to respect a rate limit or ordering requirement stated in the code",
+          "the loop runs a small fixed number of times"
+        ],
+        "javascript": [
+          "promises are collected and awaited with Promise.all, Promise.allSettled or a concurrency limiter"
+        ],
+        "python": [
+          "coroutines are gathered with asyncio.gather, TaskGroup or a semaphore-limited pool"
+        ],
+        "rust": [
+          "futures are combined with join_all, FuturesUnordered, buffer_unordered or spawned tasks"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-001": "each request in the loop is driven by rows from an earlier query, an N+1 pattern",
+        "PERF-005": "the call blocks the thread rather than awaiting asynchronously"
+      }
+    },
+    "PERF-013": {
+      "name": "Container Grown Element by Element Without Reserving Known Capacity",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-407",
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function grow a buffer or vector one element at a time inside a loop when the final size is already known, so it reallocates and copies repeatedly?",
+      "present_when": {
+        "c": [
+          "realloc(buf, (n + 1) * size) or realloc by a fixed small increment inside a loop that appends one item per pass"
+        ],
+        "cpp": [
+          "push_back or emplace_back in a loop over a container or count of known size, with no reserve before the loop"
+        ],
+        "rust": [
+          "Vec::new() or String::new() followed by push or push_str in a loop over a known length, with no with_capacity or reserve"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the final size is not known before the loop and the container grows geometrically",
+          "the loop appends only a few items"
+        ],
+        "c": [
+          "the buffer size is doubled or multiplied on each growth, or allocated once at its final size"
+        ],
+        "cpp": [
+          "reserve(n) or a sized constructor is called before the loop"
+        ],
+        "rust": [
+          "Vec::with_capacity, reserve, or collect() from an iterator with a known size hint"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-004": "the repeated growth is string concatenation that creates a new string each time",
+        "CWE-1325": "the allocations are not bounded overall, rather than merely repeated"
+      }
+    },
+    "PERF-014": {
+      "name": "Large Value Copied Where a Borrow or Reference Would Do",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "function_checkable": true,
+      "question": "Does this function copy a large structure, string or container by value when it only reads it, such as a by-value parameter, a copying loop variable or a clone?",
+      "present_when": {
+        "c": [
+          "a parameter of a large struct type, such as one holding arrays, passed by value and only read"
+        ],
+        "cpp": [
+          "a std::vector, std::string, std::map or large class parameter taken by value and only read, with no std::move of it",
+          "for (auto x : container) over strings, vectors or large objects that are only read"
+        ],
+        "rust": [
+          "a String, Vec or large struct is cloned inside a loop or on each call where the clone is only read and a reference would compile"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is small, such as an integer, pointer or a struct of a few scalar fields"
+        ],
+        "c": [
+          "the struct is passed through a pointer to const"
+        ],
+        "cpp": [
+          "the parameter is const T& or a view such as std::string_view or std::span",
+          "the by-value parameter is moved into storage, the sink idiom"
+        ],
+        "rust": [
+          "the function borrows with &T or &[T], or the clone is needed because the value is moved into another owner"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1176": "the waste is repeated computation rather than copying data"
+      }
+    },
+    "PERF-015": {
+      "name": "Deep Copy Through a Serialisation Round Trip",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make a copy of an object by serialising it and immediately parsing the result back?",
+      "present_when": {
+        "javascript": [
+          "JSON.parse(JSON.stringify(value)) used to clone an object or array"
+        ],
+        "python": [
+          "json.loads(json.dumps(obj)) or pickle.loads(pickle.dumps(obj)) used to clone"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the serialised form is sent, stored or validated, not just parsed straight back",
+          "the round trip runs once on small configuration data at start-up"
+        ],
+        "javascript": [
+          "structuredClone, a spread copy or a library deep clone is used"
+        ],
+        "python": [
+          "copy.copy, copy.deepcopy or a constructor copy is used"
+        ]
+      }
+    },
+    "PERF-016": {
+      "name": "Exceptions Thrown for Expected Outcomes Inside a Hot Loop",
+      "abstraction": "Base",
+      "languages": [
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does a loop in this function throw and catch an exception for a routine case that occurs on many iterations, such as a missing key or bad item?",
+      "present_when": {
+        "any": [
+          "a try block inside a loop over input-sized data whose handler is expected to run for a large share of items, such as skipping invalid entries"
+        ],
+        "cpp": [
+          "std::stoi, at() or a custom throw caught inside the loop to skip items, or throw used to break out of a loop"
+        ],
+        "javascript": [
+          "throw and catch used inside a loop to skip items or to exit early from iteration"
+        ],
+        "python": [
+          "raise inside a loop to signal a common case, caught in the same loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the exception handles a genuinely rare failure such as an I/O error",
+          "the loop runs a small fixed number of times",
+          "the routine case is tested with a branch or non-throwing call before the operation"
+        ],
+        "python": [
+          "a try/except around a lookup where the exception is expected only rarely, which is idiomatic and cheap when nothing is raised"
+        ],
+        "cpp": [
+          "std::from_chars, find, count or an error code is used instead of a throwing call"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-390": "the exception is caught and ignored as an error-handling failure, not a speed problem"
+      }
+    },
+    "PERF-017": {
+      "name": "Unbuffered Small Reads or Writes Inside a Loop",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1050"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does a loop in this function read or write data in very small pieces through an unbuffered file, socket or stream, making a system call for each one?",
+      "present_when": {
+        "any": [
+          "a loop issues one read or write call per byte, character, record or line on a handle that does no buffering"
+        ],
+        "c": [
+          "read(fd, &c, 1) or write(fd, buf, 1) inside a loop on a raw descriptor"
+        ],
+        "cpp": [
+          "std::endl or std::flush on std::cout or a std::ofstream inside a loop, forcing a flush for every line"
+        ],
+        "python": [
+          "writes per item to a file opened with buffering=0, or os.write per item inside a loop"
+        ],
+        "javascript": [
+          "fs.writeSync, fs.appendFileSync or fs.readSync called once per line or item inside a loop"
+        ],
+        "rust": [
+          "write or read calls per item on File, TcpStream or stdout without BufWriter, BufReader or a lock held for the loop"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handle is buffered, or output is collected and written once",
+          "the loop runs a small fixed number of times"
+        ],
+        "c": [
+          "stdio streams such as fwrite, fputc or fprintf, which buffer by default"
+        ],
+        "cpp": [
+          "the loop writes '\\n' to a std::ofstream or std::cout, so the stream buffer collects the output"
+        ],
+        "rust": [
+          "the handle is wrapped in BufWriter or BufReader, or stdout().lock() is taken before the loop"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-005": "the problem is that the call blocks a request handler or event loop, not the number of calls",
+        "CWE-1050": "the per-iteration cost is acquiring a resource such as a connection or lock, not unbuffered I/O"
+      }
+    },
+    "PERF-018": {
+      "name": "Expensive Log Message Arguments Built When the Level Is Disabled",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1176"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build costly debug or trace log messages, such as serialising objects or calling helpers, even when that log level may be disabled?",
+      "present_when": {
+        "any": [
+          "a debug, trace or verbose log call whose argument serialises a large object, joins a collection or calls an expensive function, in a loop or frequently called path"
+        ],
+        "python": [
+          "logger.debug(f\"...{expensive(x)}...\") or logger.debug(\"%s\" % json.dumps(obj)) where formatting happens before the call"
+        ],
+        "javascript": [
+          "logger.debug(`...${JSON.stringify(obj)}`) or console.debug with a serialised payload in a hot path"
+        ],
+        "rust": [
+          "format! or to_string called to build a String that is then passed to a debug! or trace! macro"
+        ],
+        "c": [
+          "snprintf of a debug message into a buffer before a call that checks the log level"
+        ],
+        "cpp": [
+          "a debug message built with std::ostringstream, std::to_string or std::format, or an argument calling dump() or a serialiser, before the level is checked"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the message uses only cheap values such as plain variables or literals",
+          "the call is guarded by an explicit level check",
+          "the log call runs rarely, such as once at start-up or on an error path"
+        ],
+        "cpp": [
+          "only cheap arguments are passed to a lazy formatting call such as spdlog::debug(\"{}\", x), which formats only when the level is enabled"
+        ],
+        "python": [
+          "logger.debug(\"... %s\", value) with lazy argument formatting"
+        ],
+        "rust": [
+          "arguments are passed directly to log or tracing macros, which skip evaluation when the level is off"
+        ]
+      }
+    },
+    "PERF-019": {
+      "name": "Rows Fetched Only to Count Them or Test Existence",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1176",
+        "CWE-400"
+      ],
+      "requires": [
+        "data_store"
+      ],
+      "function_checkable": true,
+      "question": "Does this function load all matching rows or documents from a data store only to count them or check whether any exist?",
+      "present_when": {
+        "any": [
+          "a query returns every matching record and the code then uses only its length or tests whether it is empty"
+        ],
+        "python": [
+          "len(Model.objects.filter(...)), len(cursor.fetchall()) or len(session.query(...).all()) used as a count, or a full list tested with if rows:"
+        ],
+        "javascript": [
+          "(await Model.find(...)).length or rows.length > 0 after selecting every matching row"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the query uses COUNT, count(), exists() or LIMIT 1",
+          "the loaded rows are also processed, so loading them is needed anyway",
+          "the query is bounded to a small fixed number of rows"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "the rows are loaded without a limit in order to process them, not just to count them"
+      }
+    },
+    "PERF-020": {
+      "name": "Lock Held Across Slow I/O or an Await Point",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-400"
+      ],
+      "requires": [
+        "concurrency",
+        "resources"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hold a lock while it performs slow I/O, sleeps or awaits, so other threads or tasks wait for that whole time?",
+      "present_when": {
+        "any": [
+          "a network request, database query, file read or write, sleep or await runs between acquiring a mutex or exclusive lock and releasing it"
+        ],
+        "python": [
+          "requests, database or file calls, or await, inside a with lock: block"
+        ],
+        "javascript": [
+          "an await on a network or database call while an async mutex or lock from a library is held"
+        ],
+        "cpp": [
+          "I/O or sleep calls inside the scope of a std::lock_guard, std::unique_lock or between lock() and unlock()"
+        ],
+        "c": [
+          "I/O or sleep calls between pthread_mutex_lock and pthread_mutex_unlock"
+        ],
+        "rust": [
+          "I/O or .await while a MutexGuard or RwLock write guard is alive"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the critical section only reads or updates in-memory state, and slow work happens after release",
+          "the lock exists specifically to serialise access to that I/O resource, such as one writer to a file"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-833": "the lock ordering can deadlock, rather than merely slowing others",
+        "REL-242": "a guard or borrow held across an await can deadlock or panic in Rust"
+      }
+    },
+    "PERF-021": {
+      "name": "Busy-Wait Polling Without Sleeping or Blocking",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1176",
+        "CWE-400"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function wait for a condition by spinning in a loop that checks it repeatedly without sleeping, blocking or yielding?",
+      "present_when": {
+        "any": [
+          "a loop whose body only re-reads a flag, queue size, file or status until it changes, with no sleep, wait or yield",
+          "a loop that spins comparing the current time with a deadline to implement a delay"
+        ],
+        "c": [
+          "while (!flag) {} or while (!flag); on a volatile or atomic flag with no pause, sched_yield or sleep"
+        ],
+        "cpp": [
+          "while (!flag.load()) {} on a std::atomic with no std::this_thread::yield, sleep_for or wait"
+        ],
+        "javascript": [
+          "a while loop on Date.now() to delay, which also blocks the event loop"
+        ],
+        "python": [
+          "while not done: pass or a loop polling a condition with no time.sleep or Event.wait"
+        ],
+        "rust": [
+          "loop { if flag.load(..) { break } } with no std::hint::spin_loop, park or sleep for longer than a short spin"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the loop sleeps, blocks on a wait, select, channel or future, or yields between checks",
+          "a bounded short spin precedes a blocking fallback, as in a spinlock with backoff"
+        ],
+        "cpp": [
+          "std::condition_variable::wait with a predicate, or std::atomic::wait from C++20, blocks until notified"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-835": "the loop can never end because its exit condition is unreachable",
+        "CWE-1322": "the cost is blocking a single-threaded event loop by any means, not spinning specifically"
+      }
+    },
+    "PERF-022": {
+      "name": "Recursive Recomputation of Overlapping Subproblems Without Memoisation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-407"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call itself several times on overlapping arguments without caching results, so the same subproblems are solved again and again?",
+      "present_when": {
+        "any": [
+          "two or more recursive calls on smaller, overlapping arguments, such as f(n - 1) + f(n - 2), with no memo table",
+          "a recursive search over positions or substrings that revisits the same state through different paths without remembering it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "results are stored in a cache, memo dictionary or table that is checked before recursing",
+          "the recursive calls cover disjoint parts of the input, as in merge sort or tree traversal",
+          "the input is bounded to a small constant"
+        ],
+        "python": [
+          "the function is decorated with functools.cache or lru_cache"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-008": "the repeated work is an external call or lookup rather than a recursive computation",
+        "CWE-674": "the risk is unbounded recursion depth rather than repeated work"
+      }
+    },
+    "PERF-023": {
+      "name": "Full Sequence Materialised Only to Be Scanned Once",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a complete intermediate list or array only to scan it once, such as summing it or testing whether any element matches?",
+      "present_when": {
+        "python": [
+          "sum([...]), any([...]), all([...]), min([...]) or max([...]) with a list comprehension rather than a generator expression",
+          "readlines() or list(...) built only to be looped over once"
+        ],
+        "javascript": [
+          "array.filter(fn).length > 0 or filter(fn)[0] where some or find would stop early",
+          "map then a single reduce or forEach over a large array where one pass would do"
+        ],
+        "rust": [
+          "collect::<Vec<_>>() followed only by .iter() for a single pass, len() or is_empty()"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the intermediate collection is used more than once, returned or stored",
+          "the input is small and bounded"
+        ],
+        "python": [
+          "a generator expression or itertools pipeline feeds the reduction"
+        ],
+        "javascript": [
+          "some, every, find or a single reduce is used"
+        ],
+        "rust": [
+          "the iterator chain is consumed directly with sum, any, count or find"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "the whole data set is loaded from a store or file without limit, rather than copied in memory"
+      }
+    },
+    "PERF-024": {
+      "name": "Interleaved DOM Reads and Writes Forcing Repeated Layout",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does a loop in this function write to the DOM or element styles and then read layout properties, forcing the browser to recompute layout each pass?",
+      "present_when": {
+        "javascript": [
+          "inside one loop, el.style, className, appendChild or innerHTML is changed and offsetHeight, offsetWidth, clientHeight, scrollTop or getBoundingClientRect is read"
+        ],
+        "tsx": [
+          "a ref's current element is resized or restyled and measured in the same loop inside an effect"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all layout reads happen before any writes, or writes are batched in requestAnimationFrame",
+          "the loop only writes, or only reads",
+          "the code does not run in a browser, for example a Node script"
+        ]
+      }
+    },
+    "PERF-025": {
+      "name": "Large Multi-Dimensional Array Traversed Against Its Storage Order",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-400",
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "sources": [
+        {
+          "standard": "What Every Programmer Should Know About Memory (Drepper)",
+          "rule": "6.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function walk a large row-major array or matrix with its innermost loop moving across rows, or multiply large matrices with the naive loop order and no transposition, tiling or library call?",
+      "present_when": {
+        "c": [
+          "for (i...) for (j...) sum += a[j][i] or a[j * n + i] over runtime-sized n",
+          "for (i) for (j) for (k) c[i][j] += a[i][k] * b[k][j] over large runtime sizes with no transposed copy of b and no blocking"
+        ],
+        "cpp": [
+          "nested loops over std::vector<std::vector<T>> or a flat buffer indexed [col][row] in the inner loop"
+        ],
+        "rust": [
+          "nested loops indexing grid[j][i] or data[j * width + i] with j in the inner loop over runtime-sized dimensions"
+        ],
+        "python": [
+          "pure Python or Numba loops over a NumPy C-ordered array indexing arr[j, i] with j innermost, or a hand-written triple-loop matrix product"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the innermost loop walks contiguous memory",
+          "the array is small or of fixed tiny size, such as 3 by 3 or 4 by 4",
+          "the matrix product transposes one operand, uses blocking or calls BLAS or another library"
+        ],
+        "rust": [
+          "the inner loop walks a row, iterators over rows or chunks are used, or ndarray or nalgebra performs the product"
+        ],
+        "python": [
+          "vectorised NumPy operations or @ are used",
+          "the array is Fortran-ordered and the loop follows that order"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1176": "the work itself is avoidable, rather than its memory access order being cache-hostile"
+      }
+    },
+    "PERF-026": {
+      "name": "Per-Thread Data Packed Into One Cache Line and Written Concurrently",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-400",
+        "CWE-1176"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "sources": [
+        {
+          "standard": "What Every Programmer Should Know About Memory (Drepper)",
+          "rule": "6.4.1"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function have several threads write repeatedly to neighbouring slots or fields of one shared array or struct inside their loops?",
+      "present_when": {
+        "c": [
+          "counts[tid]++ or results[tid] += x inside each thread's main loop, on a plain array of small elements"
+        ],
+        "cpp": [
+          "std::vector<long> or std::array of per-thread counters updated in each thread's loop, or std::atomic<int> slots packed next to each other"
+        ],
+        "rust": [
+          "a Vec<AtomicUsize> or array of per-worker counters updated in each worker's loop, or adjacent fields each written by a different thread"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each thread accumulates in a local variable and writes its slot once at the end",
+          "slots are padded or aligned to the cache line, for example alignas(64) or a padding member",
+          "the writes are rare compared with the loop's other work"
+        ],
+        "rust": [
+          "slots use crossbeam CachePadded or #[repr(align(64))]",
+          "each worker returns a local total that is combined afterwards"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-027": "all threads write one shared variable, rather than separate variables on one line"
+      }
+    },
+    "PERF-027": {
+      "name": "Shared Atomic or Locked Counter Updated on Every Iteration by All Threads",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-400",
+        "CWE-1050"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "sources": [
+        {
+          "standard": "What Every Programmer Should Know About Memory (Drepper)",
+          "rule": "6.4.2"
+        },
+        {
+          "standard": "What Every Programmer Should Know About Memory (Drepper)",
+          "rule": "6.4.3"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does each worker thread in this function update one shared atomic or lock-protected counter on every iteration of its main loop?",
+      "present_when": {
+        "c": [
+          "atomic_fetch_add(&total, 1) or __sync_fetch_and_add on a shared variable for every item processed by each thread",
+          "pthread_mutex_lock around a shared counter increment per item"
+        ],
+        "cpp": [
+          "std::atomic<long> total; total++ or fetch_add per element inside a parallel loop or each std::thread's loop"
+        ],
+        "rust": [
+          "counter.fetch_add(1, ...) on an Arc<AtomicUsize> per item in each thread, or a Mutex<u64> locked per item in a rayon closure"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each thread sums locally and updates the shared value once",
+          "the shared update happens once per batch or rarely"
+        ],
+        "rust": [
+          "rayon sum, fold and reduce, or per-thread totals combined at the end",
+          "the counter is updated once per batch"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-020": "a lock is held across slow I/O rather than taken briefly for each item"
+      }
+    },
+    "PERF-028": {
+      "name": "Linked List Used for Bulk Sequential Traversal Where a Contiguous Array Would Do",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-400",
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "sources": [
+        {
+          "standard": "What Every Programmer Should Know About Memory (Drepper)",
+          "rule": "6.2"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a linked list only to append to it and then scan or index it sequentially, with no insertion or removal in the middle?",
+      "present_when": {
+        "c": [
+          "a malloc'd node chain built by appending and then walked in full, where an array of the same items would do"
+        ],
+        "cpp": [
+          "std::list or std::forward_list filled with push_back and then only iterated, or advanced with std::next to reach an index"
+        ],
+        "rust": [
+          "std::collections::LinkedList filled with push_back and then only iterated"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "items are inserted or removed in the middle while iterating, or splicing is used",
+          "the code needs stable addresses for elements while the collection changes",
+          "the list is short or built once and rarely traversed"
+        ],
+        "cpp": [
+          "std::vector or std::deque is used"
+        ],
+        "rust": [
+          "Vec or VecDeque is used"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-011": "an array is used as a queue and shifted on each removal, the opposite trade-off"
+      }
+    }
+  }
+}

@@ -1,164 +1,241 @@
-//! Weakness catalogs copied from scorpius-cli and BETSY-owned extensions to them, plus the
-//! deterministic per-language selection and CWE-1000 hierarchy used to plan per-function
-//! decision questions.
-//! Nothing here calls a model: selection is a pure function of catalog and language.
+//! Weakness cards and the deterministic per-language selection and hierarchy used to plan
+//! per-function decision questions. The files under `data/weaknesses/cards/` are the only
+//! weakness definitions: one card names a weakness, places it in the hierarchy, says which
+//! functions it can apply to and how to decide it.
+//! Nothing here calls a model: selection is a pure function of the cards and the language.
 use crate::model::{hash, identity};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::OnceLock;
 
-/// The first three files are byte-for-byte copies of scorpius-cli; the `betsy_` files add
-/// entries written for BETSY under the same ID sequences.
-const CATALOG_FILES: [(&str, &str, &[u8]); 5] = [
-    (
-        "security",
-        "cwe_database.json",
-        include_bytes!("../data/weaknesses/cwe_database.json"),
-    ),
-    (
-        "reliability",
-        "reliability_weaknesses.json",
-        include_bytes!("../data/weaknesses/reliability_weaknesses.json"),
-    ),
-    (
-        "performance",
-        "performance_weaknesses.json",
-        include_bytes!("../data/weaknesses/performance_weaknesses.json"),
-    ),
-    (
-        "reliability",
-        "betsy_reliability_weaknesses.json",
-        include_bytes!("../data/weaknesses/betsy_reliability_weaknesses.json"),
-    ),
-    (
-        "performance",
-        "betsy_performance_weaknesses.json",
-        include_bytes!("../data/weaknesses/betsy_performance_weaknesses.json"),
-    ),
-];
 /// Bumped whenever plan shape or question wording changes, so cached run identities differ.
-pub const PROFILE: &str = "function-v6";
-const HIERARCHY_VIEW: &str = "CWE-1000";
+pub const PROFILE: &str = "function-v7";
 const TRAITS_FILE: &[u8] = include_bytes!("../data/weaknesses/traits.json");
-/// Detection cards: an overlay that rewrites questions without touching the source catalogs.
-const CARDS_FILE: &[u8] = include_bytes!("../data/weaknesses/cards.json");
+// `CARD_FILES`: every file under `data/weaknesses/cards/`, by relative path; see `build.rs`.
+include!(concat!(env!("OUT_DIR"), "/card_files.rs"));
+/// Languages a card may name in `languages` and, with `any`, as a pattern key.
+pub const LANGUAGES: [&str; 7] = [
+    "c",
+    "cpp",
+    "javascript",
+    "typescript",
+    "tsx",
+    "python",
+    "rust",
+];
+/// ID prefixes and the catalog each names, in planning order.
+const CATALOGS: [(&str, &str); 3] = [
+    ("CWE", "security"),
+    ("REL", "reliability"),
+    ("PERF", "performance"),
+];
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Platform {
-    #[serde(default, rename = "type")]
-    pub kind: String,
-    #[serde(default)]
-    pub class: String,
-    #[serde(default)]
-    pub name: String,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Related {
-    pub nature: String,
-    pub cwe_id: String,
-    #[serde(default)]
-    pub view_id: String,
-    #[serde(default)]
-    pub ordinal: String,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Weakness {
+/// Code patterns keyed by `any` or a betsy language; see [`card_languages`].
+pub type Patterns = BTreeMap<String, Vec<String>>;
+/// A weakness card: what one weakness is called, where it sits in the hierarchy and how to
+/// decide it from one function's own code.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Card {
+    /// The card's key in `cards.json`, in the spelling used everywhere in output.
+    #[serde(skip)]
     pub id: String,
+    /// `security`, `reliability` or `performance`, from the ID prefix.
+    #[serde(skip)]
+    pub catalog: String,
     pub name: String,
-    #[serde(default)]
-    pub description: String,
-    #[serde(default)]
-    pub extended_description: String,
     #[serde(default)]
     pub abstraction: String,
+    /// Asked only to route the hierarchy, never reported as a finding.
     #[serde(default)]
-    pub mapping_usage: String,
+    pub gate: bool,
+    /// Languages the weakness can occur in; empty means every language.
     #[serde(default)]
-    pub applicable_platforms: Vec<Platform>,
+    pub languages: Vec<String>,
+    /// Cards this one hangs under, in order of preference: the first that is planned for the
+    /// language becomes its parent.
     #[serde(default)]
-    pub related_weaknesses: Vec<Related>,
+    pub parents: Vec<String>,
+    /// Why the card deliberately has no parent although a related card exists. A card with
+    /// this set is asked as a root.
     #[serde(default)]
-    pub modes_of_introduction: Vec<String>,
-    #[serde(skip_deserializing)]
-    pub catalog: String,
+    pub detached: String,
+    /// Trait keys of which at least one must be present for the card to be asked; inherited
+    /// by descendants that name none. Empty means no restriction of its own.
+    #[serde(default)]
+    pub requires: Vec<String>,
+    /// `requires` as a trait bitmask.
+    #[serde(skip)]
+    pub requires_mask: Option<u64>,
+    /// Published rules the card was written from, for cards outside MITRE CWE.
+    #[serde(default)]
+    pub sources: Vec<Source>,
+    #[serde(default)]
+    pub status: Status,
+    /// False when the weakness cannot be seen in a single function; the prefilter skips it.
+    pub function_checkable: bool,
+    /// Why a card is not function-checkable.
+    #[serde(default)]
+    pub reason: String,
+    /// One yes/no question about the function's own code.
+    #[serde(default)]
+    pub question: String,
+    #[serde(default)]
+    pub present_when: Patterns,
+    /// Guards, constants and safe APIs that rule the weakness out.
+    #[serde(default)]
+    pub not_present_when: Patterns,
+    /// Sibling weakness IDs, each with what tells it apart from this one.
+    #[serde(default)]
+    pub distinguish_from: BTreeMap<String, String>,
 }
-impl Weakness {
-    /// Gated on the ID prefix, as in scorpius `is_mitre_cwe()`: other catalogs reuse the fields.
-    pub fn is_mitre_cwe(&self) -> bool {
-        self.id.starts_with("CWE-")
-    }
-    /// Primary CWE-1000 parent; non-MITRE entries hang under their `PeerOf` CWEs instead,
-    /// tried in catalog order, so reliability and performance entries are gated too.
-    /// Entries in [`DETACHED`] have no parent and are asked as roots.
-    fn parent_candidates(&self) -> Vec<&str> {
-        if DETACHED.iter().any(|(id, _)| *id == self.id) {
-            return vec![];
-        }
-        if !self.is_mitre_cwe() {
-            return self
-                .related_weaknesses
-                .iter()
-                .filter(|r| r.nature == "PeerOf")
-                .map(|r| r.cwe_id.as_str())
-                .collect();
-        }
-        let parents: Vec<&Related> = self
-            .related_weaknesses
-            .iter()
-            .filter(|r| r.nature == "ChildOf" && r.view_id == HIERARCHY_VIEW)
-            .collect();
-        parents
-            .iter()
-            .find(|r| r.ordinal == "Primary")
-            .or(parents.first())
-            .map(|r| r.cwe_id.as_str())
-            .into_iter()
-            .collect()
+/// A rule in a published standard that a card was written from.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Source {
+    pub standard: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub rule: String,
+}
+/// How far a card has been checked. Every card starts as a draft.
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum Status {
+    /// Written and mechanically checked only.
+    #[default]
+    Draft,
+    /// Read and accepted by a person.
+    Reviewed,
+    /// Measured against labelled code with a decision provider.
+    Validated,
+}
+impl Card {
+    fn language_applies(&self, language: &str) -> bool {
+        self.languages.is_empty() || self.languages.iter().any(|l| l == language)
     }
 }
 
-/// Entries planned as roots because a low answer for their catalog parent says little about
-/// them; measured with `betsy run recall` against exhaustive runs on SQLite functions.
-pub const DETACHED: &[(&str, &str)] = &[
-    (
-        "CWE-617",
-        "assertions are common in C, while its parent CWE-705 (control flow scoping) rarely applies",
-    ),
-    (
-        "REL-026",
-        "missing guards before any hazardous operation is broader than its PeerOf CWE-369 (divide by zero)",
-    ),
-];
-
+#[derive(Deserialize)]
+struct CardFile {
+    cards: BTreeMap<String, Card>,
+}
 pub struct Catalog {
-    pub entries: Vec<Weakness>,
+    /// Ordered by catalog, then by ID number.
+    pub entries: Vec<Card>,
+    /// Identity of every card file's path and content.
     pub hash: String,
     index: HashMap<String, usize>,
 }
 impl Catalog {
-    fn load() -> Result<Self> {
-        let mut entries = vec![];
+    /// Loads card files given as (path relative to the cards directory, content). A file in
+    /// a directory may hold only cards of the catalog the directory is named after.
+    fn load(files: &[(&str, &[u8])], traits: &Traits) -> Result<Self> {
+        let mut keyed = vec![];
         let mut hashes = vec![];
-        for (catalog, file, bytes) in CATALOG_FILES {
-            let mut list: Vec<Weakness> =
-                serde_json::from_slice(bytes).with_context(|| format!("parsing {file}"))?;
-            for w in &mut list {
-                w.catalog = catalog.into();
+        for (path, bytes) in files {
+            let file: CardFile =
+                serde_json::from_slice(bytes).with_context(|| format!("parsing {path}"))?;
+            hashes.push((*path, hash(bytes)));
+            let directory = path.split_once('/').map(|(d, _)| d);
+            for (raw, mut card) in file.cards {
+                let key = normalize_id(&raw).with_context(|| format!("invalid id {raw}"))?;
+                let (prefix, number) = key.split_once('-').expect("normalized ids have a prefix");
+                let rank = CATALOGS
+                    .iter()
+                    .position(|(p, _)| *p == prefix)
+                    .with_context(|| format!("{raw}: unknown catalog prefix {prefix}"))?;
+                let number: u64 = number.parse().expect("normalized ids end in a number");
+                card.catalog = CATALOGS[rank].1.into();
+                anyhow::ensure!(
+                    directory.is_none_or(|d| d == card.catalog),
+                    "{raw}: a {} card in {path}",
+                    card.catalog
+                );
+                card.id = raw;
+                keyed.push(((rank, number), key, card));
             }
-            entries.extend(list);
-            hashes.push((file, hash(bytes)));
         }
-        // Cards change questions and the plan, so they belong to the catalog's identity.
-        hashes.push(("cards.json", hash(CARDS_FILE)));
+        keyed.sort_by_key(|(order, ..)| *order);
         let mut index = HashMap::new();
-        for (i, w) in entries.iter().enumerate() {
-            let key = normalize_id(&w.id).with_context(|| format!("invalid id {}", w.id))?;
+        let mut entries = vec![];
+        for (i, (_, key, card)) in keyed.into_iter().enumerate() {
+            anyhow::ensure!(index.insert(key, i).is_none(), "duplicate card {}", card.id);
+            entries.push(card);
+        }
+        let resolve = |from: &str, what: &str, raw: &str| -> Result<String> {
+            let i = normalize_id(raw)
+                .and_then(|k| index.get(&k))
+                .with_context(|| format!("{from} {what} unknown weakness {raw}"))?;
+            let id = &entries[*i].id;
+            anyhow::ensure!(id != from, "{from} {what} itself");
+            Ok(id.clone())
+        };
+        let mut resolved = vec![];
+        for card in &entries {
+            let id = &card.id;
+            anyhow::ensure!(!card.name.trim().is_empty(), "{id}: a card needs a name");
+            if card.function_checkable {
+                anyhow::ensure!(
+                    !card.question.trim().is_empty()
+                        && !card.present_when.is_empty()
+                        && !card.not_present_when.is_empty(),
+                    "{id}: a checkable card needs a question, present_when and not_present_when"
+                );
+            } else {
+                anyhow::ensure!(
+                    !card.reason.trim().is_empty(),
+                    "{id}: an uncheckable card needs a reason"
+                );
+            }
+            for (k, v) in card.present_when.iter().chain(&card.not_present_when) {
+                anyhow::ensure!(
+                    k == "any" || LANGUAGES.contains(&k.as_str()),
+                    "{id}: unknown language {k}"
+                );
+                anyhow::ensure!(
+                    v.iter().all(|p| !p.trim().is_empty()),
+                    "{id}: empty pattern"
+                );
+            }
+            for l in &card.languages {
+                anyhow::ensure!(
+                    LANGUAGES.contains(&l.as_str()),
+                    "{id}: unknown language {l}"
+                );
+            }
             anyhow::ensure!(
-                index.insert(key, i).is_none(),
-                "duplicate weakness {}",
-                w.id
+                card.detached.trim().is_empty() || card.parents.is_empty(),
+                "{id}: a detached card has no parents"
             );
+            for source in &card.sources {
+                anyhow::ensure!(
+                    !source.standard.trim().is_empty(),
+                    "{id}: a source needs a standard"
+                );
+            }
+            let mut mask = 0;
+            for k in &card.requires {
+                mask |= traits
+                    .bit(k)
+                    .with_context(|| format!("{id} requires unknown trait {k}"))?;
+            }
+            let parents = card
+                .parents
+                .iter()
+                .map(|p| resolve(id, "hangs under", p))
+                .collect::<Result<Vec<_>>>()?;
+            let distinguish = card
+                .distinguish_from
+                .iter()
+                .map(|(other, note)| Ok((resolve(id, "distinguishes", other)?, note.clone())))
+                .collect::<Result<BTreeMap<_, _>>>()?;
+            resolved.push((parents, distinguish, mask));
+        }
+        for (card, (parents, distinguish, mask)) in entries.iter_mut().zip(resolved) {
+            card.parents = parents;
+            card.distinguish_from = distinguish;
+            card.requires_mask = (mask != 0).then_some(mask);
         }
         Ok(Self {
             entries,
@@ -166,71 +243,106 @@ impl Catalog {
             index,
         })
     }
-    pub fn get(&self, raw: &str) -> Option<&Weakness> {
+    pub fn get(&self, raw: &str) -> Option<&Card> {
         normalize_id(raw).and_then(|k| self.index.get(&k).map(|&i| &self.entries[i]))
     }
 }
 pub fn catalog() -> &'static Catalog {
     static CATALOG: OnceLock<Catalog> = OnceLock::new();
-    CATALOG.get_or_init(|| Catalog::load().expect("embedded weakness catalogs are valid"))
+    CATALOG.get_or_init(|| {
+        Catalog::load(CARD_FILES, traits()).expect("embedded weakness cards are valid")
+    })
 }
 
-/// An observable property of a function, asked once before any weakness so that weaknesses
+/// An observable property of a function, settled once before any weakness so that weaknesses
 /// which cannot apply without it are never asked.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Trait {
     pub key: String,
+    /// True when the parser alone settles the trait: present when a `present_if` node kind
+    /// occurs in the function, absent when none does and the function parses cleanly. Such a
+    /// trait is never asked, is not shown to the provider, and applies without `--traits`.
+    #[serde(default)]
+    pub syntax: bool,
+    #[serde(default)]
     pub question: String,
-    #[serde(rename = "true")]
+    #[serde(default, rename = "true")]
     pub criteria_true: String,
-    #[serde(rename = "false")]
+    #[serde(default, rename = "false")]
     pub criteria_false: String,
-    /// Per language, syntax node kinds whose presence proves the trait without asking.
-    /// Absence proves nothing: macros, callees and aliases can hide any construct.
+    /// Per language, syntax node kinds (named or anonymous) whose presence proves the trait.
+    /// For an asked trait absence proves nothing: macros, callees and aliases can hide it.
+    /// A syntax trait is undecided, and so counts as present, in a language it does not list.
     #[serde(default)]
     pub present_if: BTreeMap<String, Vec<String>>,
+    /// Per language, identifiers whose use proves the trait, for constructs that are spelled
+    /// as a call rather than as syntax, such as `div_euclid` for division.
+    #[serde(default)]
+    pub present_if_names: BTreeMap<String, Vec<String>>,
 }
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TraitFile {
     traits: Vec<Trait>,
-    requires: BTreeMap<String, Vec<String>>,
 }
 pub struct Traits {
     pub traits: Vec<Trait>,
-    /// Weakness ID to the traits, as a bitmask, of which at least one must be present.
-    pub requires: HashMap<String, u64>,
     pub hash: String,
 }
 impl Traits {
-    fn load() -> Result<Self> {
-        let file: TraitFile = serde_json::from_slice(TRAITS_FILE).context("parsing traits.json")?;
+    fn load(bytes: &[u8]) -> Result<Self> {
+        let file: TraitFile = serde_json::from_slice(bytes).context("parsing traits.json")?;
         anyhow::ensure!(file.traits.len() <= 64, "at most 64 traits fit a mask");
-        let bit: HashMap<&str, u64> = file
-            .traits
-            .iter()
-            .enumerate()
-            .map(|(i, t)| (t.key.as_str(), 1u64 << i))
-            .collect();
-        anyhow::ensure!(bit.len() == file.traits.len(), "duplicate trait key");
-        let mut requires = HashMap::new();
-        for (id, keys) in &file.requires {
-            let w = catalog()
-                .get(id)
-                .with_context(|| format!("traits.json tags unknown weakness {id}"))?;
-            anyhow::ensure!(!keys.is_empty(), "{id} requires no traits");
-            let mut mask = 0;
-            for k in keys {
-                mask |= bit
-                    .get(k.as_str())
-                    .with_context(|| format!("{id} requires unknown trait {k}"))?;
+        let keys: BTreeSet<&str> = file.traits.iter().map(|t| t.key.as_str()).collect();
+        anyhow::ensure!(keys.len() == file.traits.len(), "duplicate trait key");
+        for t in &file.traits {
+            let key = &t.key;
+            for (language, kinds) in t.present_if.iter().chain(&t.present_if_names) {
+                anyhow::ensure!(
+                    LANGUAGES.contains(&language.as_str()) && !kinds.is_empty(),
+                    "trait {key}: bad present_if for {language}"
+                );
             }
-            requires.insert(w.id.clone(), mask);
+            // Names only add to what node kinds find; alone they could not settle absence.
+            for language in t.present_if_names.keys() {
+                anyhow::ensure!(
+                    t.present_if.contains_key(language),
+                    "trait {key}: present_if_names for {language} needs present_if too"
+                );
+            }
+            if t.syntax {
+                anyhow::ensure!(
+                    !t.present_if.is_empty(),
+                    "syntax trait {key} needs present_if"
+                );
+            } else {
+                anyhow::ensure!(
+                    [&t.question, &t.criteria_true, &t.criteria_false]
+                        .iter()
+                        .all(|s| !s.trim().is_empty()),
+                    "asked trait {key} needs a question and both criteria"
+                );
+            }
         }
         Ok(Self {
             traits: file.traits,
-            requires,
-            hash: hash(TRAITS_FILE),
+            hash: hash(bytes),
         })
+    }
+    fn bit(&self, key: &str) -> Option<u64> {
+        self.traits
+            .iter()
+            .position(|t| t.key == key)
+            .map(|i| 1 << i)
+    }
+    /// Mask of the traits the parser settles on its own.
+    pub fn syntax_mask(&self) -> u64 {
+        self.traits
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.syntax)
+            .fold(0, |m, (i, _)| m | 1 << i)
     }
     /// Mask of the named trait keys; unknown names are ignored.
     pub fn mask(&self, names: &[String]) -> u64 {
@@ -250,39 +362,63 @@ impl Traits {
             .collect()
     }
 }
-/// Traits whose `present_if` node kinds occur in the function's own syntax tree. A snippet that
-/// does not parse cleanly can still prove presence, since only presence is ever concluded.
-pub fn proven_traits(language: &str, source: &str) -> u64 {
+/// What the parser can say about one function's traits.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Syntax {
+    /// Traits one of whose `present_if` node kinds occurs in the function.
+    pub found: u64,
+    /// Syntax traits the parser has settled as absent: the language lists node kinds for
+    /// them, none occurs, and the function parsed without error.
+    pub absent: u64,
+}
+/// Scans the function's own syntax tree for trait node kinds. A snippet that does not parse
+/// cleanly can still prove presence, but never absence.
+pub fn scan_traits(language: &str, source: &str) -> Syntax {
     let t = traits();
-    let wanted: Vec<(u64, &[String])> = t
+    const NONE: &[String] = &[];
+    let wanted: Vec<(u64, &[String], &[String])> = t
         .traits
         .iter()
         .enumerate()
         .filter_map(|(i, tr)| {
+            let names = tr
+                .present_if_names
+                .get(language)
+                .map_or(NONE, Vec::as_slice);
             tr.present_if
                 .get(language)
-                .map(|k| (1u64 << i, k.as_slice()))
+                .map(|k| (1u64 << i, k.as_slice(), names))
         })
         .collect();
     if wanted.is_empty() {
-        return 0;
+        return Syntax::default();
     }
     let mut parser = tree_sitter::Parser::new();
     let Ok(grammar) = crate::languages::grammar(language) else {
-        return 0;
+        return Syntax::default();
     };
     if parser.set_language(&grammar).is_err() {
-        return 0;
+        return Syntax::default();
     }
     let Some(tree) = parser.parse(source, None) else {
-        return 0;
+        return Syntax::default();
     };
     let mut found = 0;
     let mut cursor = tree.walk();
     'walk: loop {
-        let kind = cursor.node().kind();
-        for (bit, kinds) in &wanted {
-            if kinds.iter().any(|k| k == kind) {
+        let node = cursor.node();
+        let kind = node.kind();
+        // Identifier-like leaves only: a name inside a string or comment proves nothing. Any
+        // use counts, not only a call, since a function can be passed by name and then called;
+        // an unrelated identifier of the same name only costs a question. A Rust raw
+        // identifier such as `r#div` names the same item as `div`.
+        let name = (node.child_count() == 0 && kind.ends_with("identifier"))
+            .then(|| node.utf8_text(source.as_bytes()).ok())
+            .flatten()
+            .map(|n| n.strip_prefix("r#").unwrap_or(n));
+        for (bit, kinds, names) in &wanted {
+            if kinds.iter().any(|k| k == kind) || name.is_some_and(|n| names.iter().any(|x| x == n))
+            {
                 found |= bit;
             }
         }
@@ -298,41 +434,24 @@ pub fn proven_traits(language: &str, source: &str) -> u64 {
             }
         }
     }
-    found
+    let decidable = wanted.iter().fold(0, |m, (bit, ..)| m | bit) & t.syntax_mask();
+    let absent = if tree.root_node().has_error() {
+        0
+    } else {
+        decidable & !found
+    };
+    Syntax { found, absent }
+}
+/// Asked traits whose syntax occurs in the function: the parser facts shown to the provider.
+/// Syntax traits are left out, since they only steer which cards are asked.
+pub fn proven_traits(language: &str, source: &str) -> u64 {
+    scan_traits(language, source).found & !traits().syntax_mask()
 }
 pub fn traits() -> &'static Traits {
     static TRAITS: OnceLock<Traits> = OnceLock::new();
-    TRAITS.get_or_init(|| Traits::load().expect("embedded traits are valid"))
+    TRAITS.get_or_init(|| Traits::load(TRAITS_FILE).expect("embedded traits are valid"))
 }
 
-/// Code patterns keyed by `any` or a betsy language; see [`card_languages`].
-pub type Patterns = BTreeMap<String, Vec<String>>;
-/// A detection card: how to decide one weakness from one function's own code. It replaces the
-/// catalog prose in the question, which was written for people reading a catalogue.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Card {
-    /// False when the weakness cannot be seen in a single function; the prefilter skips it.
-    pub function_checkable: bool,
-    /// Why a card is not function-checkable.
-    #[serde(default)]
-    pub reason: String,
-    /// One yes/no question about the function's own code.
-    #[serde(default)]
-    pub question: String,
-    #[serde(default)]
-    pub present_when: Patterns,
-    /// Guards, constants and safe APIs that rule the weakness out.
-    #[serde(default)]
-    pub not_present_when: Patterns,
-    /// Sibling weakness IDs, each with what tells it apart from this one.
-    #[serde(default)]
-    pub distinguish_from: BTreeMap<String, String>,
-}
-#[derive(Deserialize)]
-struct CardFile {
-    cards: BTreeMap<String, Card>,
-}
 /// Card pattern keys a language reads, broadest first: C++ code also shows C patterns, and
 /// TypeScript code JavaScript ones.
 fn card_languages(language: &str) -> &'static [&'static str] {
@@ -347,83 +466,13 @@ fn card_languages(language: &str) -> &'static [&'static str] {
         _ => &["any"],
     }
 }
-fn patterns_for<'a>(p: &'a Patterns, language: &str) -> Vec<&'a str> {
+pub fn patterns_for<'a>(p: &'a Patterns, language: &str) -> Vec<&'a str> {
     card_languages(language)
         .iter()
         .filter_map(|k| p.get(*k))
         .flatten()
         .map(String::as_str)
         .collect()
-}
-pub struct Cards {
-    /// Keyed by the catalog's own spelling of the weakness ID.
-    pub cards: HashMap<String, Card>,
-}
-impl Cards {
-    fn load(bytes: &[u8]) -> Result<Self> {
-        const KEYS: [&str; 8] = [
-            "any",
-            "c",
-            "cpp",
-            "javascript",
-            "typescript",
-            "tsx",
-            "python",
-            "rust",
-        ];
-        let file: CardFile = serde_json::from_slice(bytes).context("parsing cards.json")?;
-        let mut cards = HashMap::new();
-        for (raw, mut card) in file.cards {
-            let id = catalog()
-                .get(&raw)
-                .with_context(|| format!("card for unknown weakness {raw}"))?
-                .id
-                .clone();
-            if card.function_checkable {
-                anyhow::ensure!(
-                    !card.question.trim().is_empty()
-                        && !card.present_when.is_empty()
-                        && !card.not_present_when.is_empty(),
-                    "{id}: a checkable card needs a question, present_when and not_present_when"
-                );
-            } else {
-                anyhow::ensure!(
-                    !card.reason.trim().is_empty(),
-                    "{id}: an uncheckable card needs a reason"
-                );
-            }
-            for (k, v) in card.present_when.iter().chain(&card.not_present_when) {
-                anyhow::ensure!(KEYS.contains(&k.as_str()), "{id}: unknown language {k}");
-                anyhow::ensure!(
-                    v.iter().all(|p| !p.trim().is_empty()),
-                    "{id}: empty pattern"
-                );
-            }
-            card.distinguish_from = card
-                .distinguish_from
-                .into_iter()
-                .map(|(other, note)| {
-                    let w = catalog()
-                        .get(&other)
-                        .with_context(|| format!("{id} distinguishes unknown weakness {other}"))?;
-                    anyhow::ensure!(w.id != id, "{id} distinguishes itself");
-                    Ok((w.id.clone(), note))
-                })
-                .collect::<Result<_>>()?;
-            anyhow::ensure!(
-                cards.insert(id.clone(), card).is_none(),
-                "duplicate card {id}"
-            );
-        }
-        Ok(Self { cards })
-    }
-    pub fn get(&self, id: &str) -> Option<&Card> {
-        self.cards.get(id)
-    }
-}
-pub fn cards() -> &'static Cards {
-    static CARDS: OnceLock<Cards> = OnceLock::new();
-    CARDS.get_or_init(|| Cards::load(CARDS_FILE).expect("embedded detection cards are valid"))
 }
 
 /// Normalizes `CWE-89`, `cwe_89`, `89`, `REL-001` and `rel 1` to `PREFIX-N` without zero padding.
@@ -442,72 +491,12 @@ pub fn normalize_id(raw: &str) -> Option<String> {
     (n > 0).then(|| format!("{}-{n}", if prefix.is_empty() { "CWE" } else { prefix }))
 }
 
-/// Platform names a betsy language satisfies in catalog `applicable_platforms`.
-fn platform_names(language: &str) -> &'static [&'static str] {
-    match language {
-        "c" => &["C", "Memory-Unsafe"],
-        "cpp" => &["C++", "C", "Memory-Unsafe", "Object-Oriented"],
-        "javascript" => &["JavaScript", "Object-Oriented", "Interpreted"],
-        "typescript" | "tsx" => &["TypeScript", "JavaScript", "Object-Oriented"],
-        "python" => &["Python", "Object-Oriented", "Interpreted"],
-        "rust" => &["Rust", "Memory-Unsafe"],
-        _ => &[],
-    }
-}
-fn hardware_only(w: &Weakness) -> bool {
-    let hw = |p: &Platform| {
-        matches!(p.name.as_str(), "Verilog" | "VHDL" | "System on Chip")
-            || p.name.ends_with("Hardware")
-            || matches!(
-                p.class.as_str(),
-                "System on Chip" | "Hardware Description Language"
-            )
-            || p.class.ends_with("Hardware")
-    };
-    let specific: Vec<&Platform> = w
-        .applicable_platforms
-        .iter()
-        .filter(|p| matches!(p.kind.as_str(), "Language" | "Technology"))
-        .filter(|p| !p.class.starts_with("Not "))
-        .collect();
-    !specific.is_empty() && specific.iter().all(|p| hw(p))
-}
-/// True when every listed mode of introduction lies outside source code.
-fn introduced_outside_code(w: &Weakness) -> bool {
-    const CODE: [&str; 5] = [
-        "Implementation",
-        "Architecture and Design",
-        "Design",
-        "Integration",
-        "Porting",
-    ];
-    !w.modes_of_introduction.is_empty()
-        && !w
-            .modes_of_introduction
-            .iter()
-            .any(|m| CODE.contains(&m.as_str()))
-}
-fn language_applies(w: &Weakness, language: &str) -> bool {
-    let langs: Vec<&Platform> = w
-        .applicable_platforms
-        .iter()
-        .filter(|p| p.kind == "Language" || p.kind.is_empty())
-        .collect();
-    if langs.is_empty() || langs.iter().any(|p| p.class == "Not Language-Specific") {
-        return true;
-    }
-    let names = platform_names(language);
-    langs
-        .iter()
-        .any(|p| names.contains(&p.name.as_str()) || names.contains(&p.class.as_str()))
-}
-
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     /// Asked, and reported as a finding when above threshold.
     Finding,
-    /// Asked only to route the hierarchy (MITRE Prohibited/Discouraged/Pillar entries).
+    /// Asked only to route the hierarchy (cards marked `gate`).
     Gate,
 }
 #[derive(Debug, Clone, Serialize)]
@@ -561,6 +550,12 @@ impl Plan {
     pub fn depth(&self) -> u32 {
         self.nodes.iter().map(|n| n.wave).max().unwrap_or(0)
     }
+    /// Mask of every trait some node requires; other traits never change what is asked.
+    pub fn traits_used(&self) -> u64 {
+        self.nodes
+            .iter()
+            .fold(0, |m, n| m | n.requires.unwrap_or(0))
+    }
     /// Questions asked in round 1 whatever the answers.
     pub fn first_wave(&self) -> usize {
         self.nodes.iter().filter(|n| n.wave == 1).count()
@@ -579,11 +574,25 @@ pub fn resolve_ids(raw: &[String]) -> Result<BTreeSet<String>> {
         })
         .collect()
 }
+/// Resolves an explicit selection. A card that is not function-checkable has no question to
+/// ask, so naming one is an error rather than a silent skip.
+pub fn resolve_only(raw: &[String]) -> Result<BTreeSet<String>> {
+    let only = resolve_ids(raw)?;
+    for id in &only {
+        let card = catalog().get(id).expect("resolved id exists");
+        anyhow::ensure!(
+            card.function_checkable,
+            "{id} cannot be checked within one function: {}",
+            card.reason.trim()
+        );
+    }
+    Ok(only)
+}
 
 pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
     let cat = catalog();
     let exclude = resolve_ids(&selection.exclude)?;
-    let only = resolve_ids(&selection.only)?;
+    let only = resolve_only(&selection.only)?;
     let mut skipped = vec![];
     let mut kept: BTreeMap<&str, Role> = BTreeMap::new();
     for w in &cat.entries {
@@ -591,14 +600,10 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
             Some("excluded by selection")
         } else if !only.is_empty() {
             (!only.contains(&w.id)).then_some("not in explicit selection")
-        } else if hardware_only(w) {
-            Some("hardware-only platform")
-        } else if introduced_outside_code(w) {
-            Some("introduced outside source code")
-        } else if !language_applies(w, language) {
+        } else if !w.language_applies(language) {
             Some("language not applicable")
-        } else if cards().get(&w.id).is_some_and(|c| !c.function_checkable) {
-            Some("not checkable within one function (detection card)")
+        } else if !w.function_checkable {
+            Some("not checkable within one function")
         } else {
             None
         };
@@ -608,24 +613,20 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
                 reason: r.into(),
             }),
             None => {
-                let gate = only.is_empty()
-                    && w.is_mitre_cwe()
-                    && (matches!(w.mapping_usage.as_str(), "Prohibited" | "Discouraged")
-                        || w.abstraction == "Pillar");
+                let gate = only.is_empty() && w.gate;
                 kept.insert(&w.id, if gate { Role::Gate } else { Role::Finding });
             }
         }
     }
-    // Primary CWE-1000 parent among kept entries; an entry whose parent was skipped is a root.
+    // First parent among kept entries; an entry whose parents were all skipped is a root.
     let parent_of = |id: &str| -> Option<&str> {
         if !only.is_empty() {
             return None;
         }
         cat.get(id).and_then(|w| {
-            w.parent_candidates()
-                .into_iter()
-                .filter_map(|p| cat.get(p))
-                .map(|p| p.id.as_str())
+            w.parents
+                .iter()
+                .map(String::as_str)
                 .find(|p| kept.contains_key(p))
         })
     };
@@ -693,10 +694,10 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
         .filter(|&i| nodes[i].parent.is_none())
         .collect();
     // An explicit selection is asked flat and unconditionally.
-    let tags = &traits().requires;
+    let tag = |id: &str| cat.get(id).and_then(|w| w.requires_mask);
     if only.is_empty() {
         for n in &mut nodes {
-            n.requires = tags.get(&n.id).copied();
+            n.requires = tag(&n.id);
         }
     }
     // Parents precede children only within a tree, so assign waves and inherit tags top-down.
@@ -708,7 +709,7 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
         for c in children {
             nodes[c].spliced = only_child;
             nodes[c].wave = if only_child { wave } else { wave + 1 };
-            if nodes[c].requires.is_none() && !tags.contains_key(&nodes[c].id) {
+            if nodes[c].requires.is_none() {
                 nodes[c].requires = requires;
             }
             stack.push(c);
@@ -739,15 +740,6 @@ pub fn plan(language: &str, selection: &Selection) -> Result<Plan> {
     })
 }
 
-fn compact(text: &str, max: usize) -> String {
-    let s = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if s.chars().count() <= max {
-        return s;
-    }
-    let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
-    out.push('…');
-    out
-}
 /// One deterministic yes/no question about one weakness.
 #[derive(Debug, Clone, Serialize)]
 pub struct Question {
@@ -771,89 +763,6 @@ pub fn trait_question(t: &Trait) -> Question {
         hash,
     }
 }
-/// Phrases that mark a catalog sentence as ruling cases out rather than describing the weakness.
-const EXCLUDING: [&str; 9] = [
-    "do not count",
-    "does not count",
-    "not counted",
-    "not this weakness",
-    "not a defect",
-    "not defects",
-    "not findings",
-    "is not about",
-    "does not cover",
-];
-/// Verdicts that rule a case out only when they end a clause: "is acceptable." but not
-/// "is acceptable for a handful of rows", nor "not affected by the HTML encoding".
-const EXCLUDING_VERDICTS: [&str; 13] = [
-    "not affected",
-    "is fine",
-    "are fine",
-    "is acceptable",
-    "are acceptable",
-    "is permitted",
-    "are permitted",
-    "is allowed",
-    "are allowed",
-    "is compliant",
-    "are compliant",
-    "is out of scope",
-    "are out of scope",
-];
-fn excludes(sentence: &str) -> bool {
-    let s = sentence.to_lowercase();
-    if s.starts_with("of these") || s.starts_with("of those") {
-        // Points back at an earlier sentence, so it means nothing on its own.
-        return false;
-    }
-    EXCLUDING.iter().any(|p| s.contains(p))
-        || EXCLUDING_VERDICTS.iter().any(|p| {
-            s.match_indices(p).any(|(i, _)| {
-                let rest = &s[i + p.len()..];
-                rest.is_empty()
-                    || rest.starts_with(['.', ',', ';', ':'])
-                    || [" as ", " here", " too", " and ", " nor", " when", " since"]
-                        .iter()
-                        .any(|t| rest.starts_with(t))
-            })
-        })
-}
-/// Splits whitespace-collapsed prose into sentences at `.`, `?` or `!` followed by a space and an
-/// upper-case letter, keeping common abbreviations whole.
-fn sentences(text: &str) -> Vec<&str> {
-    let mut out = vec![];
-    let mut start = 0;
-    let bytes = text.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
-        if !matches!(b, b'.' | b'?' | b'!') || bytes.get(i + 1) != Some(&b' ') {
-            continue;
-        }
-        if !bytes.get(i + 2).is_some_and(|c| c.is_ascii_uppercase()) {
-            continue;
-        }
-        let head = &text[start..=i];
-        if ["e.g.", "i.e.", "vs.", "cf."]
-            .iter()
-            .any(|a| head.to_lowercase().ends_with(a))
-        {
-            continue;
-        }
-        out.push(head);
-        start = i + 2;
-    }
-    if start < text.len() {
-        out.push(&text[start..]);
-    }
-    out
-}
-/// Separates the sentences that rule cases out ("... do not count", "... are fine") from the rest
-/// of an entry's prose, so they reach the false criterion instead of falling after the cut.
-pub fn split_exclusions(text: &str) -> (String, String) {
-    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    let (excluded, kept): (Vec<&str>, Vec<&str>) =
-        sentences(&text).into_iter().partition(|s| excludes(s));
-    (kept.join(" "), excluded.join(" "))
-}
 fn sentence_list(items: &[&str]) -> String {
     items
         .iter()
@@ -862,13 +771,9 @@ fn sentence_list(items: &[&str]) -> String {
         .join("; ")
 }
 const OUTSIDE: &str = "it would only arise outside this function";
-/// Question text from a detection card; gates keep their recall-oriented framing.
-fn card_question(
-    w: &Weakness,
-    card: &Card,
-    role: &Role,
-    language: &str,
-) -> (String, String, String) {
+/// Question text from a card; gates keep their recall-oriented framing.
+fn card_question(card: &Card, role: &Role, language: &str) -> (String, String, String) {
+    let w = card;
     let present = sentence_list(&patterns_for(&card.present_when, language));
     match role {
         Role::Finding => {
@@ -902,60 +807,12 @@ fn card_question(
         ),
     }
 }
-/// Question text from catalog prose, for entries without a detection card.
-fn prose_question(w: &Weakness, role: &Role) -> (String, String, String) {
-    let detail = if w.extended_description.is_empty() {
-        &w.description
-    } else {
-        &w.extended_description
-    };
-    match role {
-        Role::Finding => {
-            let (detail, exclusions) = split_exclusions(detail);
-            let criteria_false = if exclusions.is_empty() {
-                format!("The function's code does not exhibit this weakness, or {OUTSIDE}.")
-            } else {
-                format!(
-                    "{} Also no when the function's code does not exhibit this weakness, or {OUTSIDE}.",
-                    compact(&exclusions, 600)
-                )
-            };
-            (
-                format!(
-                    "Does this function's own code contain the weakness {} \"{}\"? {}",
-                    w.id,
-                    w.name,
-                    compact(&w.description, 400)
-                ),
-                format!(
-                    "The function's code exhibits {}: {}",
-                    w.name,
-                    compact(&detail, 600)
-                ),
-                criteria_false,
-            )
-        }
-        Role::Gate => (
-            format!(
-                "Is it plausible that this function's code contains any weakness in the category {} \"{}\"? {}",
-                w.id,
-                w.name,
-                compact(&w.description, 400)
-            ),
-            format!("The function plausibly involves {}.", w.name),
-            "The function clearly does nothing related to this category.".to_string(),
-        ),
-    }
-}
-/// The question for one planned weakness in one language: from its detection card when it has
-/// one, otherwise from the catalog prose.
+/// The question for one planned weakness in one language. Only function-checkable cards are
+/// ever planned; asking about any other is a caller bug.
 pub fn question(id: &str, role: &Role, language: &str) -> Question {
     let w = catalog().get(id).expect("planned weakness exists");
-    let (instructions, criteria_true, criteria_false) =
-        match cards().get(&w.id).filter(|c| c.function_checkable) {
-            Some(card) => card_question(w, card, role, language),
-            None => prose_question(w, role),
-        };
+    assert!(w.function_checkable, "{} has no question", w.id);
+    let (instructions, criteria_true, criteria_false) = card_question(w, role, language);
     let hash = identity(&(&instructions, &criteria_true, &criteria_false));
     Question {
         weakness_id: w.id.clone(),
@@ -970,36 +827,6 @@ pub fn question(id: &str, role: &Role, language: &str) -> Question {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn weakness(id: &str) -> Weakness {
-        Weakness {
-            id: id.into(),
-            name: "w".into(),
-            description: String::new(),
-            extended_description: String::new(),
-            abstraction: String::new(),
-            mapping_usage: String::new(),
-            applicable_platforms: vec![],
-            related_weaknesses: vec![],
-            modes_of_introduction: vec![],
-            catalog: String::new(),
-        }
-    }
-    fn platform(kind: &str, class: &str, name: &str) -> Platform {
-        Platform {
-            kind: kind.into(),
-            class: class.into(),
-            name: name.into(),
-        }
-    }
-    fn related(nature: &str, id: &str, view: &str, ordinal: &str) -> Related {
-        Related {
-            nature: nature.into(),
-            cwe_id: id.into(),
-            view_id: view.into(),
-            ordinal: ordinal.into(),
-        }
-    }
 
     #[test]
     fn ids_normalize_without_padding() {
@@ -1018,153 +845,205 @@ mod tests {
         }
     }
 
+    fn load(cards: &str) -> Result<Catalog> {
+        load_in("cards.json", cards)
+    }
+    fn load_in(path: &str, cards: &str) -> Result<Catalog> {
+        let file = format!(r#"{{"cards":{{{cards}}}}}"#);
+        Catalog::load(&[(path, file.as_bytes())], traits())
+    }
+    const OK: &str = r#""function_checkable":true,"question":"q?","present_when":{"c":["p"]},"not_present_when":{"any":["n"]}"#;
+
     #[test]
-    fn language_platforms_filter_only_named_languages() {
-        let mut w = weakness("CWE-1");
-        assert!(language_applies(&w, "python"));
-        w.applicable_platforms = vec![platform("Language", "", "C")];
-        assert!(language_applies(&w, "c") && language_applies(&w, "cpp"));
-        assert!(!language_applies(&w, "python") && !language_applies(&w, "rust"));
-        w.applicable_platforms = vec![platform("Language", "Memory-Unsafe", "")];
-        assert!(language_applies(&w, "rust") && !language_applies(&w, "javascript"));
-        w.applicable_platforms
-            .push(platform("Language", "Not Language-Specific", ""));
-        assert!(language_applies(&w, "javascript"));
-        w.applicable_platforms = vec![platform("Technology", "Web Based", "")];
-        assert!(
-            language_applies(&w, "python"),
-            "technology platforms do not restrict language"
+    fn catalog_and_order_come_from_the_id() {
+        let c = load(&format!(
+            r#""PERF-002":{{"name":"p",{OK}}},"REL-010":{{"name":"r",{OK}}},
+            "REL-9":{{"name":"r",{OK}}},"cwe-787":{{"name":"w",{OK}}}"#
+        ))
+        .unwrap();
+        let got: Vec<(&str, &str)> = c
+            .entries
+            .iter()
+            .map(|w| (w.id.as_str(), w.catalog.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("cwe-787", "security"),
+                ("REL-9", "reliability"),
+                ("REL-010", "reliability"),
+                ("PERF-002", "performance")
+            ]
         );
+        assert!(load(&format!(r#""XYZ-1":{{"name":"x",{OK}}}"#)).is_err());
     }
 
     #[test]
-    fn hardware_only_needs_every_specific_platform_to_be_hardware() {
-        let mut w = weakness("CWE-1");
-        assert!(!hardware_only(&w));
-        w.applicable_platforms = vec![
-            platform("Language", "", "Verilog"),
-            platform("Technology", "System on Chip", ""),
-            platform("Language", "Not Language-Specific", ""),
+    fn languages_restrict_a_card_only_when_listed() {
+        let c = load(&format!(
+            r#""CWE-1":{{"name":"a",{OK}}},"CWE-2":{{"name":"b","languages":["c","cpp"],{OK}}}"#
+        ))
+        .unwrap();
+        let (all, some) = (c.get("CWE-1").unwrap(), c.get("CWE-2").unwrap());
+        assert!(all.language_applies("python") && all.language_applies("go"));
+        assert!(some.language_applies("c") && some.language_applies("cpp"));
+        assert!(!some.language_applies("python") && !some.language_applies("go"));
+    }
+
+    #[test]
+    fn files_merge_and_a_catalog_directory_holds_only_its_catalog() {
+        let card = |id: &str| format!(r#"{{"cards":{{"{id}":{{"name":"n",{OK}}}}}}}"#);
+        let (a, b, c) = (card("CWE-1"), card("REL-1"), card("CWE-1"));
+        let two = Catalog::load(
+            &[
+                ("security/a.json", a.as_bytes()),
+                ("reliability/b.json", b.as_bytes()),
+            ],
+            traits(),
+        )
+        .unwrap();
+        assert_eq!(two.entries.len(), 2);
+        let moved = Catalog::load(
+            &[
+                ("security/z.json", a.as_bytes()),
+                ("reliability/b.json", b.as_bytes()),
+            ],
+            traits(),
+        )
+        .unwrap();
+        assert_ne!(two.hash, moved.hash, "the hash covers file paths");
+        assert!(load_in(
+            "reliability/a.json",
+            &format!(r#""CWE-1":{{"name":"n",{OK}}}"#)
+        )
+        .is_err());
+        let duplicate = [
+            ("security/a.json", a.as_bytes()),
+            ("security/c.json", c.as_bytes()),
         ];
-        assert!(hardware_only(&w));
-        w.applicable_platforms.push(platform("Language", "", "C"));
-        assert!(!hardware_only(&w));
+        assert!(Catalog::load(&duplicate, traits()).is_err());
     }
 
     #[test]
-    fn modes_outside_code_skip_only_when_none_touch_code() {
-        let mut w = weakness("CWE-1");
-        assert!(!introduced_outside_code(&w));
-        w.modes_of_introduction = vec!["Operation".into(), "Build and Compilation".into()];
-        assert!(introduced_outside_code(&w));
-        w.modes_of_introduction.push("Implementation".into());
-        assert!(!introduced_outside_code(&w));
+    fn parents_keep_their_order_and_detached_cards_have_none() {
+        let c = load(&format!(
+            r#""CWE-1":{{"name":"a",{OK}}},"CWE-2":{{"name":"b",{OK}}},
+            "REL-5":{{"name":"c","parents":["2","cwe_1"],{OK}}},
+            "REL-026":{{"name":"d","detached":"broader than CWE-1",{OK}}}"#
+        ))
+        .unwrap();
+        assert_eq!(c.get("REL-5").unwrap().parents, ["CWE-2", "CWE-1"]);
+        assert!(load(&format!(
+            r#""CWE-1":{{"name":"a",{OK}}},
+            "REL-026":{{"name":"d","detached":"why","parents":["CWE-1"],{OK}}}"#
+        ))
+        .is_err());
     }
 
     #[test]
-    fn parents_prefer_primary_cwe_1000_edge_and_peers_for_other_catalogs() {
-        let mut w = weakness("CWE-5");
-        w.related_weaknesses = vec![
-            related("ChildOf", "CWE-1", "CWE-699", "Primary"),
-            related("ChildOf", "CWE-2", HIERARCHY_VIEW, ""),
-            related("ChildOf", "CWE-3", HIERARCHY_VIEW, "Primary"),
-            related("PeerOf", "CWE-4", HIERARCHY_VIEW, ""),
-        ];
-        assert_eq!(w.parent_candidates(), ["CWE-3"]);
-        w.related_weaknesses.remove(2);
-        assert_eq!(w.parent_candidates(), ["CWE-2"]);
-        w.id = "REL-5".into();
-        assert_eq!(w.parent_candidates(), ["CWE-4"]);
-        w.id = "REL-026".into();
-        assert!(w.parent_candidates().is_empty());
+    fn requires_become_a_trait_mask() {
+        let key = |i: usize| traits().traits[i].key.clone();
+        let c = load(&format!(
+            r#""CWE-1":{{"name":"a","requires":["{}","{}"],{OK}}},"CWE-2":{{"name":"b",{OK}}}"#,
+            key(0),
+            key(2)
+        ))
+        .unwrap();
+        assert_eq!(c.get("CWE-1").unwrap().requires_mask, Some(0b101));
+        assert_eq!(c.get("CWE-2").unwrap().requires_mask, None);
+        assert!(load(&format!(
+            r#""CWE-1":{{"name":"a","requires":["nope"],{OK}}}"#
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn sources_and_status_are_validated() {
+        let c = load(&format!(
+            r#""REL-1":{{"name":"a","status":"reviewed",
+            "sources":[{{"standard":"MISRA C:2012","rule":"Rule 1.3"}},{{"standard":"S"}}],{OK}}},
+            "REL-2":{{"name":"b",{OK}}}"#
+        ))
+        .unwrap();
+        let card = c.get("REL-1").unwrap();
+        assert_eq!(card.status, Status::Reviewed);
+        assert_eq!(card.sources[0].rule, "Rule 1.3");
+        assert!(card.sources[1].rule.is_empty());
+        assert_eq!(c.get("REL-2").unwrap().status, Status::Draft);
+        for bad in [
+            r#""status":"done""#,
+            r#""sources":[{"rule":"1"}]"#,
+            r#""sources":[{"standard":" "}]"#,
+            r#""sources":[{"standard":"S","url":"x"}]"#,
+        ] {
+            assert!(
+                load(&format!(r#""REL-1":{{"name":"a",{bad},{OK}}}"#)).is_err(),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn traits_are_validated() {
+        let ok = r#"{"traits":[{"key":"a","question":"q","true":"t","false":"f"},
+            {"key":"b","syntax":true,"present_if":{"c":["switch_statement"]}}]}"#;
+        let t = Traits::load(ok.as_bytes()).unwrap();
+        assert_eq!(
+            (t.syntax_mask(), t.bit("a"), t.bit("z")),
+            (0b10, Some(1), None)
+        );
+        for bad in [
+            r#"{"traits":[{"key":"a"}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"go":["x"]}}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":[]}}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":["x"]},"present_if_names":{"rust":["n"]}}]}"#,
+            r#"{"traits":[{"key":"a","syntax":true,"present_if":{"c":["x"]}},{"key":"a","syntax":true,"present_if":{"c":["x"]}}]}"#,
+            r#"{"traits":[],"requires":{}}"#,
+        ] {
+            assert!(Traits::load(bad.as_bytes()).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_first_planned_parent_is_used() {
+        // REL-001 lists parents that do not apply to Rust before one that does.
+        let rel = catalog().get("REL-001").unwrap();
+        let p = plan("rust", &Selection::default()).unwrap();
+        let n = p.nodes.iter().find(|n| n.id == rel.id).unwrap();
+        let planned = |id: &String| p.nodes.iter().any(|n| n.id == *id);
+        let want = rel.parents.iter().find(|id| planned(id));
+        assert_eq!(n.parent.map(|i| &p.nodes[i].id), want);
     }
 
     #[test]
     fn detached_entries_are_planned_as_roots() {
         let plan = plan("c", &Selection::default()).unwrap();
-        for (id, _) in DETACHED {
-            let node = plan
-                .nodes
-                .iter()
-                .find(|n| n.id == *id)
-                .expect("planned for C");
-            assert!(node.parent.is_none(), "{id} has a parent");
-        }
-    }
-
-    const LANGUAGES: [&str; 7] = [
-        "c",
-        "cpp",
-        "javascript",
-        "typescript",
-        "tsx",
-        "python",
-        "rust",
-    ];
-
-    #[test]
-    fn every_planned_entry_has_a_card() {
-        for language in LANGUAGES {
-            for n in plan(language, &Selection::default()).unwrap().nodes {
-                assert!(
-                    cards().get(&n.id).is_some(),
-                    "{language}: {} has no card",
-                    n.id
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn betsy_authored_entries_are_gated_under_a_peer() {
-        let ours: Vec<&Weakness> = catalog()
+        let detached: Vec<&Card> = catalog()
             .entries
             .iter()
-            .filter(|w| w.mapping_usage.starts_with("BETSY-authored"))
+            .filter(|w| !w.detached.is_empty())
             .collect();
-        assert!(!ours.is_empty());
+        assert!(!detached.is_empty());
+        for w in detached {
+            if let Some(node) = plan.nodes.iter().find(|n| n.id == w.id) {
+                assert!(node.parent.is_none(), "{} has a parent", w.id);
+            }
+        }
+    }
+
+    #[test]
+    fn gates_are_never_findings_and_reliability_and_performance_cards_are_gated() {
         for language in LANGUAGES {
             let p = plan(language, &Selection::default()).unwrap();
-            for n in p.nodes.iter().filter(|n| ours.iter().any(|w| w.id == n.id)) {
-                assert!(n.parent.is_some(), "{language}: {} is a root", n.id);
+            for n in &p.nodes {
+                let card = catalog().get(&n.id).unwrap();
+                assert_eq!(n.role == Role::Gate, card.gate, "{language}: {}", n.id);
+                if card.catalog != "security" && !card.parents.is_empty() {
+                    assert!(n.parent.is_some(), "{language}: {} is a root", n.id);
+                }
             }
         }
-    }
-
-    #[test]
-    fn cards_do_not_copy_catalog_descriptions() {
-        fn words(text: &str) -> Vec<String> {
-            text.split(|c: char| !c.is_alphanumeric())
-                .filter(|w| !w.is_empty())
-                .map(str::to_lowercase)
-                .collect()
-        }
-        for (id, card) in &cards().cards {
-            let w = catalog().get(id).unwrap();
-            let source = words(&format!("{} {}", w.description, w.extended_description));
-            let windows: BTreeSet<&[String]> = source.windows(10).collect();
-            let mut text = vec![card.question.clone(), card.reason.clone()];
-            for p in [&card.present_when, &card.not_present_when] {
-                text.extend(p.values().flatten().cloned());
-            }
-            text.extend(card.distinguish_from.values().cloned());
-            for t in text {
-                let t = words(&t);
-                assert!(
-                    t.windows(10).all(|run| !windows.contains(run)),
-                    "{id} copies its description: {}",
-                    t.join(" ")
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn compact_collapses_whitespace_and_truncates_by_character() {
-        assert_eq!(compact(" a \n\t b ", 10), "a b");
-        assert_eq!(compact("ééééé", 5), "ééééé");
-        assert_eq!(compact("ééééé", 4), "ééé…");
-        assert_eq!(compact("abc", 0), "…");
     }
 
     #[test]
@@ -1183,34 +1062,12 @@ mod tests {
     }
 
     #[test]
-    fn exclusions_are_lifted_out_of_the_cut() {
-        let (kept, excluded) = split_exclusions(
-            "A divisor from input is used. Its sign, e.g. a negative, is not checked. Code where \
-             the range is proven locally does not count. Latency that is acceptable for a few \
-             rows grows. Of these, only the last is acceptable. Plain -O2 is fine.",
-        );
-        assert_eq!(
-            excluded,
-            "Code where the range is proven locally does not count. Plain -O2 is fine."
-        );
-        assert!(kept.contains("e.g. a negative") && kept.contains("acceptable for a few"));
-        assert!(kept.ends_with("only the last is acceptable."));
-        let w = catalog().get("REL-105").unwrap();
-        let (_, criteria_true, criteria_false) = prose_question(w, &Role::Finding);
-        assert!(!criteria_true.contains("do not count"));
-        assert!(criteria_false.starts_with("Constant shift counts"));
-        assert!(criteria_false.contains("outside this function"));
-        let w = catalog().get("CWE-89").unwrap();
-        let (_, _, criteria_false) = prose_question(w, &Role::Finding);
-        assert!(criteria_false.starts_with("The function's code does not exhibit"));
-    }
-
-    #[test]
     fn cards_validate_ids_fields_and_languages() {
-        let ok = r#"{"cards":{"cwe-787":{"function_checkable":true,"question":"q?",
-            "present_when":{"c":["p"]},"not_present_when":{"any":["n"]},
-            "distinguish_from":{"125":"reads"}}}}"#;
-        let c = Cards::load(ok.as_bytes()).unwrap();
+        let c = load(&format!(
+            r#""cwe-787":{{"name":"w","distinguish_from":{{"125":"reads"}},{OK}}},
+            "CWE-125":{{"name":"r","function_checkable":false,"reason":"r"}}"#
+        ))
+        .unwrap();
         assert_eq!(
             c.get("CWE-787")
                 .unwrap()
@@ -1220,15 +1077,22 @@ mod tests {
             ["CWE-125"]
         );
         for bad in [
-            r#"{"cards":{"CWE-0":{"function_checkable":false,"reason":"r"}}}"#,
-            r#"{"cards":{"CWE-787":{"function_checkable":false}}}"#,
-            r#"{"cards":{"CWE-787":{"function_checkable":true,"question":"q?","present_when":{"c":["p"]}}}}"#,
-            r#"{"cards":{"CWE-787":{"function_checkable":true,"question":"q?","present_when":{"go":["p"]},"not_present_when":{"any":["n"]}}}}"#,
-            r#"{"cards":{"CWE-787":{"function_checkable":true,"question":"q?","present_when":{"c":["p"]},"not_present_when":{"any":["n"]},"distinguish_from":{"CWE-787":"x"}}}}"#,
-            r#"{"cards":{"CWE-787":{"function_checkable":false,"reason":"r","typo":1}}}"#,
-            r#"{"cards":{"CWE-787":{"function_checkable":false,"reason":"r"},"787":{"function_checkable":false,"reason":"r"}}}"#,
+            r#""CWE-0":{"name":"w","function_checkable":false,"reason":"r"}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false}"#,
+            r#""CWE-787":{"function_checkable":false,"reason":"r"}"#,
+            r#""CWE-787":{"name":" ","function_checkable":false,"reason":"r"}"#,
+            r#""CWE-787":{"name":"w","function_checkable":true,"question":"q?","present_when":{"c":["p"]}}"#,
+            r#""CWE-787":{"name":"w","function_checkable":true,"question":"q?","present_when":{"go":["p"]},"not_present_when":{"any":["n"]}}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","languages":["go"]}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","languages":["any"]}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","distinguish_from":{"CWE-787":"x"}}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","distinguish_from":{"CWE-1":"x"}}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","parents":["787"]}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","parents":["CWE-1"]}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r","typo":1}"#,
+            r#""CWE-787":{"name":"w","function_checkable":false,"reason":"r"},"787":{"name":"w","function_checkable":false,"reason":"r"}"#,
         ] {
-            assert!(Cards::load(bad.as_bytes()).is_err(), "{bad}");
+            assert!(load(bad).is_err(), "{bad}");
         }
     }
 
@@ -1243,19 +1107,9 @@ mod tests {
         assert!(q.criteria_false.ends_with("outside this function."));
         let py = question("CWE-787", &Role::Finding, "python");
         assert!(!py.criteria_true.contains("strcpy") && py.hash != q.hash);
-        for (id, card) in &cards().cards {
-            if !card.function_checkable {
-                continue;
-            }
-            for language in [
-                "c",
-                "cpp",
-                "javascript",
-                "typescript",
-                "tsx",
-                "python",
-                "rust",
-            ] {
+        for card in catalog().entries.iter().filter(|c| c.function_checkable) {
+            let id = &card.id;
+            for language in LANGUAGES {
                 let q = question(id, &Role::Finding, language);
                 for text in [&q.instructions, &q.criteria_true, &q.criteria_false] {
                     assert!(text.chars().count() <= 1500, "{id} {language}: {text}");
@@ -1265,15 +1119,77 @@ mod tests {
     }
 
     #[test]
-    fn uncheckable_cards_are_skipped_unless_selected() {
+    fn uncheckable_cards_are_skipped_and_cannot_be_selected() {
         let plan = plan("c", &Selection::default()).unwrap();
         let skip = plan.skipped.iter().find(|s| s.id == "REL-035").unwrap();
-        assert!(skip.reason.contains("detection card"));
+        assert!(skip.reason.contains("not checkable"));
         let only = Selection {
             only: vec!["REL-035".into()],
             exclude: vec![],
         };
-        assert_eq!(super::plan("c", &only).unwrap().nodes.len(), 1);
+        let err = super::plan("c", &only).unwrap_err().to_string();
+        assert!(err.contains("REL-035 cannot be checked"), "{err}");
+        let exclude = Selection {
+            only: vec![],
+            exclude: vec!["REL-035".into()],
+        };
+        assert!(super::plan("c", &exclude).is_ok());
+    }
+
+    #[test]
+    fn the_parser_settles_syntax_traits_only_for_clean_parses() {
+        let t = traits();
+        let bit = |k: &str| t.bit(k).unwrap();
+        let (switch, comma) = (bit("switch_construct"), bit("increment"));
+        let with = scan_traits("c", "int f(int x) { switch (x) { default: return 1; } }");
+        assert!(with.found & switch != 0 && with.absent & switch == 0);
+        assert!(with.absent & comma != 0);
+        let without = scan_traits("c", "int f(int x) { return x++; }");
+        assert!(without.absent & switch != 0);
+        assert!(without.found & comma != 0 && without.absent & comma == 0);
+        // A snippet that does not parse can hide anything, so nothing is settled as absent.
+        let broken = scan_traits("c", "int f(int x) { return x");
+        assert_eq!(broken.absent, 0);
+        // A language a syntax trait lists no node kinds for leaves it unsettled.
+        let py = scan_traits("python", "def f(x):\n    return x\n");
+        assert!(py.absent & switch != 0 && py.absent & comma == 0);
+        // Asked traits are never settled as absent, and syntax traits are not shown to the
+        // provider.
+        assert_eq!(with.absent & !t.syntax_mask(), 0);
+        assert_eq!(
+            proven_traits("c", "int f(int x) { switch (x) { default: return 1; } }") & switch,
+            0
+        );
+        assert!(
+            scan_traits("rust", "fn f(a: u32, b: u32) -> u32 { a / b }").found & bit("division")
+                != 0
+        );
+        assert!(scan_traits("rust", "fn f(a: u32) -> u32 { a + 1 }").absent & bit("division") != 0);
+        // Division and shifts spelled as method calls count, but not a name in a string.
+        for call in [
+            "a.div_euclid(b)",
+            "a.rem_euclid(b)",
+            "std::ops::Div::div(a, b)",
+            "a.wrapping_rem(b)",
+            "a.checked_div(b).unwrap()",
+            "a.strict_rem_euclid(b)",
+            "a.checked_next_multiple_of(b).unwrap()",
+            "a.r#div_euclid(b)",
+            // Passed by name rather than called here.
+            "[b].into_iter().fold(a, i32::div_euclid)",
+        ] {
+            let s = scan_traits("rust", &format!("fn f(a: i32, b: i32) -> i32 {{ {call} }}"));
+            assert!(
+                s.found & bit("division") != 0 && s.absent & bit("division") == 0,
+                "{call}"
+            );
+        }
+        for call in ["a.wrapping_shl(b)", "a.strict_shr(b)"] {
+            let s = scan_traits("rust", &format!("fn f(a: u32, b: u32) -> u32 {{ {call} }}"));
+            assert!(s.found & bit("shift") != 0, "{call}");
+        }
+        let text = scan_traits("rust", "fn f() -> &'static str { \"div_euclid\" }");
+        assert!(text.absent & bit("division") != 0);
     }
 
     #[test]

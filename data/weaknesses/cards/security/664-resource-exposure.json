@@ -1,0 +1,1958 @@
+{
+  "cards": {
+    "CWE-15": {
+      "name": "External Control of System or Configuration Setting",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-642"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let caller- or user-supplied input set a system or configuration setting without restriction?",
+      "present_when": {
+        "any": [
+          "input is passed to a setter for configuration, environment variables, database connection settings or system parameters",
+          "a key and value from a request are both used to change application settings"
+        ],
+        "c": [
+          "setenv, putenv, sysctl, setsockopt or a connection/catalogue setting call receives request-derived values"
+        ],
+        "python": [
+          "os.environ[...] = input, setattr(settings, key, value) or a connection option is set from request data"
+        ],
+        "javascript": [
+          "process.env[key] = value or config[key] = value uses request-derived key or value"
+        ],
+        "rust": [
+          "std::env::set_var or a config setter receives request-derived key or value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the key is checked against a fixed allow-list and the value is validated before the setting changes",
+          "the caller's authority to change the setting is checked first",
+          "the setting comes only from constants or trusted startup configuration"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-73": "the controlled value is a file path used in a filesystem operation"
+      }
+    },
+    "CWE-73": {
+      "name": "External Control of File Name or Path",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-642"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass a file name or path that comes from input or a caller into a filesystem operation?",
+      "present_when": {
+        "any": [
+          "request, argument, environment or file data reaches open, read, write, delete, rename, include or stat as all or part of a path"
+        ],
+        "c": [
+          "fopen, open, unlink, rename, stat or access receives a path built from input"
+        ],
+        "cpp": [
+          "std::ifstream, std::ofstream or std::filesystem::remove, rename or copy receives a path built from input",
+          "base / input with std::filesystem::path, where an absolute input replaces the base or ../ climbs out of it"
+        ],
+        "python": [
+          "open(), os.remove, shutil functions or pathlib operations use a path built from input"
+        ],
+        "javascript": [
+          "fs.readFile, fs.writeFile, fs.unlink, res.sendFile or require use a path built from input"
+        ],
+        "rust": [
+          "File::open, fs::read, fs::write or fs::remove_file use a path built from input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the path is a constant or is chosen from a fixed allow-list by key",
+          "the input is mapped to a server-generated name such as a database id or UUID",
+          "the resolved path is canonicalised and confirmed to stay inside an allowed base directory"
+        ],
+        "cpp": [
+          "std::filesystem::weakly_canonical of the joined path is confirmed to begin with the canonical base directory"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the input can climb out of an intended base directory with .. or absolute components",
+        "CWE-15": "the input sets a configuration value rather than a file path"
+      }
+    },
+    "CWE-134": {
+      "name": "Use of Externally-Controlled Format String",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "interpreter_output",
+        "external_input"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass a format string that comes from input, a parameter or other non-literal source to a formatting function?",
+      "present_when": {
+        "any": [
+          "the format argument of a printf-style or template-formatting call is a variable derived from user input, a file, the network or the environment rather than a literal"
+        ],
+        "c": [
+          "printf(buf), fprintf(f, msg), sprintf(out, s), syslog(prio, s) or snprintf with a non-literal format and no \"%s\" in front"
+        ],
+        "cpp": [
+          "std::vformat, fmt::runtime or boost::format is given a format string taken from input"
+        ],
+        "javascript": [
+          "util.format or a logger's format method receives a user-supplied string as its first argument"
+        ],
+        "python": [
+          "user_text.format(...) or user_text % values, where the template itself is user-controlled and can reach attributes of the arguments"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the format string is a literal and input is supplied only as an argument, such as printf(\"%s\", s)",
+          "the input is only interpolated into a fixed template, never used as the template"
+        ],
+        "c": [
+          "the non-literal format comes from a fixed internal table of constant strings"
+        ],
+        "cpp": [
+          "std::format or fmt::format receives a literal format string, which is checked at compile time"
+        ],
+        "rust": [
+          "Rust format macros require a literal format string, so input cannot become the format"
+        ]
+      },
+      "distinguish_from": {
+        "REL-169": "the concern is general use of stdio functions rather than an externally controlled format",
+        "CWE-117": "the input is written into a log unescaped but is not used as a format string"
+      }
+    },
+    "CWE-200": {
+      "name": "Exposure of Sensitive Information to an Unauthorized Actor",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "sensitive_data",
+        "crypto",
+        "network",
+        "filesystem",
+        "data_store",
+        "security_logic",
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does the function return, send, log, display or store data that could be sensitive, such as credentials, personal data, system details, errors or internal state?",
+      "present_when": {
+        "any": [
+          "responses, error messages, logs, debug output, files or URLs include secrets, personal data, stack traces, paths or configuration",
+          "behaviour or timing differs depending on secret values or whether an account or record exists",
+          "whole internal objects or records are serialised to an external party"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function handles only public or non-sensitive data and produces no output, logs or errors visible outside",
+          "the function performs internal computation with no external output channel"
+        ]
+      }
+    },
+    "CWE-201": {
+      "name": "Insertion of Sensitive Information Into Sent Data",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function send data to another party (response, message, API call, email) that includes sensitive fields the recipient should not get?",
+      "present_when": {
+        "any": [
+          "a whole database record or internal object, including fields such as password hashes, tokens, keys or internal flags, is serialised into a response or outgoing message",
+          "secrets, session ids or other users' data are added to a payload, header, redirect URL or third-party request"
+        ],
+        "javascript": [
+          "res.json(user) or res.send(record) returns a full model object without picking or omitting sensitive fields"
+        ],
+        "typescript": [
+          "the declared return type is Omit<User, 'password'> or a narrower interface but the full object is returned; the type removes no fields at run time",
+          "a NestJS handler returns an entity whose password or token columns have no @Exclude() and no ClassSerializerInterceptor or DTO mapping"
+        ],
+        "tsx": [
+          "getServerSideProps, getStaticProps or a server component passes a full record with secrets to a client component, which serialises the props into the page"
+        ],
+        "python": [
+          "return jsonify(obj.__dict__) or a serializer with all fields sends a full model including secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only an explicit allow-list of non-sensitive fields is sent, or sensitive fields are removed first",
+          "the recipient is authorised for all the data sent, such as a user receiving their own non-secret profile"
+        ],
+        "typescript": [
+          "the entity is mapped field by field to a response DTO, or @Exclude() plus ClassSerializerInterceptor strips the sensitive fields"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-598": "the sensitive data is placed in the query string of an HTTP request",
+        "CWE-209": "the sensitive data reaches the recipient through an error message",
+        "CWE-359": "the sensitive data is personal information about individuals"
+      }
+    },
+    "CWE-203": {
+      "name": "Observable Discrepancy",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function respond, behave or take time differently depending on secret or security-relevant state, in a way an unauthorised caller can observe?",
+      "present_when": {
+        "any": [
+          "different messages, status codes or response shapes depending on whether a user, file or record exists or whether one part of a check failed",
+          "early return or branching on a secret value, so time taken reveals how much matched",
+          "a security check exits through visibly different paths, such as redirect versus error, depending on internal state"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all failure cases return the same message, status and shape, and comparisons of secrets are constant-time",
+          "the differing information is public or the caller is already authorised to know it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-204": "the difference is in the response content or status",
+        "CWE-208": "the difference is in how long the operation takes",
+        "CWE-209": "the response is an error message that directly includes sensitive details"
+      }
+    },
+    "CWE-204": {
+      "name": "Observable Response Discrepancy",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-203"
+      ],
+      "function_checkable": true,
+      "question": "Does this function return different messages, status codes or response content that reveal internal state, such as whether an account, file or record exists?",
+      "present_when": {
+        "any": [
+          "a login, reset or lookup returns one message for an unknown user and another for a wrong password or inactive account",
+          "status codes differ, such as 404 versus 403, in a way that reveals whether a protected resource exists",
+          "the response body or headers differ depending on a hidden check outcome that the caller should not learn"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all failure outcomes produce the same message, status and response shape",
+          "the information revealed is public or the caller is authorised for it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-208": "the observable difference is timing, while the response text is identical",
+        "CWE-209": "the message itself contains sensitive details rather than merely differing between cases"
+      }
+    },
+    "CWE-205": {
+      "name": "Observable Behavioral Discrepancy",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-203"
+      ],
+      "function_checkable": true,
+      "question": "Does this function behave in visibly different ways, such as extra steps, side effects or flows, depending on internal decisions an attacker should not learn?",
+      "present_when": {
+        "any": [
+          "a failed check triggers an observable action (lockout, extra request, redirect, delay) only in some hidden cases, revealing which internal condition held",
+          "processing stops at a visibly different stage depending on which internal validation failed"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every failure follows the same observable flow and side effects",
+          "the differing behaviour reflects information that is public or that the caller is authorised for"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-204": "the difference is only in the response message or status code",
+        "CWE-206": "separate internal steps of one combined decision are each observable",
+        "CWE-208": "the observable difference is timing"
+      }
+    },
+    "CWE-206": {
+      "name": "Observable Internal Behavioral Discrepancy",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-205"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make one combined security decision through separate steps whose individual outcomes an attacker can observe, such as checking username then password separately?",
+      "present_when": {
+        "any": [
+          "the function validates the parts of a credential or challenge one after another and returns or reacts at each step, so a caller can tell which part failed",
+          "an expensive step such as password hashing runs only after a cheaper check passes, so the outcome of the first check shows in behaviour or time"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all parts are evaluated and a single combined result is returned with one uniform failure response",
+          "dummy work, such as hashing against a fixed value, is done when the first part fails so all paths look the same"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-204": "the steps are indistinguishable but the final response text differs",
+        "CWE-1254": "the steps are a byte-by-byte comparison of one secret value"
+      }
+    },
+    "CWE-207": {
+      "name": "Observable Behavioral Discrepancy With Equivalent Products",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-205"
+      ],
+      "function_checkable": true,
+      "question": "Does this function emit identifying details, such as product banners, version strings or distinctive headers or errors, that reveal which specific product or version is running?",
+      "present_when": {
+        "any": [
+          "a response, greeting banner or header includes a product name and version, such as Server or X-Powered-By values",
+          "error pages or protocol replies use distinctive non-standard text or ordering that identifies the implementation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "responses use generic, standard-conforming text without product or version identifiers",
+          "version information is returned only to authenticated administrators or internal callers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-497": "the exposed details are broader system information such as paths, users or environment"
+      }
+    },
+    "CWE-208": {
+      "name": "Observable Timing Discrepancy",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-203"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take a measurably different time depending on secret data, such as comparing a secret with early exit or skipping work when a check fails?",
+      "present_when": {
+        "any": [
+          "a password, token, MAC or key is compared with ==, memcmp, strcmp, equals or a loop that stops at the first mismatch",
+          "a login or verification returns immediately for an unknown user but performs slow hashing for a known one"
+        ],
+        "c": [
+          "memcmp or strcmp compares a computed MAC or secret with an attacker-supplied value"
+        ],
+        "cpp": [
+          "std::string or std::vector operator==, compare() or std::equal on a MAC, token or password"
+        ],
+        "javascript": [
+          "a token or signature is compared with === instead of crypto.timingSafeEqual"
+        ],
+        "python": [
+          "a secret or HMAC is compared with == instead of hmac.compare_digest"
+        ],
+        "rust": [
+          "a secret slice is compared with == instead of a constant-time comparison such as subtle::ConstantTimeEq"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are compared with a constant-time function and all paths perform equivalent work",
+          "the compared values are not secret, such as public identifiers or enum values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1254": "the code shows a hand-written stepwise comparison loop that exits on the first differing element",
+        "CWE-204": "the response content differs rather than its timing"
+      }
+    },
+    "CWE-209": {
+      "name": "Generation of Error Message Containing Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build or return an error message that includes sensitive details such as stack traces, queries, paths, credentials or internal state to the caller or user?",
+      "present_when": {
+        "any": [
+          "an exception's message, stack trace or repr is written into a response, UI or API error for external callers",
+          "error text includes SQL statements, file paths, host names, configuration, user records or secrets"
+        ],
+        "javascript": [
+          "res.status(500).send(err.stack) or res.json({error: err}) passes raw error objects to the client"
+        ],
+        "typescript": [
+          "a catch (e: any) or catch (e) block casts e as Error and returns e.message or e.stack to the client"
+        ],
+        "python": [
+          "return str(e) or traceback.format_exc() is placed in an HTTP response"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "external callers receive a generic message or error code, with details only logged internally",
+          "the error is shown only to a trusted operator, internal log or developer tool"
+        ],
+        "typescript": [
+          "an HttpException with a fixed message is thrown, and unknown errors reach the NestJS default filter, which replies with a generic 500"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-210": "the product composes the sensitive message itself",
+        "CWE-211": "the sensitive text comes from a library, runtime or interpreter error passed through",
+        "CWE-532": "the sensitive details go only to a log file"
+      }
+    },
+    "CWE-210": {
+      "name": "Self-generated Error Message Containing Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-209"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compose its own error or diagnostic message that embeds sensitive values, such as passwords, keys, queries, paths or user data, and show it to the caller?",
+      "present_when": {
+        "any": [
+          "an error string built by the function concatenates or interpolates a password, token, key, full query, file path or another user's data and is returned or displayed",
+          "a validation failure message echoes the secret or internal value that failed, such as 'invalid key abc123' or 'user x has role y'"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function's own messages are generic and include only non-sensitive context",
+          "detailed messages go only to an internal log or trusted operator, not to the external caller"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-211": "the sensitive text is generated by a library, runtime or interpreter rather than written by this code",
+        "CWE-532": "the self-made message is written only to a log"
+      }
+    },
+    "CWE-211": {
+      "name": "Externally-Generated Error Message Containing Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-209"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let an error produced by a library, runtime, database or interpreter reach the user with its original, possibly sensitive text?",
+      "present_when": {
+        "any": [
+          "a caught exception or driver error is returned or displayed unchanged, such as its message, stack or repr",
+          "an operation's failure is left uncaught in a request handler where the framework shows the raw runtime error",
+          "database or system call error text such as strerror or a SQL driver message is copied into the response"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "external errors are caught and replaced with a generic message before reaching the user",
+          "raw error text goes only to internal logs"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-210": "the message is written by the code itself rather than passed through",
+        "CWE-535": "the passed-through text is specifically shell command error output",
+        "CWE-550": "the exposure comes from a server or framework error page"
+      }
+    },
+    "CWE-213": {
+      "name": "Exposure of Sensitive Information Due to Incompatible Policies",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function deliberately reveal information that its users or data subjects would consider sensitive, such as other users' emails, locations or activity, as part of normal output?",
+      "present_when": {
+        "any": [
+          "a listing, search, profile or export returns fields about other users such as email, phone, IP address, location or history by design",
+          "the response includes data the feature does not need, such as precise location where a city would do"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only data needed for the feature is returned, with sensitive fields omitted, masked or limited to the owner",
+          "the information is public by nature or consented to be shared"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-359": "the personal data is exposed because authorisation is missing rather than by intended design",
+        "CWE-201": "the extra data is accidentally included in a payload"
+      }
+    },
+    "CWE-214": {
+      "name": "Invocation of Process Using Visible Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-497"
+      ],
+      "function_checkable": true,
+      "question": "Does this function start a process with passwords, keys or tokens in its command-line arguments or environment, where other local users could see them?",
+      "present_when": {
+        "any": [
+          "a child process is started with a secret passed as a command-line argument, such as -p<password> or --token=<value>"
+        ],
+        "c": [
+          "execv, execl, system or popen receives an argument or command string containing a password or key"
+        ],
+        "javascript": [
+          "child_process.spawn, exec or execFile is given args or an env containing passwords or tokens"
+        ],
+        "python": [
+          "subprocess.run, Popen or os.system is given a list or string containing a password or token"
+        ],
+        "rust": [
+          "Command::new(...).arg or .env receives a password, key or token"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are passed through standard input, a pipe, a file with restricted permissions or a credential helper",
+          "arguments and environment contain only non-sensitive values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the concern is injection into the command rather than the visibility of its arguments",
+        "CWE-532": "the secret is written to a log rather than to process arguments"
+      }
+    },
+    "CWE-215": {
+      "name": "Insertion of Sensitive Information Into Debugging Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain debugging code, such as debug prints, dumps or debug-only endpoints, that outputs sensitive data like credentials, keys, tokens or personal details?",
+      "present_when": {
+        "any": [
+          "a debug print, trace, dump or console output includes passwords, tokens, keys, session ids or full request bodies",
+          "debug-only code that dumps sensitive state is enabled by a runtime flag, query parameter or left unconditional"
+        ],
+        "c": [
+          "printf or fprintf(stderr) inside #ifdef DEBUG or a debug flag prints secrets or buffers holding them"
+        ],
+        "javascript": [
+          "console.log or console.debug outputs passwords, tokens or full request headers"
+        ],
+        "python": [
+          "print(), pprint or logging.debug outputs credentials or secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "debug output contains only non-sensitive diagnostic values",
+          "secrets are masked or redacted before any debug output"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-532": "sensitive data goes to a normal production log rather than debugging output",
+        "CWE-1295": "the debug message reveals system internals rather than user secrets"
+      }
+    },
+    "CWE-219": {
+      "name": "Storage of File with Sensitive Data Under Web Root",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-552"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write sensitive data (credentials, keys, backups, logs, exports) into a directory the web server publishes as static content?",
+      "present_when": {
+        "any": [
+          "a file containing secrets, user records, database dumps or configuration is created under a path such as public/, static/, www/, htdocs/ or the web root",
+          "the output directory for a backup, export or log file is the application's served static folder"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the file is written outside any served directory, such as a private data or temp directory",
+          "the content written is intentionally public, such as images, stylesheets or generated HTML pages",
+          "the function only reads or serves files and writes nothing sensitive"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-433": "the file written is raw source or an include file whose extension the server would return unparsed",
+        "CWE-220": "the destination is an FTP root rather than a web root"
+      }
+    },
+    "CWE-220": {
+      "name": "Storage of File With Sensitive Data Under FTP Root",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-552"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write sensitive data into a directory served by an FTP server?",
+      "present_when": {
+        "any": [
+          "a file with secrets, user records, backups or configuration is created under a path that is the FTP root or an FTP-published folder",
+          "an export or upload routine targets an anonymous FTP or pub/ directory with private content"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the destination is outside any FTP-published tree",
+          "the content written is intended for public download",
+          "the function writes no files"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-219": "the destination is a web document root rather than an FTP root"
+      }
+    },
+    "CWE-359": {
+      "name": "Exposure of Private Personal Information to an Unauthorized Actor",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function return or expose personal information about individuals, such as names with addresses, IDs, health or financial details, without checking that the requester is allowed to see it?",
+      "present_when": {
+        "any": [
+          "records containing personal data are fetched by an identifier from the request and returned without checking the requester owns them or has permission",
+          "personal details such as national ID, date of birth, address, health or financial data are sent, logged or displayed unmasked to parties who do not need them"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "an authorisation check ties the record to the requester or a permitted role before returning it",
+          "personal fields are removed, masked or aggregated before output",
+          "the data handled is not about identifiable people"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-639": "the code accesses records by a user-supplied key without an ownership check, whatever the data type",
+        "CWE-532": "the personal data is written to a log",
+        "CWE-213": "exposure is intended by the design but conflicts with users' expectations"
+      }
+    },
+    "CWE-374": {
+      "name": "Passing Mutable Objects to an Untrusted Method",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass a reference to its own mutable internal data to untrusted or external code, such as a callback, plugin or third-party API, without copying it first?",
+      "present_when": {
+        "any": [
+          "an internal array, list, map, buffer or object field is passed directly to a callback, plugin, listener or external library that could change it",
+          "the function relies on the passed data being unchanged after the call but did not copy it or pass a read-only view"
+        ],
+        "typescript": [
+          "an internal array or object is passed to a callback or plugin whose parameter is typed ReadonlyArray<T> or Readonly<T>; the callee can still mutate it at run time"
+        ],
+        "c": [
+          "a pointer to an internal buffer or struct, not const-qualified, is handed to a caller-supplied function pointer"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a copy, clone or immutable view is passed instead of the internal object",
+          "the data passed is immutable, such as strings, numbers or frozen objects",
+          "the callee is trusted code in the same module and the function does not rely on the data staying unchanged"
+        ],
+        "cpp": [
+          "the parameter is passed as a const reference or by value"
+        ],
+        "javascript": [
+          "a spread copy, slice(), structuredClone or Object.freeze is applied before passing"
+        ],
+        "python": [
+          "a copy, tuple or frozenset is passed rather than the internal list, dict or set"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-375": "the internal mutable data is returned to the caller rather than passed out as an argument"
+      }
+    },
+    "CWE-375": {
+      "name": "Returning a Mutable Object to an Untrusted Caller",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function return a reference to its object's internal mutable data, such as a list, array, map or buffer, so callers can change internal state?",
+      "present_when": {
+        "any": [
+          "a getter or method returns an internal list, array, map, set or mutable object field directly rather than a copy",
+          "the returned object is security-relevant, such as a permission list, key buffer or configuration, that the class trusts afterwards"
+        ],
+        "typescript": [
+          "a method returns a private readonly array, Set or Map field itself, assuming the readonly modifier stops callers changing its contents"
+        ],
+        "c": [
+          "a function returns a non-const pointer to an internal static or struct buffer"
+        ],
+        "cpp": [
+          "a member function returns a non-const reference or pointer to a private container or member"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a copy, clone or immutable view is returned",
+          "the returned value is immutable, such as a number, string or frozen object",
+          "returning a mutable reference is the intended contract and callers are trusted, such as a builder or internal helper"
+        ],
+        "cpp": [
+          "the return type is a const reference, by value or a span of const"
+        ],
+        "javascript": [
+          "a slice(), spread copy, structuredClone or Object.freeze result is returned"
+        ],
+        "typescript": [
+          "the method returns a copy, or wraps a copy in a ReadonlyArray<T> or ReadonlyMap return type"
+        ],
+        "python": [
+          "a copy, tuple, frozenset or MappingProxyType is returned"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-374": "the internal data is passed as an argument to untrusted code rather than returned",
+        "CWE-495": "the returned reference is to a private data structure in a class, which is the more precise entry"
+      }
+    },
+    "CWE-377": {
+      "name": "Insecure Temporary File",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "filesystem"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create or use a temporary file in an unsafe way, such as a predictable name, a shared directory, a create-after-check race or loose permissions?",
+      "present_when": {
+        "any": [
+          "a temporary file name is generated first and the file opened later, or a fixed or guessable name in a shared temp directory is used",
+          "a temp file is opened without exclusive creation, so an existing file or symlink could be reused"
+        ],
+        "c": [
+          "tmpnam, tempnam or mktemp is used, or fopen opens a fixed path under /tmp"
+        ],
+        "cpp": [
+          "std::tmpnam, or std::filesystem::temp_directory_path() / a fixed name, opened with std::ofstream"
+        ],
+        "javascript": [
+          "fs.writeFile or fs.open writes to path.join(os.tmpdir(), fixedOrPredictableName)"
+        ],
+        "python": [
+          "tempfile.mktemp or open('/tmp/name', 'w') is used instead of mkstemp, NamedTemporaryFile or TemporaryDirectory"
+        ],
+        "rust": [
+          "std::env::temp_dir().join(fixed_name) is opened with File::create rather than using the tempfile crate or create_new"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the file is created atomically with a random name and exclusive creation, such as mkstemp, tmpfile, tempfile.mkstemp or the tempfile crate",
+          "the temp file lives in a private directory created with owner-only permissions"
+        ],
+        "cpp": [
+          "the file comes from mkstemp and the stream is attached to that descriptor, or it sits in a private directory"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-378": "the file is created safely but with permissions that let others read or write it",
+        "CWE-379": "the problem is the directory chosen being accessible to other users",
+        "CWE-367": "the defect is a check-then-use race on a file that is not specifically temporary"
+      }
+    },
+    "CWE-378": {
+      "name": "Creation of Temporary File With Insecure Permissions",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-377"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create a temporary file with permissions that let other users read or modify it?",
+      "present_when": {
+        "any": [
+          "a temporary file is created with a mode such as 0644, 0666 or 0777, or with the default umask, and holds data other users should not see or change"
+        ],
+        "c": [
+          "open(path, O_CREAT, 0666) or fopen is used for a temp file without first setting a restrictive umask"
+        ],
+        "cpp": [
+          "std::ofstream creates the temp file, so it gets the default 0666 mode reduced only by the umask"
+        ],
+        "javascript": [
+          "fs.writeFileSync or fs.openSync creates a temp file with mode 0o666 or no mode option"
+        ],
+        "python": [
+          "os.open with mode 0o644 or wider, or os.chmod widening a temp file's permissions"
+        ],
+        "rust": [
+          "OpenOptions creates a temp file with mode(0o644) or broader, or without setting mode on Unix"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the temp file is created with owner-only permissions, as mkstemp, tempfile.mkstemp, NamedTemporaryFile and the Rust tempfile crate do by default",
+          "the file holds only public, non-sensitive data and is not used for later decisions"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-377": "the main flaw is a predictable name or unsafe creation sequence rather than the permissions",
+        "CWE-379": "the file itself is restrictive but sits in a directory others can access"
+      }
+    },
+    "CWE-379": {
+      "name": "Creation of Temporary File in Directory with Insecure Permissions",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-377"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create a temporary file in a directory that other users can list or write, such as a shared /tmp or a world-writable folder, where its presence or name can be seen or abused?",
+      "present_when": {
+        "any": [
+          "a temp file holding sensitive data is created directly in a shared system temp directory rather than a private per-user subdirectory",
+          "the function creates a temp directory with permissive modes such as 0777 and places files in it"
+        ],
+        "c": [
+          "mkdir with mode 0777 or chmod widening a temp directory before files are written into it"
+        ],
+        "javascript": [
+          "fs.mkdirSync with mode 0o777 or files written into os.tmpdir() with names revealing the application or user"
+        ],
+        "python": [
+          "os.makedirs(..., mode=0o777) or files written straight into /tmp or tempfile.gettempdir() with descriptive names"
+        ],
+        "rust": [
+          "create_dir with permissions 0o777, or files written straight into the shared temp_dir() with descriptive names"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a private temp directory is created with owner-only permissions, such as mkdtemp or tempfile.TemporaryDirectory, and files go inside it",
+          "the temp file holds no sensitive data and its name reveals nothing"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-378": "the file itself is created with weak permissions",
+        "CWE-377": "the flaw is the naming or creation method rather than the directory"
+      }
+    },
+    "CWE-402": {
+      "name": "Transmission of Private Resources into a New Sphere ('Resource Leak')",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hand a private resource, such as a descriptor, handle, memory, credential or connection, to a less trusted process, party or sphere?",
+      "present_when": {
+        "any": [
+          "open descriptors, sockets or handles remain inheritable when the function starts a child process or hands control to other code",
+          "an internal handle, connection object or key is passed to plugins, scripts or clients that should not use it"
+        ],
+        "c": [
+          "fork or exec is called while sensitive descriptors are open without FD_CLOEXEC or O_CLOEXEC"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "resources are closed, marked non-inheritable or kept private before control passes to less trusted code",
+          "the receiving process or party is equally trusted and meant to have the resource"
+        ],
+        "rust": [
+          "only std::process::Command is used, which marks descriptors close-on-exec by default"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-403": "the leaked resource is specifically a file descriptor inherited by a child process"
+      }
+    },
+    "CWE-403": {
+      "name": "Exposure of File Descriptor to Unintended Control Sphere ('File Descriptor Leak')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-402"
+      ],
+      "function_checkable": true,
+      "question": "Does this function start a child process while sensitive file descriptors or handles are still open and inheritable?",
+      "present_when": {
+        "any": [
+          "a privileged file, socket or device is opened and still open when the function starts a child process, without being closed or marked non-inheritable"
+        ],
+        "c": [
+          "open, socket or fopen without O_CLOEXEC or FD_CLOEXEC, followed by fork and exec, system or popen"
+        ],
+        "javascript": [
+          "child_process.spawn is called with stdio including open file descriptors from the parent"
+        ],
+        "python": [
+          "subprocess.Popen(..., close_fds=False) or pass_fds includes sensitive descriptors, or os.set_inheritable(fd, True) is used"
+        ],
+        "rust": [
+          "unsafe pre_exec code or libc fork and exec keep sensitive descriptors open in the child"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "descriptors are opened with close-on-exec or closed before the child starts",
+          "the child is meant to receive the descriptor and is equally trusted"
+        ],
+        "python": [
+          "Popen is used with its default close_fds=True and no pass_fds"
+        ],
+        "rust": [
+          "only std::process::Command is used, which marks descriptors close-on-exec by default"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-402": "the leaked resource is something other than a descriptor"
+      }
+    },
+    "CWE-426": {
+      "name": "Untrusted Search Path",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-642"
+      ],
+      "function_checkable": true,
+      "question": "Does this function load a program, library or resource by searching a path list that untrusted input or the environment can influence?",
+      "present_when": {
+        "any": [
+          "a library, plugin, module or executable is located through PATH, LD_LIBRARY_PATH, PYTHONPATH, NODE_PATH or a search list built from input"
+        ],
+        "c": [
+          "execlp, execvp, system or popen run a command by bare name, or dlopen/LoadLibrary is given a bare or relative name"
+        ],
+        "python": [
+          "sys.path is extended from input, or subprocess runs a bare command name with an env taken from the caller"
+        ],
+        "javascript": [
+          "require or child_process uses a bare name while module or PATH directories come from input"
+        ],
+        "rust": [
+          "Command::new with a bare name runs while PATH is taken from input, or libloading opens a relative name"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "programs and libraries are referenced by absolute, fixed paths",
+          "the search path is reset to a fixed safe value before the lookup",
+          "the name and directories involved are constants and nothing in the function lets input change them"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-73": "input supplies the file path directly rather than the search path",
+        "CWE-427": "the search path includes an uncontrolled element such as the current directory"
+      }
+    },
+    "CWE-427": {
+      "name": "Uncontrolled Search Path Element",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "filesystem",
+        "interpreter_output",
+        "external_input"
+      ],
+      "function_checkable": true,
+      "question": "Does this function load executables, libraries, modules or config files through a search path that includes locations untrusted users could control?",
+      "present_when": {
+        "any": [
+          "a library, module or program is loaded by bare name or relative path, so the current directory or a writable path is searched",
+          "the function adds the current directory, /tmp, a user-writable or input-supplied directory to PATH, LD_LIBRARY_PATH, sys.path or a module path"
+        ],
+        "c": [
+          "dlopen or LoadLibrary with a bare file name, or execlp or execvp in a privileged program with PATH not reset"
+        ],
+        "javascript": [
+          "require or import of a path built from input or a writable directory, or NODE_PATH or PATH is extended with such a folder"
+        ],
+        "python": [
+          "sys.path.insert(0, writable_or_input_dir), or importlib loads a module from a user-writable location"
+        ],
+        "rust": [
+          "libloading Library::new with a bare name, or Command::new with a bare program name after PATH was changed to include a writable directory"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "libraries and programs are loaded by absolute path from trusted, admin-only directories",
+          "the search path is reset to a fixed safe list before loading",
+          "the loader restricts searching to system directories, such as LoadLibraryEx with system-only search flags"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-426": "the whole search path is supplied by an attacker rather than one element being writable",
+        "CWE-428": "the problem is an unquoted path containing spaces"
+      }
+    },
+    "CWE-428": {
+      "name": "Unquoted Search Path or Element",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "filesystem",
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build or run a command or service path containing spaces without quoting it, so a different program higher in the path could be run?",
+      "present_when": {
+        "any": [
+          "a program path with spaces, such as C:\\Program Files\\App\\app.exe, is passed unquoted as a command line",
+          "a service, registry or shortcut path is written without surrounding quotes"
+        ],
+        "c": [
+          "CreateProcess with a NULL application name and an unquoted command line containing spaces, or WinExec with such a path"
+        ],
+        "javascript": [
+          "child_process.exec with an unquoted path containing spaces"
+        ],
+        "python": [
+          "subprocess with shell=True or os.system given an unquoted path containing spaces"
+        ],
+        "rust": [
+          "Command::new(\"cmd\").arg(\"/C\").arg(unquoted path with spaces), or a Windows service path registered without quotes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the executable path is quoted, or passed as a separate application name argument",
+          "arguments are passed as an array to an API that does not re-split them, such as execv, spawn without shell, or Rust Command::new(path)",
+          "the path contains no spaces or separators"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-427": "the path is quoted but a searched directory is writable by others",
+        "CWE-78": "input is injected into the command string"
+      }
+    },
+    "CWE-433": {
+      "name": "Unparsed Raw Web Content Delivery",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-219"
+      ],
+      "function_checkable": true,
+      "question": "Does this function place source code, include files or raw templates under a served web directory with an extension the server would return as plain text?",
+      "present_when": {
+        "any": [
+          "a file with an extension such as .inc, .bak, .old, .tpl, .cfg or .sql is written or copied into the web root or a static folder",
+          "generated server-side code or configuration is saved under public/ or htdocs/ with a non-executable extension"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the files written go outside every served directory",
+          "the extension is one the server executes or the content is meant to be public",
+          "the function does not create or copy files"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-219": "the file holds sensitive data in general rather than raw code exposed by its extension"
+      }
+    },
+    "CWE-472": {
+      "name": "External Control of Assumed-Immutable Web Parameter",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-642"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trust a request parameter, hidden field or client-sent value that is meant to be fixed, such as a price, user id or role?",
+      "present_when": {
+        "any": [
+          "a value from a hidden form field, query string or JSON body sets a price, quantity limit, account id, role or owner without checking it on the server",
+          "the function uses a client-supplied identifier to act on a record without confirming it belongs to the caller"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is looked up or recomputed on the server from trusted state",
+          "the parameter is verified with a signature or compared against the server's stored value",
+          "the parameter only affects display and has no security or business effect"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-565": "the trusted client value is carried in a cookie",
+        "CWE-642": "the controlled state is not a web parameter, such as a file or environment value"
+      }
+    },
+    "CWE-488": {
+      "name": "Exposure of Data Element to Wrong Session",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store per-user or per-request data in shared state, such as a singleton field, module global, static or pooled object, where another session could read it?",
+      "present_when": {
+        "any": [
+          "a request handler writes user, session or request data into a module-level variable, class static or field of a shared controller or singleton",
+          "a pooled or reused object such as a buffer, connection or context is returned to the pool without clearing the previous user's data",
+          "a cache shared across users is keyed without the user or session identity"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "per-request data is kept in local variables, the request or session object, or thread or context-local storage",
+          "shared objects hold only immutable, non-user-specific data",
+          "pooled objects are reset before reuse"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1058": "the problem is only a thread-safety issue with a shared member, without data reaching another session",
+        "CWE-524": "the cross-session leak happens through a cache holding sensitive data"
+      }
+    },
+    "CWE-493": {
+      "name": "Critical Public Variable Without Final Modifier",
+      "abstraction": "Variant",
+      "languages": [
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create or expose a security-critical field as public and mutable, so any code can overwrite it, such as a role, limit or configuration value?",
+      "present_when": {
+        "any": [
+          "a constructor or initialiser stores a security-relevant value (permission, role, limit, key, endpoint) as a public writable attribute or property"
+        ],
+        "cpp": [
+          "a struct or class method writes a critical setting into a public non-const member that other code also changes directly"
+        ],
+        "javascript": [
+          "this.isAdmin, this.role or a config value is assigned as a plain writable property instead of a private #field, getter or frozen object"
+        ],
+        "typescript": [
+          "a security-relevant field such as role, isAdmin or a limit is public, or private only by the TypeScript keyword, which bracket access or an any cast bypasses at run time"
+        ],
+        "python": [
+          "self.role, self.permissions or a config value is set as a plain public attribute, with no property or underscore-private name"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is private, read-only or exposed only through a getter",
+          "the field is not security-relevant, such as display text or a counter"
+        ],
+        "cpp": [
+          "the member is const, constexpr or private with accessors"
+        ],
+        "javascript": [
+          "a #private field, Object.freeze, Object.defineProperty with writable false, or a TypeScript readonly modifier is used"
+        ],
+        "python": [
+          "a read-only property, frozen dataclass or NamedTuple holds the value"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-500": "the field is a public static member in C++"
+      }
+    },
+    "CWE-497": {
+      "name": "Exposure of Sensitive System Information to an Unauthorized Control Sphere",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function reveal system details, such as file paths, environment variables, OS users, software versions or internal hosts, to callers who should not see them?",
+      "present_when": {
+        "any": [
+          "a response or output includes environment variables, absolute paths, process or OS user information, internal IP addresses or software versions",
+          "a diagnostic or status endpoint returns configuration, installed packages or system properties without restricting who can call it"
+        ],
+        "javascript": [
+          "process.env, os.hostname(), __dirname or process.versions are sent in a response"
+        ],
+        "python": [
+          "os.environ, sys.version, platform details or os.getcwd() are returned to the client"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only non-sensitive, public information is returned",
+          "system details are returned only after checking the caller is an administrator or internal service"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-209": "the system details leak through an error message",
+        "CWE-214": "the details are exposed through a child process's command line or environment",
+        "CWE-548": "the details are exposed by listing a directory's contents"
+      }
+    },
+    "CWE-498": {
+      "name": "Cloneable Class Containing Sensitive Information",
+      "abstraction": "Variant",
+      "languages": [
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function copy or clone an object that holds sensitive data, such as keys, passwords or tokens, without clearing, refusing or protecting those fields?",
+      "present_when": {
+        "any": [
+          "a clone, copy or duplicate method copies fields holding secrets into the new object without blocking or wiping them"
+        ],
+        "cpp": [
+          "a copy constructor or copy assignment of a class holding key material copies the secret members rather than being deleted"
+        ],
+        "javascript": [
+          "structuredClone, Object.assign or spread copies an object containing credentials or keys"
+        ],
+        "python": [
+          "__copy__, __deepcopy__, copy.copy or copy.deepcopy duplicates an object holding secrets"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "copying is explicitly forbidden or the clone omits or wipes sensitive fields",
+          "the object being copied holds no sensitive data"
+        ],
+        "cpp": [
+          "the copy constructor and assignment operator are deleted for the secret-holding class"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-375": "the sensitive object is returned by reference rather than copied"
+      }
+    },
+    "CWE-500": {
+      "name": "Public Static Field Not Marked Final",
+      "abstraction": "Variant",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-493"
+      ],
+      "function_checkable": false,
+      "reason": "A public static data member is declared at class scope, outside any function body."
+    },
+    "CWE-524": {
+      "name": "Use of Cache Containing Sensitive Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "sensitive_data",
+        "data_store"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put sensitive data into a cache that other users, processes or sessions can read?",
+      "present_when": {
+        "any": [
+          "passwords, tokens, personal or account data are stored in a shared cache, such as in-memory, Redis or memcached, under a key that does not include the owner's identity",
+          "sensitive values are cached in a file or directory readable by other users, or in a cache with no access control"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cache key includes the user or session and lookups check ownership",
+          "only non-sensitive, shareable data is cached",
+          "sensitive values are encrypted or not cached at all"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-525": "the cache is the user's web browser, controlled by response caching headers",
+        "CWE-488": "the data bleeds between sessions through shared objects rather than a cache"
+      }
+    },
+    "CWE-525": {
+      "name": "Use of Web Browser Cache Containing Sensitive Information",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-524"
+      ],
+      "function_checkable": true,
+      "question": "Does this web handler return sensitive pages or data without headers that stop the browser or proxies from caching them?",
+      "present_when": {
+        "any": [
+          "a response containing account, personal or authenticated data is sent without Cache-Control: no-store or equivalent headers",
+          "caching headers explicitly allow storing sensitive responses, such as Cache-Control: public or a long max-age"
+        ],
+        "javascript": [
+          "res.send or res.json of authenticated content with no res.set('Cache-Control', 'no-store'), or caching middleware applied to private routes"
+        ],
+        "python": [
+          "a view returns sensitive data without the framework's never-cache helper or a no-store Cache-Control header"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "no-store or private, no-cache headers are set on the response, here or by middleware the function visibly applies",
+          "the response contains only public, non-sensitive content"
+        ],
+        "c": [
+          "the function is not part of web response handling"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-524": "the cache is server-side or shared, not the browser's",
+        "CWE-539": "the sensitive data is kept in a persistent cookie"
+      }
+    },
+    "CWE-532": {
+      "name": "Insertion of Sensitive Information into Log File",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-538"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write sensitive information, such as passwords, tokens, keys, session ids or personal data, to a log?",
+      "present_when": {
+        "any": [
+          "a log call includes a password, secret, token, API key, card number or session id",
+          "a whole request, headers, form body or user object containing secrets is logged",
+          "an exception carrying credentials, such as a connection string, is logged in full"
+        ],
+        "c": [
+          "syslog or a logging macro formats a buffer holding a credential"
+        ],
+        "javascript": [
+          "logger.info, winston, pino or console.log receives req.body, req.headers or a token"
+        ],
+        "python": [
+          "logging.info or logger.debug formats a password, token or request body"
+        ],
+        "rust": [
+          "log::info!, tracing macros or eprintln! print a secret value or a struct deriving Debug that holds one"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are redacted or masked before logging",
+          "only non-sensitive identifiers and event descriptions are logged"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-117": "the problem is unescaped input corrupting the log rather than secrets inside it",
+        "CWE-215": "the output is debugging code rather than the production log"
+      }
+    },
+    "CWE-535": {
+      "name": "Exposure of Information Through Shell Error Message",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-211"
+      ],
+      "function_checkable": true,
+      "question": "Does this function run a shell or system command and return or display its error output, such as stderr or exit messages, to the user?",
+      "present_when": {
+        "any": [
+          "a command is run through a shell or process API and its stderr, combined output or failure message is placed in a response or UI"
+        ],
+        "c": [
+          "popen or system output, including redirected stderr (2>&1), is copied into data sent to the client"
+        ],
+        "javascript": [
+          "child_process.exec callback sends stderr or err.message to res"
+        ],
+        "python": [
+          "subprocess.run(..., stderr=STDOUT) or CalledProcessError.output is returned in the response"
+        ],
+        "rust": [
+          "Command::output() stderr is converted to a string and returned to the client"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "command errors are logged internally and the user gets a generic failure message",
+          "the command output is shown only to a trusted local operator, such as in a CLI tool run by the same user"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-78": "the command line itself is built from unneutralised input",
+        "CWE-211": "the passed-through error comes from a library or runtime rather than a shell command"
+      }
+    },
+    "CWE-538": {
+      "name": "Insertion of Sensitive Information into Externally-Accessible File or Directory",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write sensitive data, such as secrets, tokens or personal details, into a file or directory that other users or outside parties can read?",
+      "present_when": {
+        "any": [
+          "secrets or personal data are written to a file under a web root, shared folder, public bucket or world-readable location",
+          "a file holding sensitive content is created with permissive modes, such as 0644 or 0666, or without restricting access"
+        ],
+        "c": [
+          "fopen or open creates a file with default or permissive mode and then writes keys or passwords to it"
+        ],
+        "javascript": [
+          "fs.writeFile writes credentials or tokens into a public, static or uploads directory"
+        ],
+        "python": [
+          "open(...).write saves secrets into a static, media or shared directory, or the mode is not restricted"
+        ],
+        "rust": [
+          "File::create writes secrets without setting restrictive permissions via OpenOptionsExt::mode"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the file is created with owner-only permissions in a private location",
+          "the data written is not sensitive, or is encrypted before writing"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-532": "the file is a log file",
+        "CWE-219": "the file is placed specifically under the web server's document root",
+        "CWE-312": "the core issue is storing the secret unencrypted, wherever it is stored"
+      }
+    },
+    "CWE-539": {
+      "name": "Use of Persistent Cookies Containing Sensitive Information",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-552"
+      ],
+      "function_checkable": true,
+      "question": "Does this function set a long-lived cookie (with an expiry or max-age) whose value holds sensitive information?",
+      "present_when": {
+        "any": [
+          "a cookie is set with Expires or Max-Age in the future and its value contains a password, token, session secret, personal or financial data"
+        ],
+        "javascript": [
+          "res.cookie(), document.cookie or a Set-Cookie header gives maxAge or expires to a cookie carrying sensitive data"
+        ],
+        "python": [
+          "set_cookie() is called with max_age or expires and a value containing sensitive data"
+        ],
+        "c": [
+          "a Set-Cookie header string with Expires or Max-Age is built around a sensitive value"
+        ],
+        "rust": [
+          "a cookie builder sets max_age or expires on a cookie whose value is sensitive"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cookie has no expiry, so it ends with the browser session",
+          "the value is an opaque random identifier or a non-sensitive preference",
+          "the value is encrypted before it is placed in the cookie"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-565": "the issue is trusting a cookie value read back without validation, not what is stored"
+      }
+    },
+    "CWE-540": {
+      "name": "Inclusion of Sensitive Information in Source Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-538"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's source code contain sensitive details, such as credentials, keys, internal hosts or private URLs, embedded in literals or comments?",
+      "present_when": {
+        "any": [
+          "string literals in the function hold passwords, API keys, private keys, connection strings or tokens",
+          "literals or comments reveal internal host names, private IP addresses, hidden endpoints or administrator paths"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets and internal locations are read from configuration, environment or a secrets store",
+          "literals are placeholders, examples or public values"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-798": "the embedded value is a credential used to authenticate",
+        "CWE-615": "the sensitive details sit only in code comments"
+      }
+    },
+    "CWE-541": {
+      "name": "Inclusion of Sensitive Information in an Include File",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-540"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns the contents and accessibility of an include file as a whole, not a function body."
+    },
+    "CWE-548": {
+      "name": "Exposure of Information Through Directory Listing",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-497"
+      ],
+      "function_checkable": true,
+      "question": "Does this function list a directory's contents to clients, or enable automatic directory indexing, for a location that should not be browsable?",
+      "present_when": {
+        "any": [
+          "a request handler reads a directory listing and returns file names to the client without restricting which directory or who may see it",
+          "directory indexing or auto-index is turned on for a served path"
+        ],
+        "c": [
+          "opendir and readdir results are written to a network response"
+        ],
+        "javascript": [
+          "serve-index middleware or fs.readdir output is sent in a response for a served folder"
+        ],
+        "python": [
+          "os.listdir, os.scandir or pathlib iterdir results are returned to the client, or http.server's directory listing is used"
+        ],
+        "rust": [
+          "std::fs::read_dir entries are returned in an HTTP response, or a static file service has directory listing enabled"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "listing is limited to an intended public folder or to authorised users",
+          "the function serves single files only and returns not found or forbidden for directories"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-552": "the files themselves are served to unauthorised users rather than only their names listed",
+        "CWE-22": "the requested path can escape the intended directory"
+      }
+    },
+    "CWE-550": {
+      "name": "Server-generated Error Message Containing Sensitive Information",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-209"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let server or framework error pages with internal details reach clients, for example by enabling debug error output or rethrowing to a default handler?",
+      "present_when": {
+        "any": [
+          "a server or app is configured in this function to show detailed or debug error pages to clients",
+          "an error handler forwards the raw exception, stack or server internals in the HTTP response"
+        ],
+        "javascript": [
+          "an Express error handler sends err.stack, or the error middleware is left at its development default"
+        ],
+        "typescript": [
+          "a NestJS @Catch() exception filter sends exception.stack, the raw exception or its internal response to the client"
+        ],
+        "python": [
+          "app.run(debug=True), DEBUG = True set in code, or a handler returning traceback text"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a custom error handler returns a generic page or code and logs details server-side",
+          "debug output is enabled only under an explicit development-only condition"
+        ],
+        "typescript": [
+          "the filter returns only a status code and a generic message, logging the details on the server"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-211": "the passed-through error comes from a specific library call rather than the server's error page",
+        "CWE-215": "the detail is from debugging code left in rather than server error handling"
+      }
+    },
+    "CWE-552": {
+      "name": "Files or Directories Accessible to External Parties",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "requires": [
+        "filesystem",
+        "network"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make files or directories reachable by outside parties that should not be, for example by serving a sensitive folder or writing private files into a served location?",
+      "present_when": {
+        "any": [
+          "a static file handler serves a directory that contains configuration, source, backups, keys or user uploads from others",
+          "a file download handler returns files by path without checking the requester is allowed that file",
+          "private files are written into a web root, public bucket or FTP root"
+        ],
+        "javascript": [
+          "express.static or sendFile serves the project root, a .git or config directory, or user files without access checks"
+        ],
+        "python": [
+          "send_file or send_from_directory serves sensitive folders or arbitrary files without authorisation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only a dedicated public assets folder is served",
+          "each file request checks the requester's authorisation for that file",
+          "private files are stored outside any served location"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-22": "the requested path can escape the intended directory through traversal sequences",
+        "CWE-219": "the issue is specifically storing a sensitive file under the web root",
+        "CWE-548": "only a directory listing is exposed"
+      }
+    },
+    "CWE-553": {
+      "name": "Command Shell in Externally Accessible Directory",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-552"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create, copy or leave an executable shell or command script in a web-accessible directory such as cgi-bin?",
+      "present_when": {
+        "any": [
+          "a shell binary or script (sh, bash, cmd.exe, a .sh, .bat or .pl file) is written, copied or linked into cgi-bin, the web root or an upload folder",
+          "execute permission is set on a file placed in a served directory that runs arbitrary commands"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the files placed in served directories are fixed application handlers that do not run caller-chosen commands",
+          "the script is written outside every served directory",
+          "the function does not create, copy or chmod files"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-434": "the file reaches the served directory through an upload accepted from a user"
+      }
+    },
+    "CWE-565": {
+      "name": "Reliance on Cookies without Validation and Integrity Checking",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-642"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read a cookie and treat its value as trustworthy (identity, role, price, flag) without validating or verifying it?",
+      "present_when": {
+        "any": [
+          "a cookie value is used directly as a user id, role, permission flag or business value",
+          "the presence of a cookie alone is taken as proof of something"
+        ],
+        "javascript": [
+          "req.cookies.x or document.cookie is used in a decision without verifying a signature"
+        ],
+        "python": [
+          "request.cookies.get(...) drives a decision or lookup without signature checking"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cookie is a signed or encrypted value and the signature is verified before use",
+          "the cookie only holds an opaque session id that is looked up in server-side storage",
+          "the cookie controls only cosmetic preferences"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-784": "the cookie value specifically decides an authentication or authorisation check",
+        "CWE-539": "the issue is sensitive data stored in a persistent cookie"
+      }
+    },
+    "CWE-598": {
+      "name": "Use of HTTP Request With Sensitive Query String",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-201"
+      ],
+      "function_checkable": true,
+      "question": "Does this function put passwords, tokens, session ids or other sensitive values into a URL query string, or read them from one?",
+      "present_when": {
+        "any": [
+          "a URL is built with sensitive parameters such as ?password=, &token=, api_key= or session= appended",
+          "a request handler reads credentials or secrets from query parameters rather than the request body or headers",
+          "a form or request carrying credentials is sent with GET"
+        ],
+        "javascript": [
+          "fetch or axios is called with a URL embedding a token or password, or a handler reads req.query.password"
+        ],
+        "tsx": [
+          "a token, password or session id is put into a <Link to>, href, router.push or navigate() URL as a query parameter"
+        ],
+        "python": [
+          "requests.get(url, params={'password': ...}) or request.args.get('token') supplies a secret"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are sent in the request body of a POST or in an Authorization header",
+          "the query parameters carry only non-sensitive values such as page numbers or search terms"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-319": "the problem is sending the secret over an unencrypted channel rather than where in the request it sits"
+      }
+    },
+    "CWE-615": {
+      "name": "Inclusion of Sensitive Information in Source Code Comments",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-540"
+      ],
+      "function_checkable": true,
+      "question": "Do comments inside this function reveal sensitive details, such as passwords, internal paths, hidden URLs, old credentials or notes about security weaknesses?",
+      "present_when": {
+        "any": [
+          "a comment contains a password, key, token or test account credentials",
+          "a comment names internal servers, hidden pages, admin URLs, file locations or describes an unfixed security hole"
+        ],
+        "javascript": [
+          "comments in client-side code or templates sent to browsers reveal internal endpoints or credentials"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "comments describe behaviour without secrets or internal locations",
+          "the only commented-out code holds no credentials or private details"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-540": "the sensitive details are in live code literals rather than comments",
+        "CWE-798": "the credential is used by live code"
+      }
+    },
+    "CWE-642": {
+      "name": "External Control of Critical State Data",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take security-relevant state (role, price, user id, auth flag, file path, settings) from a place the client or another user can change?",
+      "present_when": {
+        "any": [
+          "authorisation or business decisions use a value read from a cookie, hidden field, query string, client-side storage or a world-writable file",
+          "the function stores privilege or session state on the client and reads it back as trusted"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the state is kept server-side and only an opaque reference reaches the client",
+          "values from the client are signed or MAC-checked and the signature is verified before use",
+          "the value read from the client is only a preference with no security effect"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-73": "the controlled value is a file name or path used in a filesystem call",
+        "CWE-565": "the controlled value is a cookie trusted without validation",
+        "CWE-472": "the controlled value is a hidden form field or parameter assumed fixed"
+      }
+    },
+    "CWE-651": {
+      "name": "Exposure of WSDL File Containing Sensitive Information",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-538"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns the content and publication of a web service description file, not a function's code."
+    },
+    "CWE-668": {
+      "name": "Exposure of Resource to Wrong Sphere",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-664"
+      ],
+      "function_checkable": true,
+      "question": "Does the function send, store, log, share or create anything (data, files, handles, objects, errors) that actors outside the intended trust boundary could see or reach?",
+      "present_when": {
+        "any": [
+          "data, errors or internal objects are returned to callers, written to responses, logs, files or caches, or passed to callbacks or child processes",
+          "files, temporary files, directories or caches are created or served, or search paths and library locations are set",
+          "a format string, session-shared field or mutable internal object crosses to code or users the function does not control"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function performs pure in-memory computation whose results stay within the program and touch no files, network, logs, processes or shared state",
+          "the function only reads trusted constants and returns non-sensitive derived values to internal callers"
+        ]
+      }
+    },
+    "CWE-767": {
+      "name": "Access to Critical Private Variable via Public Method",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Is this a public member function that exposes or changes a sensitive private data member without any check, such as returning a non-const reference or pointer to it?",
+      "present_when": {
+        "cpp": [
+          "a public method returns a non-const reference or pointer to a private member holding sensitive state",
+          "a public setter assigns a caller-supplied value to a private security-relevant field with no validation or permission check"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the method returns by value or const reference and the member is not sensitive",
+          "the setter validates the value or checks the caller's authority before changing the member",
+          "the method is private or protected"
+        ]
+      }
+    },
+    "CWE-784": {
+      "name": "Reliance on Cookies without Validation and Integrity Checking in a Security Decision",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-565"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make an authentication or authorisation decision based on a cookie value it does not verify?",
+      "present_when": {
+        "any": [
+          "a check such as if cookie == 'admin', loggedIn == 'true' or a cookie-held user id grants access",
+          "access is allowed simply because a cookie is present"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the cookie is an opaque session token validated against server-side storage",
+          "a signature, MAC or encryption on the cookie is verified before the decision",
+          "the cookie has no part in deciding access"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-565": "the cookie drives a non-security decision such as a business value"
+      }
+    },
+    "CWE-1254": {
+      "name": "Incorrect Comparison Logic Granularity",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-208"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare a secret, MAC or password piece by piece and stop at the first mismatch instead of comparing the whole value in one constant-time operation?",
+      "present_when": {
+        "any": [
+          "a loop compares secret and supplied values element by element and breaks or returns false on the first difference",
+          "a comparison checks the length or a prefix first and returns early, then compares the rest separately"
+        ],
+        "c": [
+          "memcmp, strcmp or strncmp is used on secrets, as they may stop at the first differing byte"
+        ],
+        "cpp": [
+          "std::string or std::vector operator==, compare() or std::equal is used on the secret, as these may stop at the first difference"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the comparison accumulates differences across all elements (for example with OR of XORs) and decides only at the end",
+          "a library constant-time comparison is used, such as CRYPTO_memcmp, timingSafeEqual or hmac.compare_digest",
+          "the values compared are not secrets"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-208": "the timing difference comes from something other than a stepwise comparison, such as skipped hashing"
+      }
+    },
+    "CWE-1255": {
+      "name": "Comparison Logic is Vulnerable to Power Side-Channel Attacks",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1300"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns a device's power consumption during hardware token comparison, which function source cannot show."
+    },
+    "CWE-1282": {
+      "name": "Assumed-Immutable Data is Stored in Writable Memory",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-668"
+      ],
+      "function_checkable": true,
+      "question": "Does this function overwrite data that should never change after manufacture or first boot, such as a device id, boot image or write-once setting, without a lock or check?",
+      "present_when": {
+        "any": [
+          "a write, erase or program operation targets a region holding a device identifier, boot code or one-time configuration",
+          "a supposedly fixed identifier or configuration value is kept in mutable storage and updated from a parameter"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function checks a lock bit, write-once flag or authorised update path before writing",
+          "the function only reads the fixed data",
+          "the data written is ordinary mutable configuration"
+        ]
+      }
+    },
+    "CWE-1295": {
+      "name": "Debug Messages Revealing Unnecessary Information",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-200"
+      ],
+      "function_checkable": true,
+      "question": "Does this function emit debug or trace messages that reveal more internal detail than needed, such as memory dumps, register or key contents, or full internal state?",
+      "present_when": {
+        "any": [
+          "debug or trace output dumps raw buffers, memory regions, register values or whole internal structures",
+          "boot, diagnostic or trace messages print key material, addresses or security configuration"
+        ],
+        "c": [
+          "printf, a UART or serial print or a trace macro hex-dumps a buffer or prints pointer addresses and key bytes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "debug messages report only status codes or short non-sensitive summaries",
+          "detailed dumps are compiled out or gated so they cannot run in production builds, as shown in the function"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-215": "the debug output contains user secrets such as passwords rather than system internals",
+        "CWE-532": "the detail is written to an ordinary application log"
+      }
+    },
+    "CWE-1300": {
+      "name": "Improper Protection of Physical Side Channels",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-203"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns physical side channels such as power and electromagnetic emissions of a device, not function source code."
+    }
+  }
+}

@@ -556,3 +556,28 @@ fn ambiguous_unix_path_is_rejected() {
     fs::write(t.path().join("..\\escape.js"), "()=>1").unwrap();
     assert!(scan::scan(t.path(), Policy::default(), false).is_err());
 }
+
+#[test]
+fn rust_attributes_join_the_span_across_comments() {
+    let t = tempfile::tempdir().unwrap();
+    let text = "// unrelated\n#[inline]\n/// Doc comment.\n// Note.\n#[must_use]\n/* block */\nfn tagged() -> u8 { 1 }\n\n// leading comment only\nfn plain() -> u8 { 2 }\n\n#[test]\nfn adjacent() {}\n";
+    fs::write(t.path().join("a.rs"), text).unwrap();
+    let (m, _) = inventory(t.path());
+    let source = |name: &str| {
+        let f = m
+            .functions
+            .iter()
+            .find(|f| f.name.as_deref() == Some(name))
+            .unwrap();
+        text[f.start_byte..f.end_byte].to_string()
+    };
+    let tagged = source("tagged");
+    assert!(
+        tagged.starts_with("#[inline]\n/// Doc comment."),
+        "{tagged}"
+    );
+    assert!(tagged.contains("#[must_use]") && tagged.ends_with("{ 1 }"));
+    // Comments with no attribute before them stay outside the span.
+    assert!(source("plain").starts_with("fn plain"));
+    assert!(source("adjacent").starts_with("#[test]\nfn adjacent"));
+}

@@ -10,28 +10,28 @@
     "roots": 51
   },
   "javascript": {
-    "questions": 705,
-    "findings": 672,
-    "roots": 25
+    "questions": 709,
+    "findings": 676,
+    "roots": 23
   },
   "typescript": {
-    "questions": 706,
-    "findings": 673,
-    "roots": 28
-  },
-  "tsx": {
-    "questions": 706,
-    "findings": 673,
-    "roots": 28
-  },
-  "python": {
     "questions": 713,
     "findings": 680,
-    "roots": 25
+    "roots": 23
+  },
+  "tsx": {
+    "questions": 713,
+    "findings": 680,
+    "roots": 23
+  },
+  "python": {
+    "questions": 715,
+    "findings": 682,
+    "roots": 23
   },
   "rust": {
-    "questions": 730,
-    "findings": 693,
-    "roots": 49
+    "questions": 733,
+    "findings": 696,
+    "roots": 47
   }
 }

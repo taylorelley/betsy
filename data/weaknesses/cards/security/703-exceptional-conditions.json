@@ -1,0 +1,324 @@
+{
+  "cards": {
+    "CWE-252": {
+      "name": "Unchecked Return Value",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-754"
+      ],
+      "function_checkable": true,
+      "question": "Does this function ignore the return value of a call that reports success or failure through that value?",
+      "present_when": {
+        "any": [
+          "a call that returns an error code, status or count is used as a statement and its result is discarded"
+        ],
+        "c": [
+          "calls such as read, write, fread, fwrite, malloc, setuid, snprintf or close are made without examining what they return"
+        ],
+        "cpp": [
+          "std::filesystem calls taking a std::error_code& leave the code unchecked, or a stream is opened or written without testing is_open() or its fail state"
+        ],
+        "python": [
+          "a call that returns a status or success flag rather than raising, such as os.system or subprocess.call, has its result discarded"
+        ],
+        "javascript": [
+          "a promise returned by an async call is neither awaited nor given a rejection handler, or a callback's error argument is never examined"
+        ],
+        "typescript": [
+          "a call returning a Result type or an { ok: false, error } discriminated union has its result discarded, or its value read without checking the discriminant"
+        ],
+        "rust": [
+          "a Result is discarded with let _ = or .ok() where the failure matters"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every return value that can signal failure is stored and tested",
+          "the discarded value carries no error information, such as a builder returning itself or a count that is not needed"
+        ],
+        "typescript": [
+          "the result is narrowed on its discriminant, such as if (!r.ok) return r.error, before the value is used"
+        ],
+        "c": [
+          "the call is explicitly cast to (void) where failure is genuinely harmless"
+        ],
+        "cpp": [
+          "stream exceptions are enabled, or the throwing overload of the std::filesystem call is used"
+        ],
+        "python": [
+          "the call raises an exception on failure, which is the language's normal error reporting"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-754": "the return value is read but a particular unusual result is not checked",
+        "CWE-390": "the error is detected but nothing is done about it"
+      }
+    },
+    "CWE-273": {
+      "name": "Improper Check for Dropped Privileges",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-754"
+      ],
+      "function_checkable": true,
+      "question": "Does this function drop privileges, for example with setuid or setgid, without checking that the call succeeded before carrying on?",
+      "present_when": {
+        "any": [
+          "a call that lowers privileges, such as setuid, setgid, seteuid, setgroups or a token impersonation revert, has its return value ignored",
+          "after dropping privileges the code does not confirm that root cannot be regained, then continues with untrusted work"
+        ],
+        "python": [
+          "os.setuid or os.setgid is called inside a try block whose exception is swallowed"
+        ],
+        "rust": [
+          "a nix or libc setuid call's Result or return code is discarded"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the result of every privilege change is tested and failure aborts the process or the operation",
+          "the function does not change privileges"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the unchecked call is not a privilege change"
+      }
+    },
+    "CWE-280": {
+      "name": "Improper Handling of Insufficient Permissions or Privileges",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-755"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mishandle a permission or access-denied failure, for example by continuing as if the operation succeeded or by falling back to a less safe path?",
+      "present_when": {
+        "any": [
+          "an access denied or permission error from opening, writing or calling a privileged API is caught and processing continues with missing or default data",
+          "after a permission failure the code retries with weaker settings, such as world-writable mode or a shared temporary location",
+          "a permission error is treated the same as not found, leading to creating or overwriting a resource"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "permission failures stop the operation and are reported to the caller",
+          "the function performs no operation that can be refused for lack of privileges"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-273": "the failure is in dropping privileges and the result goes unchecked",
+        "CWE-390": "any error is detected and ignored, not specifically a permission failure"
+      }
+    },
+    "CWE-390": {
+      "name": "Detection of Error Condition Without Action",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-755"
+      ],
+      "function_checkable": true,
+      "question": "Does this function detect an error and then take no meaningful action, such as an empty catch block or an error branch that does nothing?",
+      "present_when": {
+        "any": [
+          "a catch or except block is empty, contains only pass or a comment, or only prints and then continues normally",
+          "an if branch that tests for failure has an empty body or just falls through to code that assumes success"
+        ],
+        "rust": [
+          "an Err arm does nothing, or a Result is matched with Err(_) => {} and execution continues"
+        ],
+        "javascript": [
+          "a promise catch handler or callback error branch is empty or only logs and then resolves normally"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every detected error is handled by returning, rethrowing, retrying with a limit, cleaning up or reporting to the caller",
+          "the ignored error is genuinely harmless and the code says why, such as removing a file that may not exist"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the return value is never examined, so the error is not even detected",
+        "CWE-392": "the function handles the failure internally but returns success to its caller"
+      }
+    },
+    "CWE-392": {
+      "name": "Missing Report of Error Condition",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-755"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hit a failure and then return success or a normal-looking result to its caller instead of reporting the error?",
+      "present_when": {
+        "any": [
+          "an error branch returns 0, true, an empty value or a default object that callers cannot tell apart from success",
+          "an exception is caught and the function returns normally without an error indication",
+          "a status variable is set on failure but the function returns a different, success value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "failures are returned as an error code, error result, raised exception or rejected promise",
+          "the default return value is documented and distinguishable from success, such as None meaning not found"
+        ],
+        "rust": [
+          "the function returns Result or Option and maps the failure to Err or None"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-390": "the error is detected and nothing at all is done, not even a return"
+      }
+    },
+    "CWE-394": {
+      "name": "Unexpected Status Code or Return Value",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-754"
+      ],
+      "function_checkable": true,
+      "question": "Does this function handle only the return values it expects from a call and mishandle other values the call can validly return?",
+      "present_when": {
+        "any": [
+          "only one success value is tested, and other valid results, such as a partial count, zero or a different success code, fall into the success or error path wrongly",
+          "an HTTP or API status is treated as success unless it equals one specific error code",
+          "a function returning a tri-state, such as -1, 0 or positive, is tested as if it were boolean"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every documented outcome of the call is handled distinctly, including partial or zero results",
+          "unexpected values fall into an explicit error branch"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the return value is not examined at all",
+        "CWE-754": "the missed outcome is an error or null rather than a valid but unexpected value"
+      }
+    },
+    "CWE-544": {
+      "name": "Missing Standardized Error Handling Mechanism",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-755"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns whether error handling is consistent across the whole codebase, which a single function cannot show."
+    },
+    "CWE-703": {
+      "name": "Improper Check or Handling of Exceptional Conditions",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does this function call operations that can fail, raise or return error codes, or handle errors and exceptions?",
+      "present_when": {
+        "any": [
+          "calls whose return value, status, error result or exception reports failure, such as I/O, allocation, parsing, network or privilege changes",
+          "try/catch or except blocks, error callbacks, error codes or errno handling, or the absence of these around calls that can fail",
+          "code paths for missing permissions, unexpected status values or hardware and environmental fault indications"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function performs only pure computation on its arguments with no calls that can fail",
+          "the function is a trivial accessor or constructor with no error paths"
+        ]
+      }
+    },
+    "CWE-754": {
+      "name": "Improper Check for Unusual or Exceptional Conditions",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-703"
+      ],
+      "function_checkable": true,
+      "question": "Does this function fail to check for an unusual but possible outcome of an operation, such as an error return, null, short read or empty result, before relying on it?",
+      "present_when": {
+        "any": [
+          "the result of a call that can fail is used directly without testing for an error value, null, None or a short count",
+          "a lookup, parse or search that can find nothing is assumed to have succeeded",
+          "the code tests for the common error value but not another documented failure value of the same call"
+        ],
+        "typescript": [
+          "the result of map.get(), array.find(), a nullable lookup or a findOne returning T | null is used with a ! assertion or an as T cast instead of a check"
+        ],
+        "c": [
+          "the buffer given to fgets or getline is used after the call returned NULL or -1, when its contents are indeterminate"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every call that can fail has its outcome tested before the result is used, with failure handled on every path",
+          "the failure is reported through an exception that the language propagates automatically and the function has nothing to clean up"
+        ],
+        "typescript": [
+          "strict null checks force a T | undefined or T | null result to be narrowed before use, and no ! or any is involved"
+        ],
+        "rust": [
+          "fallible calls return Result or Option that is handled with match, ? or an explicit check rather than unwrap on untrusted outcomes"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the return value of a call is ignored entirely",
+        "CWE-394": "the call returns a valid but unexpected value that the code does not anticipate",
+        "CWE-476": "the unchecked outcome is a null pointer that is then dereferenced"
+      }
+    },
+    "CWE-755": {
+      "name": "Improper Handling of Exceptional Conditions",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-703"
+      ],
+      "function_checkable": true,
+      "question": "Does this function handle errors, exceptions or failed operations, including permission failures, in a way that could be missing, silent or wrong?",
+      "present_when": {
+        "any": [
+          "catch or except blocks, error branches after failed calls, or error codes being passed on or converted",
+          "handling of access denied or insufficient permission results",
+          "an error is detected and then ignored, logged only, or not reported to the caller"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function has no operations that can fail and no error handling code",
+          "the function is a pure calculation or simple accessor"
+        ]
+      }
+    },
+    "CWE-1261": {
+      "name": "Improper Handling of Single Event Upsets",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1384"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns hardware logic resilience to single event upsets, a hardware design property rather than function source code."
+    },
+    "CWE-1384": {
+      "name": "Improper Handling of Physical or Environmental Conditions",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-703"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read physical or environmental measurements, such as temperature, voltage or sensor values, and act on them without handling out-of-range or fault readings?",
+      "present_when": {
+        "any": [
+          "a sensor, ADC or hardware status value is read and used for control or safety decisions with no plausibility or range check",
+          "a hardware fault, brown-out or over-temperature indication is read but not acted on",
+          "a failed or stuck sensor reading is treated as a valid value"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "readings are checked against valid limits and faults lead to a defined safe response",
+          "the function does not interact with hardware or physical measurements"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1261": "the issue is hardware logic resilience to radiation-induced bit flips"
+      }
+    }
+  }
+}

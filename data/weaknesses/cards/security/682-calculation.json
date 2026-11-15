@@ -1,0 +1,492 @@
+{
+  "cards": {
+    "CWE-128": {
+      "name": "Wrap-around Error",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Can a counter, size or index in this function be incremented or added to past its type's maximum so that it wraps to a small or negative value that is then used?",
+      "present_when": {
+        "c": [
+          "a fixed-width counter such as uint8_t, unsigned short or int is incremented or added to in a loop or per message with no upper-bound test, and then used as a size, index or loop condition",
+          "a sequence number, reference count or offset is increased without checking it is below the type's maximum",
+          "the sum of a length and an offset is compared with a limit after it may already have wrapped"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the value is checked against its maximum (or the limit minus the increment) before each increase",
+          "the type is wide enough that the bounded number of increments in the function cannot reach its limit",
+          "wrapping is intended and harmless, such as a hash or a modular sequence compared with wrap-aware arithmetic"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-190": "the wrap comes from a general calculation such as a multiplication rather than repeated increments",
+        "CWE-191": "the value goes below its minimum through subtraction"
+      }
+    },
+    "CWE-131": {
+      "name": "Incorrect Calculation of Buffer Size",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "memory_buffers",
+        "pointers",
+        "dynamic_memory"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compute the size of a buffer it allocates or copies into in a way that can be too small for the data written to it?",
+      "present_when": {
+        "c": [
+          "malloc, calloc, realloc, alloca or new[] is sized with a count that omits the element size, or strlen(s) without +1 for the terminator",
+          "a size is computed as count * sizeof(T) or a sum of lengths without checking for overflow",
+          "the allocation uses the size of a different type, or the input length before escaping or encoding expands it"
+        ],
+        "cpp": [
+          "new char[s.size()] without + 1 before copying c_str() into it, or new T[n * m] where n * m is not checked for overflow"
+        ],
+        "rust": [
+          "Layout::from_size_align, alloc or Vec::with_capacity followed by set_len or raw writes uses a size computed with unchecked arithmetic or the wrong element size"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the size is derived from the exact data written, including terminators and expansion, and overflow-checked arithmetic is used",
+          "the buffer grows automatically, such as std::string, std::vector push_back, String or Vec push"
+        ],
+        "c": [
+          "calloc(n, sizeof *p) or a checked multiplication is used with the element type of the destination"
+        ],
+        "rust": [
+          "only safe Vec, String or slice APIs are used, which size and check themselves"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-467": "sizeof is applied to a pointer instead of the pointed-to data",
+        "CWE-190": "the size calculation overflows and that is the clearest defect",
+        "CWE-787": "the defect is the write past the end rather than the size calculation"
+      }
+    },
+    "CWE-135": {
+      "name": "Incorrect Calculation of Multi-Byte String Length",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "memory_buffers"
+      ],
+      "function_checkable": true,
+      "question": "Does this function confuse character counts with byte counts for wide or multi-byte strings when sizing buffers or copying text?",
+      "present_when": {
+        "c": [
+          "strlen is used on UTF-8 or other multi-byte text where a character count is needed, or a character count is used where bytes are needed",
+          "wcslen or a wchar_t count is passed to malloc, memcpy or a byte length without multiplying by sizeof(wchar_t)",
+          "MultiByteToWideChar, mbstowcs or similar conversion is given a buffer size in the wrong unit"
+        ],
+        "cpp": [
+          "std::string size() of UTF-8 text is treated as a character count, or std::wstring size() is passed where a byte length is needed"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "byte lengths and character counts are kept separate and each is used with APIs expecting that unit",
+          "the text is guaranteed to be single-byte ASCII",
+          "sizes are computed as count * sizeof(wchar_t) or obtained from the conversion function's size query"
+        ],
+        "cpp": [
+          "byte sizes are computed as wstr.size() * sizeof(wchar_t), and character counts come from a Unicode library"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-131": "the buffer size is wrong for reasons unrelated to character width"
+      }
+    },
+    "CWE-190": {
+      "name": "Integer Overflow or Wraparound",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Can an integer calculation in this function overflow or wrap, for example in a size, length, count or index, before the result is used?",
+      "present_when": {
+        "any": [
+          "a multiplication, addition or shift on values from input, parameters or lengths has no prior range check, and the result sizes an allocation, bounds a loop or indexes memory"
+        ],
+        "c": [
+          "count * size, len + header or a << n is computed in int, size_t or a narrower type and passed to malloc, memcpy or a comparison",
+          "an overflow test is written after the operation, such as if (a + b < a) on signed values"
+        ],
+        "cpp": [
+          "a.size() * b.size(), count * sizeof(T) or n + 1 on input sizes is passed to new[], resize, reserve or memcpy with no range check"
+        ],
+        "javascript": [
+          "integer arithmetic exceeds Number.MAX_SAFE_INTEGER or uses |0, >>> or typed arrays, which truncate to 32 bits"
+        ],
+        "python": [
+          "numpy, ctypes or struct values with fixed width are combined arithmetically and used as sizes or indices"
+        ],
+        "rust": [
+          "+, * or << on integers from input where release builds wrap silently, or `as` casts truncate the result"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "operands are range-checked against limits that make overflow impossible before the calculation",
+          "overflow-checked APIs are used, such as __builtin_mul_overflow, checked_mul, BigInt or SafeInt"
+        ],
+        "cpp": [
+          "the operands are tested against std::numeric_limits<T>::max() divided by the other operand before multiplying"
+        ],
+        "python": [
+          "the arithmetic uses plain Python int, which has arbitrary precision"
+        ],
+        "rust": [
+          "checked_*, saturating_* or explicit wrapping_* used deliberately"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-191": "the value goes below the type's minimum through subtraction",
+        "CWE-131": "the overflow is part of a buffer size calculation and the undersized buffer is the main defect",
+        "REL-092": "a narrow calculation overflows before being stored into a wider variable"
+      }
+    },
+    "CWE-191": {
+      "name": "Integer Underflow (Wrap or Wraparound)",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Can a subtraction or decrement in this function go below the type's minimum, for example an unsigned length becoming huge, before the result is used?",
+      "present_when": {
+        "c": [
+          "len - n, end - offset or size - header on unsigned values with no prior test that the first is at least the second, and the result sizes a copy, allocation or loop",
+          "an unsigned counter is decremented in a loop condition such as i-- >= 0 or while (n - 1 > x) where n can be 0",
+          "a signed value is reduced below INT_MIN, such as negating or subtracting from a value taken from input",
+          "buf[strlen(buf) - 1] after fgets or a read, where the string may be empty"
+        ],
+        "cpp": [
+          "v.size() - 1, s.length() - n or end - start on size_t without a check that the container is large enough, used as a count, substr length or loop bound"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the code checks that the minuend is at least the subtrahend on every path before subtracting",
+          "the values are bounded so the result cannot fall below the minimum",
+          "the result is only compared, never used as a size or index, and wrapping is harmless"
+        ],
+        "cpp": [
+          "an empty() or size() >= n test guards the subtraction on every path"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-190": "the overflow comes from addition, multiplication or shifts",
+        "CWE-128": "a counter wraps upwards through repeated increments"
+      }
+    },
+    "CWE-193": {
+      "name": "Off-by-one Error",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a bound, length or count that is off by one, such as <= instead of <, a missing +1 for a terminator, or an extra or missed iteration?",
+      "present_when": {
+        "any": [
+          "a loop over a buffer or array uses i <= n or starts at 1 where 0 to n-1 is the valid range, or stops one short of the last element",
+          "a range, slice or substring end is computed inclusive where the API expects exclusive, or the reverse",
+          "a length check uses > where >= is needed, letting one extra element through"
+        ],
+        "c": [
+          "a string buffer is sized strlen(s) or copied with strncpy(dst, src, sizeof dst) leaving no room for the terminator"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "loops run from 0 to length with an exclusive bound, or iterate with for-each, iterators or range(len) that match the container",
+          "boundaries are tested and documented, for example a clear inclusive range with matching checks"
+        ],
+        "c": [
+          "sizes include +1 for the terminator, or snprintf / strlcpy with the full buffer size is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-787": "the off-by-one leads to a write past the end and that is the more precise finding",
+        "CWE-125": "the off-by-one leads to a read past the end and that is the more precise finding"
+      }
+    },
+    "CWE-369": {
+      "name": "Divide By Zero",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "arithmetic",
+        "floating_point"
+      ],
+      "function_checkable": true,
+      "question": "Can this function divide or take a modulus by a value that may be zero?",
+      "present_when": {
+        "any": [
+          "a divisor taken from a parameter, input, count, length or calculation is used with / or % without a non-zero test",
+          "an average, ratio or rate divides by a count or elapsed time that can be zero, such as an empty list's length"
+        ],
+        "python": [
+          "/, // or % by such a value outside any handler for ZeroDivisionError"
+        ],
+        "javascript": [
+          "BigInt division by a possibly zero value, which throws RangeError, or a number division whose Infinity or NaN result is used as an index or size"
+        ],
+        "rust": [
+          "integer / or % by a possibly zero value, which panics"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the divisor is a non-zero constant, or is tested for zero with an early return on every path",
+          "the divisor is clamped to at least 1 or comes from a length known to be non-empty"
+        ],
+        "rust": [
+          "checked_div or checked_rem is used and None is handled"
+        ]
+      },
+      "distinguish_from": {
+        "REL-213": "the division is floating point and the code expects it to raise an error rather than yield infinity or NaN",
+        "REL-197": "a guard exists but compares floating-point values that may differ only in a flushed subnormal"
+      }
+    },
+    "CWE-467": {
+      "name": "Use of sizeof() on a Pointer Type",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-131"
+      ],
+      "function_checkable": true,
+      "question": "Does this function apply sizeof to a pointer where the size of the data it points to was intended?",
+      "present_when": {
+        "c": [
+          "sizeof(p) or sizeof p is used where p is a pointer, in malloc, memcpy, memset, strncpy, snprintf or a loop bound, and the intended size is that of the pointed-to buffer or struct",
+          "sizeof is applied to an array parameter, which has decayed to a pointer",
+          "a pointer is passed where an array was used before, so sizeof(buf) no longer gives the buffer length"
+        ],
+        "cpp": [
+          "sizeof is applied to a std::string, std::vector or pointer member where size() or the element count times sizeof(T) was meant"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "sizeof is applied to an actual array declared in the same scope, or to *p, or to the type itself",
+          "the code genuinely needs the size of a pointer, such as allocating an array of pointers with n * sizeof(char *)"
+        ],
+        "cpp": [
+          "std::size(arr) or the container's size() supplies the length"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-131": "the buffer size is wrong for a reason other than sizeof on a pointer"
+      }
+    },
+    "CWE-468": {
+      "name": "Incorrect Pointer Scaling",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "pointers"
+      ],
+      "function_checkable": true,
+      "question": "Does this function add a byte offset to a typed pointer, or multiply an index by sizeof before pointer arithmetic, so the offset is scaled twice or not at all?",
+      "present_when": {
+        "c": [
+          "p + n * sizeof(*p) or ptr + offset where offset is already in bytes and ptr is not a char or byte pointer",
+          "an int or struct pointer is advanced by a byte count from a header or length field",
+          "a char * offset is computed with an element count where a byte count was needed"
+        ],
+        "cpp": [
+          "reinterpret_cast<T*>(base) + offset where offset counts bytes, or a std::uint32_t* from vector::data() advanced by a byte count"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "byte offsets are applied to char, unsigned char or uint8_t pointers and element counts to typed pointers",
+          "array indexing (p[i]) with an element index is used",
+          "the offset is cast through (char *) before adding bytes and back afterwards"
+        ]
+      },
+      "distinguish_from": {
+        "REL-143": "the concern is only that +, - or += is used on pointers instead of indexing, with correct scaling",
+        "CWE-131": "the wrong scaling is in an allocation size"
+      }
+    },
+    "CWE-469": {
+      "name": "Use of Pointer Subtraction to Determine Size",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "pointers"
+      ],
+      "function_checkable": true,
+      "question": "Does this function subtract one pointer from another to get a size or length when the two may not point into the same buffer?",
+      "present_when": {
+        "c": [
+          "a length or count is computed as end - start where the pointers come from different allocations, different calls or different arrays",
+          "pointer difference is used as a size for memcpy, malloc or a loop when one pointer may be NULL or reset to another buffer on some path",
+          "a search result pointer is subtracted from the buffer start without checking that the search succeeded"
+        ],
+        "cpp": [
+          "std::distance or iterator subtraction between iterators taken from different containers or different copies of one"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "both pointers are derived in the function from the same array or allocation, such as p and p + n or a strchr result within that buffer that was checked for NULL",
+          "the size is taken from a stored length rather than pointer difference"
+        ],
+        "cpp": [
+          "both iterators come from the same container object, and any find result is checked against end() first"
+        ]
+      },
+      "distinguish_from": {
+        "REL-141": "the two pointers are clearly into different objects and the subtraction itself is undefined",
+        "CWE-468": "pointer arithmetic scales an offset wrongly"
+      }
+    },
+    "CWE-682": {
+      "name": "Incorrect Calculation",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does the function compute sizes, offsets, counts, ratios or numeric results where the arithmetic could overflow, wrap, divide by zero, be off by one or lose precision?",
+      "present_when": {
+        "any": [
+          "integer arithmetic on sizes, lengths, indices or counts, especially from input, such as multiplication, addition, subtraction or shifts",
+          "division or modulo, or loop and buffer bounds computed with +1 / -1",
+          "floating-point arithmetic for money, accumulations, roots, rounding, conversion or comparison",
+          "pointer arithmetic, sizeof expressions or mixing narrow and wide or signed and unsigned types"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function performs no arithmetic beyond trivial constant increments of a loop counter bounded by a container's size",
+          "the function only moves, formats or forwards values without calculating with them"
+        ]
+      }
+    },
+    "CWE-1335": {
+      "name": "Incorrect Bitwise Shift of Integer",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Can this function shift an integer by a negative amount or by at least the number of bits in its type?",
+      "present_when": {
+        "any": [
+          "a shift count comes from a parameter, input, loop variable or calculation and is not bounded to 0 up to the operand's bit width minus 1"
+        ],
+        "c": [
+          "1 << n, 1u << width or x >> k where n, width or k can reach 32 (or 64 for 64-bit operands), or 1 << 31 on a signed int"
+        ],
+        "javascript": [
+          "<<, >> or >>> with a count that may be 32 or more, where the count is silently reduced modulo 32, or a negative count"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the shift count is a constant in range, or is checked or masked so it stays below the bit width",
+          "the shift is on a type wide enough for every possible count"
+        ],
+        "cpp": [
+          "the count is checked against std::numeric_limits<T>::digits, or std::rotl and std::rotr are used, which accept any count"
+        ],
+        "javascript": [
+          "BigInt shifts, which have no 32-bit width limit"
+        ]
+      },
+      "distinguish_from": {
+        "REL-105": "the shift count reaches the width of a narrow essential type such as uint8_t",
+        "REL-087": "the issue is shifting a signed value rather than the shift count"
+      }
+    },
+    "CWE-1339": {
+      "name": "Insufficient Precision or Accuracy of a Real Number",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "floating_point",
+        "arithmetic"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use floating-point or another limited-precision number representation in a way that loses accuracy the result needs?",
+      "present_when": {
+        "any": [
+          "money, decimal rates or exact quantities are held in float or double and compared or totalled",
+          "nearly equal floating values are subtracted, or many terms are summed naively, or a small value is added to a large one",
+          "float is used where double or an exact type is needed, or results are rounded or printed with too few digits",
+          "floating values are compared for exact equality after calculation"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "an exact representation is used, such as integers in the smallest unit, Decimal or BigDecimal-style types, or rational arithmetic",
+          "comparisons use a tolerance appropriate to the scale and accuracy is not critical to the result",
+          "the function does no floating-point calculation"
+        ]
+      },
+      "distinguish_from": {
+        "REL-185": "decimal amounts are expected to be exact in binary floating point",
+        "REL-182": "nearly equal computed values are subtracted",
+        "REL-186": "a long series of terms is summed one by one"
+      }
+    }
+  }
+}

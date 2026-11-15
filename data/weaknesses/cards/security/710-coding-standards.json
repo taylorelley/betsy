@@ -1,0 +1,2786 @@
+{
+  "cards": {
+    "CWE-174": {
+      "name": "Double Decoding of the Same Data",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-675"
+      ],
+      "function_checkable": true,
+      "question": "Does this function decode the same data twice, so a security check done between or before the decodes can be bypassed by double encoding?",
+      "present_when": {
+        "any": [
+          "a value is URL-, HTML- or base64-decoded and then decoded again before use",
+          "input is checked for dangerous characters such as ../ or < after one decode and then decoded again"
+        ],
+        "javascript": [
+          "decodeURIComponent applied to a value the framework has already decoded, such as req.query or req.params"
+        ],
+        "python": [
+          "unquote(unquote(x)), or unquote applied to a value from request.args, which is already decoded"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "data is decoded exactly once into canonical form before any validation",
+          "validation runs after the final decode and nothing decodes the value afterwards"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-180": "the order of validating and canonicalising is wrong but no second decode occurs",
+        "CWE-675": "the repeated operation is something other than decoding"
+      }
+    },
+    "CWE-188": {
+      "name": "Reliance on Data/Memory Layout",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1105"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely on how data is laid out in memory or in a binary message, such as member offsets, padding, variable adjacency or type punning?",
+      "present_when": {
+        "any": [
+          "a whole structure is copied to or from a byte buffer, file or socket with memcpy, fread, fwrite or send and the other side is assumed to share its layout",
+          "pointer arithmetic steps from one variable or member to a neighbouring one, assuming it sits next in memory",
+          "hard-coded offsets index into a structure or binary record instead of naming the fields"
+        ],
+        "python": [
+          "ctypes Structure or native struct formats map binary data assuming the platform's padding and alignment"
+        ],
+        "javascript": [
+          "fixed byte offsets into an ArrayBuffer assume a layout produced by C code on a particular machine"
+        ],
+        "rust": [
+          "transmute or pointer casts between types without #[repr(C)] or #[repr(packed)], or reliance on field order of a default-repr struct"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each field is serialised and parsed individually with explicit sizes and byte order",
+          "offsets are computed with offsetof or sizeof, or the format is defined by a schema or serialisation library"
+        ],
+        "rust": [
+          "a serialisation crate or explicit from_le_bytes style parsing handles the format"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-198": "the only layout problem is the byte order of numeric fields",
+        "REL-149": "the layout dependence comes from writing one union member and reading another",
+        "REL-180": "the code reaches into or copies a FILE object"
+      }
+    },
+    "CWE-198": {
+      "name": "Use of Incorrect Byte Ordering",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-188"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take multi-byte numbers from a file, network or device and use them without converting from the data's byte order?",
+      "present_when": {
+        "any": [
+          "an integer or float is read from a received buffer by pointer cast, memcpy or a bulk read and used directly with no byte-order conversion",
+          "numbers are assembled from bytes in an order that contradicts the protocol, for example little-endian shifts for a network-order field"
+        ],
+        "c": [
+          "a port, length or address field from a socket buffer is used without ntohs, ntohl or a be/le conversion helper, or a value is sent without htons/htonl"
+        ],
+        "cpp": [
+          "reinterpret_cast<std::uint32_t*> or istream::read into an integer from network or file bytes, with no byte-order conversion"
+        ],
+        "python": [
+          "int.from_bytes or struct.unpack is called with the wrong byte order or with native '@' order for wire data"
+        ],
+        "javascript": [
+          "DataView getUint16/getUint32 is called without the littleEndian argument matching the format, or a Uint32Array is laid over received bytes"
+        ],
+        "rust": [
+          "from_ne_bytes or a pointer cast is used on received bytes instead of from_be_bytes or from_le_bytes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every multi-byte field is converted with an explicit big- or little-endian decode that matches the format",
+          "the data is single bytes or text, so byte order does not apply",
+          "a parsing or serialisation library with a defined wire format does the decoding"
+        ],
+        "cpp": [
+          "std::byteswap with a std::endian check, or explicit shifts in the format's byte order"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-188": "the problem is padding, field offsets or overall layout rather than byte order",
+        "CWE-1102": "the issue is another machine-dependent representation such as type width or float encoding"
+      }
+    },
+    "CWE-242": {
+      "name": "Use of Inherently Dangerous Function",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-1177"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a C or C++ function, such as gets, that has no way to be used safely whatever the arguments?",
+      "present_when": {
+        "c": [
+          "gets is called, which reads a line with no way to pass the destination size",
+          "operator >> reads into a plain char array through an istream with no width set",
+          "a similar unbounded input routine is used whose interface accepts no length"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "input is read with fgets, getline, std::getline or std::string, which take or manage a length",
+          "operator >> reads into std::string, or setw limits the width before reading into a char array",
+          "the dangerous name appears only in a comment, string or macro that redirects to a safe function"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-676": "the called function, such as strcpy or memcpy, can be safe when given correct sizes"
+      }
+    },
+    "CWE-253": {
+      "name": "Incorrect Check of Function Return Value",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-573"
+      ],
+      "function_checkable": true,
+      "question": "Does this function check a call's return value against the wrong value or in the wrong way, so errors are missed or success is seen as failure?",
+      "present_when": {
+        "any": [
+          "the error result is tested with the wrong comparison, such as < 0 for a function that signals failure with NULL or 0"
+        ],
+        "c": [
+          "malloc or fopen tested < 0, read or recv tested only == 0, or strcmp used directly as a true/false equality test",
+          "a size_t or unsigned return compared < 0, so an error value of -1 is never seen"
+        ],
+        "cpp": [
+          "if (s.find(x)) or s.find(x) >= 0 used to test for a match, where std::string::npos is the failure value and 0 a valid position"
+        ],
+        "javascript": [
+          "if (s.indexOf(x)) or if (!s.indexOf(x)), treating index 0 and -1 the wrong way round"
+        ],
+        "python": [
+          "if s.find(x): treating -1 as truthy and index 0 as false"
+        ],
+        "rust": [
+          "a Result checked with is_ok() while the success value is taken from a different call or ignored"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the test matches the documented failure value of that exact function",
+          "an exception or Result is used and handled instead of a sentinel"
+        ],
+        "cpp": [
+          "find results are compared with npos, and a std::error_code is tested through its bool conversion"
+        ],
+        "javascript": [
+          "indexOf compared explicitly with -1, or includes() used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the return value is not checked at all",
+        "CWE-394": "the code tests for the right sentinel but the callee can return a status the check does not expect"
+      }
+    },
+    "CWE-358": {
+      "name": "Improperly Implemented Security Check for Standard",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-573"
+      ],
+      "function_checkable": true,
+      "question": "Does this function implement a standard security protocol or check, such as TLS, JWT, OAuth or signature verification, but skip or weaken a step the standard requires?",
+      "present_when": {
+        "any": [
+          "a certificate is accepted without checking hostname, validity dates or chain to a trusted root",
+          "a token is accepted without checking signature, algorithm, expiry, issuer or audience",
+          "a nonce, state, MAC or padding check that the protocol mandates is missing or compares only part of the value"
+        ],
+        "javascript": [
+          "jwt.decode used instead of jwt.verify, or verify called with algorithms including 'none' or no algorithm list"
+        ],
+        "python": [
+          "jwt.decode with verify_signature False, or ssl contexts with check_hostname False"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function delegates to a maintained library call that performs all required checks with secure defaults",
+          "every mandated check is present and failure stops the operation"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-295": "the missing step is certificate validation in general and the more precise entry fits",
+        "CWE-347": "the missing step is verifying a cryptographic signature"
+      }
+    },
+    "CWE-393": {
+      "name": "Return of Wrong Status Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-684"
+      ],
+      "function_checkable": true,
+      "question": "Does this function return a status or result code that misstates what happened, such as success after an error or the wrong error code?",
+      "present_when": {
+        "any": [
+          "an error branch returns 0, true, OK or HTTP 200 although the operation failed",
+          "a caught exception is swallowed and the function returns a success value",
+          "the code returned does not match the failure, such as not-found for a permission error or a generic code that callers treat as success"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each path returns a status that matches its actual outcome",
+          "errors are propagated by exception, Result or the callee's own code without change"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the function ignores a callee's status rather than returning a wrong one of its own",
+        "CWE-636": "the wrong success value grants access or weakens security on failure"
+      }
+    },
+    "CWE-424": {
+      "name": "Improper Protection of Alternate Path",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-638"
+      ],
+      "function_checkable": true,
+      "question": "Does this function provide a second route to protected functionality or data, such as an alternate endpoint, legacy flag or internal call, that skips the checks the main route applies?",
+      "present_when": {
+        "any": [
+          "a branch, parameter or alternate handler reaches the same protected action without the authentication or authorisation the normal path performs",
+          "an internal, legacy, API or export variant of an operation omits a validation present in the primary version",
+          "a direct file or object path serves content that is otherwise protected by a controller check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all branches go through the same check before the protected action",
+          "the check is enforced centrally, such as middleware or a decorator applied to every route involved"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-288": "the alternate path specifically bypasses authentication",
+        "CWE-638": "the check exists on the path but uses a stale earlier result"
+      }
+    },
+    "CWE-440": {
+      "name": "Expected Behavior Violation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-684"
+      ],
+      "function_checkable": true,
+      "question": "Does this function fail to behave as its interface or the specification it implements requires, for example ignoring a documented parameter or contract?",
+      "present_when": {
+        "any": [
+          "a documented parameter, option or flag is accepted but ignored or has a different effect",
+          "an overridden or interface method breaks the contract of the base, such as an equals that is not symmetric or a comparator that is not consistent",
+          "the function implements a named standard or protocol operation but returns or handles results differently from it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the implementation honours each parameter and documented guarantee",
+          "no specification or contract is visible to compare against"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-393": "the only deviation is a wrong status code",
+        "CWE-358": "the deviation is a missing security check required by a standard"
+      }
+    },
+    "CWE-446": {
+      "name": "UI Discrepancy for Security Feature",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-684"
+      ],
+      "function_checkable": true,
+      "question": "Does this function show or report a security feature as enabled or saved when the setting was not actually applied?",
+      "present_when": {
+        "any": [
+          "a confirmation, toggle state or status message for a security setting is set before or regardless of whether applying it succeeded",
+          "an error from applying a security setting is ignored while the interface still reports success",
+          "the displayed security state is read from a local variable rather than the setting actually in force"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the interface state is updated only after the setting is applied and confirmed",
+          "failures to apply are shown to the user"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-447": "the security feature has no implementation at all behind the control",
+        "CWE-449": "the control performs a different action from the one chosen",
+        "CWE-448": "the feature is obsolete and the user is not warned"
+      }
+    },
+    "CWE-447": {
+      "name": "Unimplemented or Unsupported Feature in UI",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-671"
+      ],
+      "function_checkable": true,
+      "question": "Does this function present or accept a security option, such as a toggle, setting or handler, that reports success but does not actually implement the protection?",
+      "present_when": {
+        "any": [
+          "a handler for a security setting stores or acknowledges the choice but nothing reads or applies it",
+          "a stub, TODO or empty body behind a security option that still returns success or shows a confirmation",
+          "a UI control for encryption, two-factor, privacy or locking that updates only the display state"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the setting flows into code that enforces it",
+          "an unsupported option is disabled, hidden or reports an error"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-446": "the feature is implemented but the interface shows the wrong state",
+        "CWE-449": "the interface triggers a different action from the one requested"
+      }
+    },
+    "CWE-448": {
+      "name": "Obsolete Feature in UI",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-446"
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep offering a deprecated or obsolete user-facing feature, such as an old option or command, without warning the user?",
+      "present_when": {
+        "any": [
+          "a menu item, option, command or flag marked deprecated in comments or code still runs with no warning shown",
+          "a legacy setting is accepted silently although it no longer has any effect or has a weaker replacement"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "using the deprecated feature produces a visible warning or deprecation notice",
+          "the obsolete option has been removed or disabled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-477": "the code calls an obsolete function internally rather than exposing an obsolete feature to users",
+        "CWE-447": "the feature appears to work but was never implemented"
+      }
+    },
+    "CWE-449": {
+      "name": "The UI Performs the Wrong Action",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-446"
+      ],
+      "function_checkable": true,
+      "question": "Does this interface handler carry out a different action from the one the user selected, for example through a mis-wired button or swapped condition?",
+      "present_when": {
+        "any": [
+          "an event handler for one control calls the routine for a different action, such as a cancel button that confirms",
+          "a condition or mapping from user choice to action is inverted or uses the wrong key",
+          "the action is applied to a different item, scope or account from the one selected"
+        ],
+        "tsx": [
+          "onClick or onChange props wired to the wrong handler, or a handler closing over the wrong item in a mapped list"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each control's handler performs exactly its labelled action on the selected target",
+          "the function is not an interface handler and has no user-selected action"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-446": "the right action runs but the interface reports the security state wrongly"
+      }
+    },
+    "CWE-451": {
+      "name": "User Interface (UI) Misrepresentation of Critical Information",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-684"
+      ],
+      "function_checkable": true,
+      "question": "Does this function display critical information, such as a URL, sender, file name or permission prompt, in a way that can hide or spoof its true value or source?",
+      "present_when": {
+        "any": [
+          "an untrusted display name, link text or title is shown in place of the real URL, address or origin",
+          "text from input is shown without stripping right-to-left overrides, control characters or excessive length that hide the real ending",
+          "security prompts or warnings can be overlaid, truncated or styled by untrusted content"
+        ],
+        "javascript": [
+          "link text from user data rendered with a different href, or window.open to untrusted content without showing its origin"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the real origin or full value is shown and cannot be controlled by untrusted input",
+          "untrusted strings are sanitised of control and bidirectional characters before display"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1007": "the spoofing relies specifically on look-alike characters",
+        "CWE-79": "untrusted content is injected as script or markup"
+      }
+    },
+    "CWE-474": {
+      "name": "Use of Function with Inconsistent Implementations",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a library function whose behaviour differs across operating systems or versions, relying on one platform's behaviour without guarding for others?",
+      "present_when": {
+        "c": [
+          "signal() whose handler reset semantics vary, strerror_r whose GNU and XSI forms differ, or _snprintf on Windows, which may not terminate",
+          "realpath, vfork, readdir_r or similar used assuming one platform's semantics"
+        ],
+        "javascript": [
+          "Date parsing of non-ISO strings, or locale-sensitive toLocaleString output parsed back as data"
+        ],
+        "python": [
+          "time.strftime with platform-only codes such as %-d, os.rename expected to overwrite on every OS, or select on non-socket handles"
+        ],
+        "rust": [
+          "std::fs::rename or file locking expected to behave identically on Windows and Unix"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses a portable alternative with uniform behaviour, such as sigaction, ISO 8601 parsing or os.replace",
+          "platform differences are handled by explicit conditional code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-589": "the function does not exist at all on some target platforms rather than behaving differently"
+      }
+    },
+    "CWE-475": {
+      "name": "Undefined Behavior for Input to API",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-573"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass an argument to a library call for which the call's behaviour is undefined, such as overlapping buffers, NULL or an out-of-domain value?",
+      "present_when": {
+        "c": [
+          "memcpy, strcpy, strcat or sprintf with source and destination that may overlap",
+          "a NULL pointer passed to strlen, strcmp, printf %s or memcpy with a non-zero size",
+          "isalpha, toupper and other ctype functions given a plain char that may be negative"
+        ],
+        "cpp": [
+          "std::copy into a destination that starts inside the source range, or std::memcpy on objects that are not trivially copyable",
+          "std::sort or std::set given a comparator that is not a strict weak ordering, such as <=",
+          "memset, memcmp or strcmp applied to objects of a class with virtual functions or non-trivial members"
+        ],
+        "javascript": [
+          "sort given a comparator that is inconsistent or returns a boolean, giving engine-dependent results"
+        ],
+        "python": [
+          "a list or dict being mutated while the same object is iterated by a library call such as sorted, or a key function with side effects"
+        ],
+        "rust": [
+          "unsafe calls such as ptr::copy_nonoverlapping, from_raw_parts or str::from_utf8_unchecked given arguments that break their safety contract"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the arguments are checked or constructed to meet every documented precondition of the call"
+        ],
+        "c": [
+          "memmove is used for possibly overlapping regions, and ctype arguments are cast to unsigned char"
+        ],
+        "cpp": [
+          "std::copy_backward or std::memmove handles overlapping ranges, and class types are copied by assignment or std::copy"
+        ],
+        "python": [
+          "Python library calls given bad input raise an exception rather than behaving unpredictably"
+        ],
+        "rust": [
+          "only safe Rust APIs are used, whose misuse panics or returns an error rather than being undefined"
+        ]
+      },
+      "distinguish_from": {
+        "REL-148": "the undefined call is specifically a copy between overlapping regions",
+        "REL-036": "the argument is a numeric value outside a maths or library function's accepted range"
+      }
+    },
+    "CWE-476": {
+      "name": "NULL Pointer Dereference",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Can this function dereference a pointer or reference that may be null at that point?",
+      "present_when": {
+        "any": [
+          "a value that the function itself shows may be null (a lookup result, an optional field, a pointer tested for null elsewhere in the function) is used before or without a null test on that path"
+        ],
+        "c": [
+          "the result of malloc, calloc, realloc, fopen, getenv, strchr or a similar call that can return NULL is dereferenced without a NULL test",
+          "a pointer is tested for NULL after it has already been dereferenced"
+        ],
+        "cpp": [
+          "a dynamic_cast<T*> result, weak_ptr::lock() result or moved-from std::unique_ptr is dereferenced without a null test",
+          "std::string or std::string_view constructed from a pointer that can be null, such as getenv's result"
+        ],
+        "javascript": [
+          "a property is read from a value that can be null or undefined, such as a find() or getElementById() result, without a check or optional chaining"
+        ],
+        "python": [
+          "an attribute or item is taken from a value that can be None, such as re.match() or dict.get() results, without a check"
+        ],
+        "rust": [
+          "a raw pointer from FFI or ptr::null is dereferenced inside unsafe without an is_null check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the pointer is tested for null on every path before each use",
+          "the value comes from a source that cannot be null, such as the address of a local or a constructor that throws on failure",
+          "the only possible null would come from a caller passing one, and nothing in this function suggests callers do"
+        ],
+        "c": [
+          "the allocation goes through a wrapper that aborts on failure"
+        ],
+        "cpp": [
+          "the pointer comes from new without std::nothrow, which throws std::bad_alloc rather than returning null, or a dynamic_cast to a reference, which throws"
+        ],
+        "javascript": [
+          "optional chaining (?.) or a nullish default (??) guards the access"
+        ],
+        "rust": [
+          "the value is a reference, Box or Option handled by match, if let, ? or unwrap_or, which cannot dereference null"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-690": "the null comes specifically from an unchecked return value and that is the more precise finding",
+        "CWE-416": "the pointer is not null but refers to memory that was already freed"
+      }
+    },
+    "CWE-477": {
+      "name": "Use of Obsolete Function",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a function or API that is deprecated or obsolete and has a safer or better-supported replacement?",
+      "present_when": {
+        "c": [
+          "gets, tmpnam, mktemp, asctime, ctime, or other functions removed or deprecated by the C standard or POSIX"
+        ],
+        "cpp": [
+          "std::auto_ptr, std::random_shuffle, std::bind1st, std::ptr_fun or std::strstream is used"
+        ],
+        "javascript": [
+          "new Buffer(...), escape/unescape, String.prototype.substr, document.write, or synchronous XMLHttpRequest"
+        ],
+        "python": [
+          "modules or calls removed or deprecated in Python 3, such as imp, asyncore, distutils, ssl.wrap_socket or os.popen2"
+        ],
+        "rust": [
+          "std::mem::uninitialized, the try! macro, or items marked #[deprecated] in std"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only current, supported APIs are called",
+          "the name merely resembles a deprecated function but is a local or project-defined helper"
+        ],
+        "c": [
+          "the modern replacement is used, such as fgets, mkstemp or strftime"
+        ],
+        "cpp": [
+          "the modern replacement is used, such as std::unique_ptr, std::shuffle, a lambda or std::stringstream"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-676": "the function is current but inherently dangerous, such as strcpy, rather than obsolete",
+        "CWE-242": "the call can never be used safely, such as gets, and that is the more precise finding"
+      }
+    },
+    "CWE-484": {
+      "name": "Omitted Break Statement in Switch",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does a switch case in this function omit break so execution unintentionally runs on into the next case?",
+      "present_when": {
+        "any": [
+          "a case with its own statements ends without break, return, throw, continue or goto and the next case has different statements",
+          "the following case undoes or overwrites what the previous case just set, showing the run-on is unintended"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every non-empty case ends with break, return, throw, continue or goto",
+          "empty case labels are stacked to share one body, which is a normal idiom",
+          "the run-on is marked deliberate with [[fallthrough]], __attribute__((fallthrough)) or a fall-through comment"
+        ],
+        "python": [
+          "Python match and if/elif chains never run on into the next branch"
+        ],
+        "rust": [
+          "Rust match arms never run on into the next arm"
+        ]
+      },
+      "distinguish_from": {
+        "REL-127": "the run-on is marked deliberate yet still lacks an unconditional exit, which the coding-rule entry covers"
+      }
+    },
+    "CWE-489": {
+      "name": "Active Debug Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain debug, test or diagnostic code that stays active in normal builds, such as a backdoor flag, verbose dump or test bypass?",
+      "present_when": {
+        "any": [
+          "a debug or test flag, environment variable or magic parameter enables extra behaviour such as skipping checks or exposing internals",
+          "diagnostic dumps of internal state, stack traces or secrets on a path reachable in production",
+          "test-only endpoints, routes or commands that are not excluded from release builds"
+        ],
+        "python": [
+          "app.run(debug=True), DEBUG = True set in code, or pdb.set_trace() / breakpoint() left in"
+        ],
+        "javascript": [
+          "a debugger statement, or a route or handler marked for testing that is always registered"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the debug path is compiled out or disabled in release builds, for example inside #ifndef NDEBUG or #[cfg(debug_assertions)]",
+          "ordinary logging at a configurable level that reveals nothing sensitive",
+          "the function is itself test code in a test file"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-215": "the debug code leaks sensitive information and that disclosure is the main finding",
+        "CWE-912": "the extra behaviour is a deliberately hidden feature rather than leftover debugging"
+      }
+    },
+    "CWE-506": {
+      "name": "Embedded Malicious Code",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-912"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain code that deliberately does harm, such as a hidden backdoor, data theft, destructive action or timed trigger, unrelated to its stated purpose?",
+      "present_when": {
+        "any": [
+          "obfuscated code, encoded strings or dynamic eval that decode to commands, URLs or payloads",
+          "sending credentials, environment variables, files or keystrokes to a hard-coded remote address",
+          "destructive actions such as deleting files or corrupting data triggered by a date, counter or hidden input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every action, including any network call, matches the function's evident purpose",
+          "obfuscation is only minified or generated code with a plain-source origin"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-510": "the malicious part is specifically a secret access route",
+        "CWE-511": "the malicious part is specifically a time or logic trigger",
+        "CWE-512": "the malicious part is specifically collecting user data covertly"
+      }
+    },
+    "CWE-507": {
+      "name": "Trojan Horse",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-506"
+      ],
+      "function_checkable": true,
+      "question": "Does this function appear to do one legitimate job while also covertly performing a harmful action the user would not expect?",
+      "present_when": {
+        "any": [
+          "a function named for a benign task, such as an update check or formatter, also downloads or runs remote code",
+          "an ordinary routine also copies secrets, files or tokens to an external address",
+          "harmful side effects are tucked into a helper whose name suggests something harmless"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all side effects are consistent with the function's name and documented role",
+          "network or file activity is plainly part of the advertised feature"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-509": "the hidden code also tries to spread to other systems",
+        "CWE-510": "the covert extra is a secret access path into the system"
+      }
+    },
+    "CWE-508": {
+      "name": "Non-Replicating Malicious Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-507"
+      ],
+      "function_checkable": true,
+      "question": "Does this function carry out a hidden harmful action on the local system only, such as deleting data or installing persistence, without trying to spread?",
+      "present_when": {
+        "any": [
+          "covert deletion, encryption or corruption of local files or data not related to the function's purpose",
+          "silent installation of start-up entries, scheduled tasks, services or modified system files"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "file and system changes are part of the function's stated job and visible to the user",
+          "the code is an installer or maintenance routine doing what it documents"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-509": "the code also copies itself or attacks other machines"
+      }
+    },
+    "CWE-509": {
+      "name": "Replicating Malicious Code (Virus or Worm)",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-507"
+      ],
+      "function_checkable": true,
+      "question": "Does this function try to copy itself or its payload to other files, hosts or devices, such as scanning a network and pushing code to it?",
+      "present_when": {
+        "any": [
+          "scanning address ranges or contacts and then sending or executing a payload on discovered hosts",
+          "writing the program's own code into other executables, scripts, packages or removable drives",
+          "using stolen credentials or exploits to run the same code remotely"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "network or file distribution is a documented deployment or update feature with user consent",
+          "no code copies or runs the program elsewhere"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-508": "the harmful code stays on the local system"
+      }
+    },
+    "CWE-510": {
+      "name": "Trapdoor",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-506"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a secret way in, such as a hard-coded master password, magic token or hidden command, that bypasses normal authentication or authorisation?",
+      "present_when": {
+        "any": [
+          "a login or permission check that also succeeds for a fixed username, password, token or header value",
+          "a hidden parameter or command that grants admin rights or skips checks",
+          "a listening socket or route that executes commands without authentication and is not part of any documented feature"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "authentication and authorisation have no special-case values",
+          "an emergency or service access path is documented, configurable and authenticated"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-798": "the fixed credential is used to connect to another system rather than to let someone in",
+        "CWE-489": "the bypass is a leftover debug or test switch"
+      }
+    },
+    "CWE-511": {
+      "name": "Logic/Time Bomb",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-506"
+      ],
+      "function_checkable": true,
+      "question": "Does this function trigger a harmful action when a hidden condition is met, such as a particular date, count, absence of a user or other trigger?",
+      "present_when": {
+        "any": [
+          "a date or time comparison that, once passed, deletes data, disables features or corrupts output",
+          "a counter, usage limit or check for a specific user or file that leads to destructive or disabling behaviour",
+          "a condition with no business meaning that guards damaging code"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "time or count conditions implement documented features such as expiry, licensing notices or retention policies",
+          "the conditioned action is harmless and visible to the user"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-510": "the hidden condition grants access rather than causing harm"
+      }
+    },
+    "CWE-512": {
+      "name": "Spyware",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-506"
+      ],
+      "function_checkable": true,
+      "question": "Does this function quietly collect personal data or user activity, such as keystrokes, contacts, location or browsing, and store or send it without the user's consent?",
+      "present_when": {
+        "any": [
+          "reading contacts, location, clipboard, keystrokes, screenshots or browser history with no consent check",
+          "sending collected user data to a remote endpoint unrelated to the feature the user is using",
+          "tracking or fingerprinting code that runs regardless of user preference"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "collection is gated on an explicit consent or permission check",
+          "the data is used only for the feature the user directly asked for"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-359": "private data is exposed to an unauthorised party rather than covertly gathered",
+        "CWE-507": "the hidden harm is something other than collecting user data"
+      }
+    },
+    "CWE-546": {
+      "name": "Suspicious Comment",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1078"
+      ],
+      "function_checkable": true,
+      "question": "Does a comment in this function say that the code is buggy, unfinished, insecure or a temporary hack?",
+      "present_when": {
+        "any": [
+          "a comment containing TODO, FIXME, XXX, HACK, BUG or LATER describes missing checks, missing error handling or known wrong behaviour",
+          "a comment admits a shortcut such as 'temporary', 'not thread safe', 'remove before release' or 'skip validation for now'"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "comments only explain what the code does or why, with no admission of defects or unfinished work",
+          "a TODO is purely about style, naming or a future feature unrelated to correctness or security",
+          "words like 'bug' or 'hack' appear only in identifiers, strings or links to resolved tickets"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1116": "the comment is simply wrong about what the code does rather than flagging a known problem"
+      }
+    },
+    "CWE-547": {
+      "name": "Use of Hard-coded, Security-relevant Constants",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1078"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use bare numeric or string literals for security-relevant values instead of named constants?",
+      "present_when": {
+        "any": [
+          "key lengths, iteration counts, permission masks, token lifetimes, retry limits or buffer limits for security checks are written as raw numbers",
+          "the same security-relevant literal appears several times in the function, so changing the policy means finding each copy"
+        ],
+        "c": [
+          "calls such as chmod(path, 0777), umask(0) or a key size passed as 16 or 32 written inline"
+        ],
+        "python": [
+          "os.chmod(path, 0o777), hashlib.pbkdf2_hmac with an inline iteration count, or timeouts as bare numbers"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the values come from named constants, enums, configuration or a policy object",
+          "the literal is not security relevant, such as a loop index start, an array index of 0 or 1, or a display width"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-798": "the hard-coded value is a password, key or other credential rather than a policy number"
+      }
+    },
+    "CWE-560": {
+      "name": "Use of umask() with chmod-style Argument",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-687"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call umask with a value written as if it were a chmod permission mode, such as 0644 or 0755?",
+      "present_when": {
+        "c": [
+          "umask(0644), umask(0755), umask(0600) or similar, where the value lists the permissions to grant rather than to remove",
+          "a variable holding a desired file mode is passed straight to umask"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "umask is given a mask of bits to remove, such as 022, 027 or 077",
+          "the mode value is passed to chmod, open or mkdir rather than umask"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-732": "the permissions are wrong for another reason, not because of an inverted umask value"
+      }
+    },
+    "CWE-561": {
+      "name": "Dead Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1164"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain code that no execution path can reach?",
+      "present_when": {
+        "any": [
+          "statements after an unconditional return, break, continue, throw or goto in the same block",
+          "a branch guarded by a condition that is always false given the function's own code, such as testing an unsigned value for < 0",
+          "code after a call that never returns, such as exit, abort or panic, in the same path"
+        ],
+        "python": [
+          "statements after return or raise in the same block"
+        ],
+        "rust": [
+          "statements after a diverging expression such as return, panic!, unreachable! or loop without break"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every block can be reached under some input or state",
+          "the guarded code depends on a configuration constant, build flag or platform check that can be true in other builds",
+          "a defensive default case or assertion is placed for robustness"
+        ]
+      },
+      "distinguish_from": {
+        "REL-042": "for C and C++ code, the more precise rule on statements that can never be executed",
+        "CWE-570": "the root cause is an expression that always evaluates to false",
+        "CWE-563": "the code runs but its stored value is never used"
+      }
+    },
+    "CWE-562": {
+      "name": "Return of Stack Variable Address",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does this function return a pointer or reference to one of its own local variables or arrays, which no longer exist once it returns?",
+      "present_when": {
+        "c": [
+          "return &local; or return of a local array name, or of a pointer into a local buffer",
+          "a pointer variable set to a local's address and then returned"
+        ],
+        "cpp": [
+          "returning a reference or string_view to a local object, or c_str() or data() of a local std::string"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the returned storage is static, heap-allocated or supplied by the caller",
+          "the value is returned by copy rather than by address"
+        ]
+      },
+      "distinguish_from": {
+        "REL-145": "the local's address escapes through a global, an out-parameter or a stored structure rather than the return value",
+        "CWE-416": "the dangling pointer refers to heap memory that was freed"
+      }
+    },
+    "CWE-563": {
+      "name": "Assignment to Variable without Use",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1164"
+      ],
+      "function_checkable": true,
+      "question": "Does this function assign a value to a variable that is then overwritten or goes out of scope without being read?",
+      "present_when": {
+        "any": [
+          "a variable is assigned and then assigned again before any read on that path",
+          "a return value or computed result is stored in a local that is never used afterwards",
+          "an error code is captured into a variable but never checked"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every assigned value is read on at least one later path",
+          "the variable is an initial default that is read when a later branch does not overwrite it",
+          "the store is to a field, global, volatile object or reference visible outside the function"
+        ],
+        "python": [
+          "the name is _ or another explicit throwaway"
+        ],
+        "rust": [
+          "the variable is named with a leading underscore or let _ =, marking it as deliberately unused"
+        ]
+      },
+      "distinguish_from": {
+        "REL-043": "an operation runs with no effect without assigning to a variable",
+        "CWE-252": "a function's return value is ignored entirely rather than stored and left unused"
+      }
+    },
+    "CWE-570": {
+      "name": "Expression is Always False",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a condition or expression that can never be true, so the code it guards never runs?",
+      "present_when": {
+        "any": [
+          "a comparison impossible for the type, such as an unsigned value tested < 0 or a char compared with a value outside its range",
+          "contradictory tests combined with &&, such as x > 5 && x < 3, or a value compared with two different constants for equality",
+          "a check of a variable that was set to a constant just above so the test cannot pass"
+        ],
+        "javascript": [
+          "x === NaN, or comparing values of different types with ===, which is always false"
+        ],
+        "python": [
+          "x is 'literal' or x == None patterns that cannot match the variable's actual type here"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operands can actually take values that make the test true",
+          "a deliberate constant such as if (0) or a feature flag used to disable code",
+          "the value may be changed by another thread, signal or hardware and is declared volatile or atomic"
+        ]
+      },
+      "distinguish_from": {
+        "REL-116": "the constant condition controls an if, loop or switch, which the reliability entry covers precisely",
+        "CWE-571": "the expression is always true rather than always false"
+      }
+    },
+    "CWE-571": {
+      "name": "Expression is Always True",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a condition or expression that is always true, so a check it was meant to perform never rejects anything?",
+      "present_when": {
+        "any": [
+          "an unsigned value tested >= 0, or a comparison that holds for every value of the type",
+          "tests joined with || that cover every case, such as x != 1 || x != 2",
+          "a check on a variable that was set just above so the test always passes"
+        ],
+        "javascript": [
+          "x !== NaN, or truthiness tests on values that are always objects or non-empty arrays"
+        ],
+        "python": [
+          "if some_function: testing a function object rather than calling it, or a non-empty tuple used as the condition"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the operands can take values that make the test false",
+          "an intended infinite loop such as while (true) with an internal exit",
+          "the value can change through another thread, signal or volatile hardware register"
+        ]
+      },
+      "distinguish_from": {
+        "REL-116": "the constant condition controls an if, loop or switch, which the reliability entry covers precisely",
+        "CWE-570": "the expression is always false rather than always true"
+      }
+    },
+    "CWE-573": {
+      "name": "Improper Following of Specification by Caller",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call an API in a way its contract forbids, such as wrong arguments, ignored results, required steps skipped or out of order?",
+      "present_when": {
+        "any": [
+          "a library call receives arguments that break its documented preconditions",
+          "a return value or error the API requires callers to check is ignored or tested wrongly",
+          "required call sequences are broken, such as using an object before initialising it or after closing it"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each call meets its documented preconditions and its results are checked as the API defines",
+          "the only calls are to simple functions with no preconditions"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-253": "the fault is specifically testing a return value the wrong way",
+        "CWE-628": "the fault is specifically wrong arguments passed in a call",
+        "CWE-675": "the fault is specifically doing a once-only operation twice"
+      }
+    },
+    "CWE-587": {
+      "name": "Assignment of a Fixed Address to a Pointer",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does this function assign a fixed numeric address, other than null, to a pointer and then use it?",
+      "present_when": {
+        "c": [
+          "a cast from an integer literal to a pointer, such as (int *)0x1000 or (void *)0xdeadbeef, that is then dereferenced or called"
+        ],
+        "rust": [
+          "an integer literal cast to a raw pointer, such as 0x1000 as *mut u8, and dereferenced inside unsafe"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the pointer is NULL, or derived from allocation, mapping or another object's address",
+          "a named memory-mapped register address in board-specific embedded code, where the address is fixed by the hardware"
+        ],
+        "rust": [
+          "the pointer comes from a reference, Box, allocation or ptr::null"
+        ]
+      },
+      "distinguish_from": {
+        "REL-098": "the conversion between integer and pointer uses a computed value rather than a fixed literal address"
+      }
+    },
+    "CWE-589": {
+      "name": "Call to Non-ubiquitous API",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-474"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call an API that exists only on some target platforms or versions, without a feature check or fallback?",
+      "present_when": {
+        "c": [
+          "Linux-only, BSD-only or Windows-only calls such as epoll, inotify, kqueue or Win32 functions used without platform #if guards in portable code"
+        ],
+        "javascript": [
+          "newer browser or Node APIs such as navigator.clipboard, structuredClone or fs.cp called without feature detection where older runtimes are supported"
+        ],
+        "python": [
+          "os.fork, os.geteuid, fcntl or signal.SIGALRM used in code that may run on Windows, with no platform check"
+        ],
+        "rust": [
+          "std::os::unix or std::os::windows items used without a matching #[cfg] attribute"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the call is guarded by a platform or feature check with a fallback",
+          "the code is explicitly platform-specific, such as a file or module only built for that platform"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-474": "the API exists everywhere but behaves differently between platforms",
+        "REL-040": "the non-portable element is compiler-specific syntax rather than an API call"
+      }
+    },
+    "CWE-605": {
+      "name": "Multiple Binds to the Same Port",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-675"
+      ],
+      "function_checkable": true,
+      "question": "Does this function bind a socket with options that allow another socket or process to bind the same port and steal its traffic?",
+      "present_when": {
+        "any": [
+          "SO_REUSEPORT is set before binding a listening socket to a specific port",
+          "on Windows, SO_REUSEADDR is set on a server socket without SO_EXCLUSIVEADDRUSE",
+          "a socket is bound to a specific address on a port another listener in the code already uses on the wildcard address"
+        ],
+        "python": [
+          "sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1) before bind on a service port"
+        ],
+        "javascript": [
+          "dgram.createSocket with reuseAddr: true, or server.listen with reusePort, on a service port"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only SO_REUSEADDR on Linux or another POSIX system, used so a server can restart while old connections are in TIME_WAIT",
+          "no reuse options are set before bind, or SO_EXCLUSIVEADDRUSE is set",
+          "the socket binds to port 0 for an ephemeral port"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-675": "the repeated operation on the resource is not a bind to the same port"
+      }
+    },
+    "CWE-628": {
+      "name": "Function Call with Incorrectly Specified Arguments",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-573"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call another function with arguments that are wrong, such as in the wrong order, of the wrong type or value, the wrong count, or the wrong variable?",
+      "present_when": {
+        "any": [
+          "two arguments of similar type are swapped relative to the callee's parameter order, such as source and destination or length and offset",
+          "an argument holds the wrong value for its role, such as sizeof a pointer instead of the buffer, or a flag constant of the wrong kind",
+          "a different variable from the one evidently intended is passed, such as the input buffer where the output buffer belongs"
+        ],
+        "c": [
+          "printf-style format specifiers that disagree with the argument types or count"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "argument order, types and values match the callee's parameters as declared",
+          "named or keyword arguments make the mapping explicit and correct"
+        ],
+        "rust": [
+          "Rust's type checker rejects wrong counts and types at compile time, so only order and value mistakes between same-typed parameters remain"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-683": "the only problem is the order of otherwise correct arguments",
+        "CWE-687": "the only problem is a wrong value such as a wrong flag or size",
+        "CWE-688": "the only problem is passing the wrong variable or reference"
+      }
+    },
+    "CWE-636": {
+      "name": "Not Failing Securely ('Failing Open')",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "When an error or exception occurs, does this function fall back to a less secure state, such as granting access, skipping a check or choosing weaker protection?",
+      "present_when": {
+        "any": [
+          "a catch block, error branch or default case in an access or validation check returns true, allow or success",
+          "when the preferred cipher, protocol or verification step fails, the code drops to a weaker one or to none",
+          "a failure to load a policy, key or permission list results in everything being permitted"
+        ],
+        "python": [
+          "except Exception: return True, or pass, inside an authorisation or verification function"
+        ],
+        "javascript": [
+          "a catch that calls next() or returns true in an auth middleware or permission check"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every error path in the decision denies access, returns failure or rethrows",
+          "the fallback is to an equally secure option or the operation is aborted"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-280": "the code mishandles missing permissions or privileges themselves rather than an error during a check",
+        "CWE-755": "the exception handling is wrong but does not lower security"
+      }
+    },
+    "CWE-637": {
+      "name": "Unnecessary Complexity in Protection Mechanism (Not Using 'Economy of Mechanism')",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "Is a security check in this function implemented with needlessly convoluted logic, such that its correctness is hard to see and a path may slip through?",
+      "present_when": {
+        "any": [
+          "an access or validation decision spread over deeply nested or repeated conditions where some combinations are not clearly covered",
+          "a hand-written parser, crypto routine or permission engine where a standard library facility would do the job",
+          "several overlapping checks for the same property with different rules in different branches"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the security decision is a single clear check or a call to a well-known library",
+          "the logic is long but each branch is plainly and consistently handled"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1120": "the function is just overly complex in general with no security mechanism involved",
+        "CWE-327": "the hand-written mechanism is a broken or risky cryptographic algorithm"
+      }
+    },
+    "CWE-638": {
+      "name": "Not Using Complete Mediation",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "Does this function grant access based on a permission result cached or checked earlier instead of rechecking the caller's rights each time the resource is used?",
+      "present_when": {
+        "any": [
+          "a permission or role value stored in a session, token or object at login is used for later access without rechecking current rights",
+          "an authorisation result is cached with no expiry or invalidation and reused for each access",
+          "a check happens once before a loop or long-lived handle and later accesses through that handle are not checked"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each access calls the authorisation check against current state",
+          "cached results have a short expiry and are invalidated when rights change"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-424": "one access path skips the check altogether while others perform it",
+        "CWE-862": "there is no authorisation check at all for the resource",
+        "CWE-367": "the gap between check and use is a race on a file or shared state"
+      }
+    },
+    "CWE-653": {
+      "name": "Improper Isolation or Compartmentalization",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mix privileged and untrusted work in one context, for example parsing untrusted input while holding elevated rights or keys, without separating them?",
+      "present_when": {
+        "any": [
+          "untrusted input is parsed, rendered or executed in the same process or context that holds elevated privileges, secrets or admin access",
+          "privileges are not dropped before handling user-controlled data",
+          "untrusted code or content runs without a sandbox, separate process, iframe sandbox or restricted interpreter"
+        ],
+        "javascript": [
+          "eval, new Function or vm.runInThisContext on untrusted code in a privileged process"
+        ],
+        "python": [
+          "exec or eval on user content in the main process with full permissions"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "privileged work and untrusted handling run in separate processes, sandboxes or contexts",
+          "privileges are dropped before untrusted data is handled",
+          "the function handles only trusted data"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-250": "the code simply runs with more privilege than needed, without a mixing of trust levels",
+        "CWE-94": "the untrusted content is injected into code that is then executed"
+      }
+    },
+    "CWE-654": {
+      "name": "Reliance on a Single Factor in a Security Decision",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "Does this function grant access or trust based on one easily forged factor, such as an IP address, a Referer header, a cookie flag or a single secret?",
+      "present_when": {
+        "any": [
+          "access is allowed solely because the client IP, hostname or a header value matches",
+          "a single client-controlled flag such as isAdmin=true or a role cookie decides authorisation",
+          "a sensitive action is approved on one secret alone where a second factor or confirmation would be expected"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the decision combines a verified identity with an authorisation check",
+          "the single factor is a properly verified credential or signed token and the action is routine"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-290": "the single factor is a spoofable source identity and authentication by spoofing fits better",
+        "CWE-565": "the single factor is a cookie trusted without validation"
+      }
+    },
+    "CWE-655": {
+      "name": "Insufficient Psychological Acceptability",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns how acceptable users find a protection mechanism, a human and design matter that no function's source can show."
+    },
+    "CWE-656": {
+      "name": "Reliance on Security Through Obscurity",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's protection depend on keeping its method secret, such as a hidden URL, home-made obfuscation, a fixed XOR key or an undocumented parameter?",
+      "present_when": {
+        "any": [
+          "data is 'protected' with a custom encoding, XOR, base64 or character shuffle instead of real encryption",
+          "access is allowed to anyone who knows a hard-coded secret path, parameter or magic value",
+          "a check relies on the client not knowing an endpoint, header name or algorithm"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "protection uses standard cryptography or authentication whose strength rests on a properly managed key",
+          "obfuscation is present only as an extra layer on top of real access control"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-798": "the secret is a hard-coded credential or key and that is the more precise finding",
+        "CWE-327": "a known but weak cryptographic algorithm is used"
+      }
+    },
+    "CWE-657": {
+      "name": "Violation of Secure Design Principles",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make or enforce a security decision, such as access, authentication, error fallback, or isolation of privileged work?",
+      "present_when": {
+        "any": [
+          "an access, authentication or permission check, or code reachable without one that touches protected data",
+          "an error or exception path that decides whether to allow, deny or fall back to a weaker mode",
+          "a decision resting on one value such as an IP address, header, cookie flag or hidden secret",
+          "privileged and unprivileged work mixed in one place, or security settings hard-coded rather than configurable"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "pure computation, formatting or data transformation with no access decisions, credentials or privileged actions",
+          "simple accessors or utilities that touch no protected resource"
+        ]
+      }
+    },
+    "CWE-671": {
+      "name": "Lack of Administrator Control over Security",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-657"
+      ],
+      "function_checkable": true,
+      "question": "Does this function hard-code a security setting, such as an algorithm, timeout, trust list or check, so administrators cannot change or tighten it?",
+      "present_when": {
+        "any": [
+          "security parameters such as cipher suites, key lengths, password rules, session lifetimes or allowed hosts are fixed literals with no configuration path",
+          "a security check is unconditionally enabled or disabled in code, ignoring an available setting",
+          "a configuration value for security is read and then overridden by a constant"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "security settings come from configuration with secure defaults",
+          "the fixed value is the secure choice and making it configurable would only allow weakening it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-447": "a security option is offered in the interface but has no effect",
+        "CWE-798": "the hard-coded value is a credential or key"
+      }
+    },
+    "CWE-675": {
+      "name": "Multiple Operations on Resource in Single-Operation Context",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-573"
+      ],
+      "function_checkable": true,
+      "question": "Does this function apply an operation that should happen only once to the same resource twice, such as releasing, initialising, decoding or binding it again?",
+      "present_when": {
+        "any": [
+          "the same handle, lock or object is closed, freed, unlocked or released twice on one path",
+          "data is decoded, unescaped or initialised a second time after it was already processed",
+          "a non-reentrant lock is acquired again while already held, or a one-time setup call is repeated"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "each once-only operation runs once on every path, with the handle cleared or a flag set after the first",
+          "the API is documented as idempotent, such as closing a Python file object twice"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1341": "the repeated operation is a release of a resource or handle",
+        "CWE-174": "the repeated operation is decoding the same data",
+        "CWE-605": "the repeated operation is binding more than once to the same port"
+      }
+    },
+    "CWE-676": {
+      "name": "Use of Potentially Dangerous Function",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-1177"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a risky library function, such as strcpy, sprintf, memcpy, alloca or strtok, in a way whose safety is not shown by the surrounding code?",
+      "present_when": {
+        "c": [
+          "strcpy, strcat, sprintf or vsprintf writes into a fixed buffer and the source length is not checked first",
+          "strtok, rand, alloca, realloc or signal is used where its known pitfalls apply, such as shared state or unchecked size",
+          "memcpy, strncpy or snprintf is given a size that is not derived from the destination"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the source length is checked against the destination size on every path before the call",
+          "the arguments are constants that provably fit, such as copying a short literal into a larger array",
+          "a bounded or reentrant alternative is used, such as snprintf with sizeof, strtok_r or std::string"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-242": "the function, such as gets, cannot be used safely at all",
+        "CWE-785": "the call is a path function such as realpath writing into a buffer smaller than PATH_MAX",
+        "REL-170": "the risky call is atoi, atol, atoll or atof"
+      }
+    },
+    "CWE-683": {
+      "name": "Function Call With Incorrect Order of Arguments",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-628"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass arguments to a call in the wrong order, for example swapping source and destination, size and count, or key and value?",
+      "present_when": {
+        "any": [
+          "two same-typed arguments appear in the reverse order of the callee's parameters, such as copy(dest, src) called as copy(src, dest)"
+        ],
+        "c": [
+          "memset(buf, len, 0) instead of memset(buf, 0, len), or calloc and fwrite with size and count swapped in a way that changes behaviour"
+        ],
+        "cpp": [
+          "std::string(ch, count) written for std::string(count, ch), or std::copy with the destination range given first and the source last"
+        ],
+        "javascript": [
+          "setTimeout(delay, fn), or arguments to a project helper whose parameter names show the order is reversed"
+        ],
+        "typescript": [
+          "two parameters of the same type, such as (userId: string, orgId: string), receive their arguments in the opposite order"
+        ],
+        "python": [
+          "positional arguments in an order that contradicts the callee's parameter names, such as re.sub(text, pattern, repl)"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "arguments are passed by name or keyword",
+          "the order matches the callee's signature",
+          "the swapped pair is commutative for the call, such as calloc's count and size"
+        ],
+        "typescript": [
+          "the parameters have distinct types, such as branded ids, or the call passes a named options object, so the compiler rejects a swap"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-688": "the argument is in the correct position but is the wrong variable",
+        "CWE-687": "the argument is in the correct position but has the wrong value"
+      }
+    },
+    "CWE-684": {
+      "name": "Incorrect Provision of Specified Functionality",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's behaviour contradict what its name, signature, docstring or comments promise, such as returning the wrong status or silently skipping a stated step?",
+      "present_when": {
+        "any": [
+          "the documented or named behaviour, such as validate, encrypt or delete, is not what the body actually does",
+          "a returned status or result does not reflect what really happened, such as success after a failure",
+          "a stated step or guarantee in the comments is missing from the code"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the body does what its name and documentation describe on every path",
+          "there is no documentation or naming that sets an expectation to compare against"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-393": "the mismatch is specifically a wrong return value or status code",
+        "CWE-912": "the extra behaviour is undocumented and hidden from users",
+        "CWE-440": "a called API behaves differently from its specification"
+      }
+    },
+    "CWE-685": {
+      "name": "Function Call With Incorrect Number of Arguments",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-628"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call another with too many or too few arguments, such as a variadic or unprototyped call that does not match what the callee reads?",
+      "present_when": {
+        "c": [
+          "printf, scanf or a similar variadic call has fewer arguments than its format specifiers require, or more",
+          "a call to a function declared without a prototype passes a different number of arguments from its definition",
+          "a call through a cast function pointer passes a different number of arguments from the real function"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "a full prototype is in scope and the compiler would reject a wrong count",
+          "the format string and argument list match in number"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-686": "the count is right but an argument has the wrong type",
+        "REL-069": "the defect is the missing prototype itself rather than a mismatched call"
+      }
+    },
+    "CWE-686": {
+      "name": "Function Call With Incorrect Argument Type",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-628"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass an argument of the wrong type to a call, such as a pointer where a value is expected or a string where a number is expected?",
+      "present_when": {
+        "c": [
+          "a printf or scanf specifier mismatches its argument, such as %d with a long or size_t, or scanf %d with a non-pointer",
+          "a pointer is passed where an integer is expected, or a struct pointer is cast to an unrelated type for a call"
+        ],
+        "cpp": [
+          "a std::string is passed to a printf-style %s without c_str(), or an argument is reinterpret_cast to fit a parameter type"
+        ],
+        "javascript": [
+          "a string from input passed where a number or array is required, so the callee coerces it unexpectedly"
+        ],
+        "python": [
+          "bytes passed where str is expected, or a string where an int or list is required, with no conversion"
+        ],
+        "rust": [
+          "a value cast with as or transmute to match a parameter type in a way that changes its meaning"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "argument types match the callee's parameters exactly, or an explicit, correct conversion is applied first"
+        ],
+        "c": [
+          "format specifiers correspond to the argument types, such as %zu for size_t"
+        ],
+        "cpp": [
+          "type-safe std::format or stream << output is used"
+        ],
+        "typescript": [
+          "the parameters are typed and the compiler would reject a mismatch, with no any or as casts involved"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-843": "the code accesses an object through an incompatible type rather than passing a mistyped argument",
+        "CWE-685": "the types are fine but the number of arguments is wrong"
+      }
+    },
+    "CWE-687": {
+      "name": "Function Call With Incorrectly Specified Argument Value",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-628"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass an argument whose value is wrong for the call, such as a wrong flag, size, mode or constant?",
+      "present_when": {
+        "any": [
+          "a flag, mode or option constant passed to a call is the wrong one for the evident purpose, such as a weaker cipher mode or read-write instead of read-only",
+          "a size argument is the size of a pointer, of the wrong object, or misses the terminator"
+        ],
+        "c": [
+          "sizeof(ptr) passed as a buffer length, or strncpy with strlen(src) as the size",
+          "fsetpos given a position not obtained from fgetpos on the same stream, or fseek on a text stream with an offset not from ftell"
+        ],
+        "python": [
+          "open(path, 'w') where append or read was clearly meant, or verify=False passed to a request"
+        ],
+        "javascript": [
+          "parseInt(x) without a radix where octal or hex input is possible, or rejectUnauthorized: false"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every argument value matches the callee's documented meaning for what the code is trying to do",
+          "sizes are taken from the actual destination object, such as sizeof the array itself"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-560": "the wrong value is a chmod-style mode given to umask",
+        "CWE-683": "the values are correct but in the wrong order",
+        "CWE-688": "the wrong argument is a different variable rather than a wrong constant or size"
+      }
+    },
+    "CWE-688": {
+      "name": "Function Call With Incorrect Variable or Reference as Argument",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-628"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass the wrong variable or reference to a call, such as the same buffer twice or a similarly named variable that does not fit the parameter?",
+      "present_when": {
+        "c": [
+          "the same pointer is given for two different parameters, such as memcpy(dst, dst, n) or strcmp(a, a)",
+          "a similarly named variable is passed where context shows another was intended, such as len1 with buf2",
+          "the address of a local copy is passed where the caller's original object should be updated"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "each argument is the variable the parameter evidently needs, matching names, sizes and roles",
+          "the same object is passed twice deliberately for an operation that allows it, such as an in-place transform"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-683": "the right variables are passed but their order is swapped",
+        "CWE-687": "the variable is right but a constant or size value is wrong"
+      }
+    },
+    "CWE-695": {
+      "name": "Use of Low-Level Functionality",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-573"
+      ],
+      "function_checkable": true,
+      "question": "Does this function bypass its framework by using low-level facilities the framework forbids, such as raw native calls, threads, sockets or direct memory access?",
+      "present_when": {
+        "any": [
+          "code inside a managed framework component opens raw sockets, spawns threads or processes, or writes files directly instead of using the framework's services"
+        ],
+        "python": [
+          "ctypes or cffi used to call native code or poke memory from code that is meant to stay pure Python"
+        ],
+        "javascript": [
+          "process.binding, native addons or child_process used inside a sandboxed or plugin context"
+        ],
+        "rust": [
+          "inline asm or raw syscalls used where the project restricts code to safe, portable APIs"
+        ],
+        "c": [
+          "direct system calls, inline assembly or hardware register access in code meant to go through an abstraction layer"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses only the framework's or language's ordinary high-level APIs",
+          "the low-level code sits in a module whose purpose is to provide that low-level layer"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-676": "the call is permitted but inherently dangerous rather than forbidden by the framework"
+      }
+    },
+    "CWE-710": {
+      "name": "Improper Adherence to Coding Standards",
+      "abstraction": "Pillar",
+      "gate": true,
+      "function_checkable": true,
+      "question": "Does the function break a common coding rule, for example deprecated calls, missing breaks, constant conditions, debug leftovers, API misuse, or unspecified behaviour?",
+      "present_when": {
+        "any": [
+          "calls to deprecated or obsolete functions, or low-level calls a framework forbids",
+          "a switch case running into the next, a condition that never changes, or unreachable branches",
+          "debug, test or diagnostic code left on a reachable path",
+          "library calls with wrong arguments, ignored or wrongly tested return values, or reliance on undefined or implementation-specific behaviour"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a short function of plain assignments or arithmetic with no library calls, switches or branches",
+          "trivial accessors, constructors or data-only code"
+        ]
+      }
+    },
+    "CWE-758": {
+      "name": "Reliance on Undefined, Unspecified, or Implementation-Defined Behavior",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function depend on behaviour the language or library leaves undefined, unspecified or up to the implementation, such that results may differ by compiler, platform or version?",
+      "present_when": {
+        "c": [
+          "signed integer overflow, shifts by negative or too-large counts, unsequenced modifications such as i = i++ , or reading uninitialised locals",
+          "returning or keeping the address of a local, comparing pointers to unrelated objects, or a non-void function that can fall off its end",
+          "assuming sizeof(int), endianness, char signedness or struct layout",
+          "taking the address of, or declaring, a library name that may be a macro, such as assert, errno, setjmp or va_start"
+        ],
+        "cpp": [
+          "reinterpret_cast used to read an object as an unrelated type, or reading a union member other than the one last written",
+          "dereferencing end(), calling front() or back() on an empty container, or using an iterator after the container changed",
+          "offsetof applied to a type that is not standard-layout"
+        ],
+        "javascript": [
+          "new Date() or Date.parse on non-ISO date strings, or sort with an inconsistent comparator"
+        ],
+        "python": [
+          "relying on id() values, set or hash ordering, `is` comparisons with numbers or strings, or immediate finalisation to close resources"
+        ],
+        "rust": [
+          "unsafe code that creates aliasing &mut, reads uninitialised memory or transmutes between incompatible types, or HashMap iteration order relied on for output"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses only behaviour the language and its libraries define precisely",
+          "implementation-specific choices are isolated behind checks such as static_assert, sizeof tests or platform guards"
+        ],
+        "cpp": [
+          "bytes are reinterpreted with std::bit_cast or std::memcpy into a properly typed object"
+        ],
+        "rust": [
+          "only safe Rust is used and no result depends on hash iteration order"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-562": "the reliance is specifically returning the address of a local variable",
+        "CWE-474": "the reliance is on a library function that differs between platforms",
+        "CWE-587": "the reliance is on assigning a fixed numeric address to a pointer"
+      }
+    },
+    "CWE-785": {
+      "name": "Use of Path Manipulation Function without Maximum-sized Buffer",
+      "abstraction": "Variant",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-676"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass an output buffer smaller than the platform's maximum path length to realpath, readlink, getwd or a similar path routine?",
+      "present_when": {
+        "c": [
+          "realpath or getwd writes into a local or allocated buffer whose size is less than PATH_MAX or MAX_PATH",
+          "PathAppend, PathCombine or PathCanonicalize writes into a buffer not sized MAX_PATH",
+          "readlink is given a length larger than the buffer, or the result is terminated past the buffer end"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the output buffer is declared or allocated with at least PATH_MAX or MAX_PATH elements",
+          "realpath is called with NULL so the library allocates the result",
+          "a size-taking API is used and passed the buffer's real size, with the return value checked"
+        ],
+        "cpp": [
+          "std::filesystem::canonical or read_symlink is used, which returns a std::filesystem::path without a caller-sized buffer"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-787": "the overflow comes from a general copy or index rather than a path normalising call"
+      }
+    },
+    "CWE-912": {
+      "name": "Hidden Functionality",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-684"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain undocumented behaviour triggered by a secret input, such as a magic parameter, hidden command or special username that changes what it does?",
+      "present_when": {
+        "any": [
+          "a comparison against a hard-coded magic string, header, key sequence or date unlocks extra behaviour",
+          "a hidden route, command or option not tied to any normal feature performs privileged or unusual actions",
+          "code that sends data elsewhere or alters settings with no relation to the function's stated purpose"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "all branches correspond to the function's evident, named purpose",
+          "special values are documented configuration or feature flags"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-489": "the extra code is leftover debugging rather than deliberately hidden",
+        "CWE-506": "the hidden code is clearly malicious",
+        "CWE-798": "the magic value is simply a hard-coded credential for a normal login"
+      }
+    },
+    "CWE-1007": {
+      "name": "Insufficient Visual Distinction of Homoglyphs Presented to User",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-451"
+      ],
+      "function_checkable": true,
+      "question": "Does this function show or compare user-visible identifiers, such as domain names or usernames, without guarding against look-alike characters from other scripts?",
+      "present_when": {
+        "any": [
+          "an internationalised domain name, username or account identifier is displayed in Unicode without punycode or a mixed-script warning",
+          "names are checked for uniqueness or trust by raw string comparison, letting visually identical names from different scripts both pass"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "identifiers are normalised and checked for confusable characters, or restricted to a single script or ASCII",
+          "domain names are shown in punycode when they mix scripts"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-451": "the misleading display does not depend on look-alike characters"
+      }
+    },
+    "CWE-1041": {
+      "name": "Use of Redundant Code",
+      "abstraction": "Base",
+      "gate": true,
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does the function repeat the same logic in several places, or redeclare interfaces locally that exist elsewhere?",
+      "present_when": {
+        "any": [
+          "two or more blocks in the function are copies of each other apart from a variable name or constant",
+          "the function re-implements by hand something a helper or library call nearby already does"
+        ],
+        "c": [
+          "a block-scope extern declaration or hand-written prototype duplicates an interface that belongs in a header"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is short and each statement does distinct work",
+          "repeated shapes differ in substance, such as separate cases of a switch with different actions"
+        ]
+      }
+    },
+    "CWE-1045": {
+      "name": "Parent Class with a Virtual Destructor and a Child Class without a Virtual Destructor",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1076"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a parent and child class declare virtual destructors is fixed in the class declarations of the hierarchy, not in any one function body."
+    },
+    "CWE-1061": {
+      "name": "Insufficient Encapsulation",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function expose an object's internal state to callers, for example by returning a writable reference to private data or reaching into another module's internals?",
+      "present_when": {
+        "any": [
+          "a public method or function returns a pointer, reference or mutable container that is the object's own internal storage",
+          "the function reads or writes fields that belong to another module or class instead of using its interface"
+        ],
+        "cpp": [
+          "a public member function returns a non-const reference or pointer to a private member"
+        ],
+        "python": [
+          "code outside a class reads or sets underscore-prefixed attributes of another object"
+        ],
+        "javascript": [
+          "a getter or method returns an internal array or object directly, or code outside a class touches its private-by-convention fields"
+        ],
+        "typescript": [
+          "code reaches another class's private or protected member through obj['field'] bracket access, an as any cast or a @ts-ignore"
+        ],
+        "rust": [
+          "a pub function returns &mut to an internal field, letting callers break the type's invariants"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function returns a copy, an immutable or read-only view, or a value type",
+          "the fields accessed belong to the function's own class or module",
+          "the type is a plain data record intended to be accessed field by field"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1100": "the problem is platform or operating system specific calls not being isolated"
+      }
+    },
+    "CWE-1069": {
+      "name": "Empty Exception Block",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-1071"
+      ],
+      "function_checkable": true,
+      "question": "Does this function have an exception handler that catches an error and does nothing with it?",
+      "present_when": {
+        "any": [
+          "a catch or except block with no statements, or only a comment, so errors are silently ignored"
+        ],
+        "cpp": [
+          "catch (...) {} or catch (const std::exception&) {} with an empty body or only a comment"
+        ],
+        "python": [
+          "except: pass or except Exception: pass"
+        ],
+        "javascript": [
+          "catch (e) {} or a promise .catch(() => {}) with an empty handler"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handler logs, rethrows, returns an error, sets a status or cleans up",
+          "the handler catches one narrow expected exception and a comment explains why ignoring it is safe"
+        ],
+        "c": [
+          "C has no exception handlers, so this cannot occur in plain C"
+        ],
+        "rust": [
+          "Rust has no catch blocks; ignored Result values such as let _ = are a different weakness"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1071": "the empty block is not an exception handler",
+        "CWE-390": "the handler has code but still fails to act on the error"
+      }
+    },
+    "CWE-1071": {
+      "name": "Empty Code Block",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1164"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain an empty code block, such as an if, else, loop or function body with no statements?",
+      "present_when": {
+        "any": [
+          "an if, else, while or for body consists of {} or only a lone semicolon",
+          "a stray semicolon right after if (...) or for (...) makes the intended body run unconditionally"
+        ],
+        "python": [
+          "a block contains only pass or ... where work was clearly expected"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the empty block has a comment explaining that doing nothing is intended",
+          "the empty loop is a deliberate busy-wait or the loop header does all the work, as in while (*p++) ;",
+          "the empty body is a required default implementation, such as an abstract or no-op hook"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1069": "the empty block is an exception handler such as catch or except"
+      }
+    },
+    "CWE-1075": {
+      "name": "Unconditional Control Flow Transfer outside of Switch Block",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1120"
+      ],
+      "function_checkable": true,
+      "question": "Does this function transfer control unconditionally with goto, or an equivalent jump, outside of a switch statement?",
+      "present_when": {
+        "any": [
+          "a goto statement appears outside a switch, jumping to a label elsewhere in the function"
+        ],
+        "c": [
+          "setjmp and longjmp are used to jump across normal control flow"
+        ],
+        "javascript": [
+          "a labelled break or continue jumps out of several nested blocks to an outer label"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "control flow uses only if, loops, return, plain break and continue, and exceptions"
+        ],
+        "python": [
+          "the language has no goto; break, continue and return are structured"
+        ],
+        "rust": [
+          "the language has no goto; labelled break and continue on loops are structured"
+        ]
+      },
+      "distinguish_from": {
+        "REL-118": "a C or C++ goto is used and the more precise rule is the one about goto",
+        "CWE-1119": "the concern is the large number of unconditional branches rather than any single one"
+      }
+    },
+    "CWE-1076": {
+      "name": "Insufficient Adherence to Expected Conventions",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does the function break common coding conventions, such as style rules, misleading comments, heavy global state, preprocessor misuse or missing C++ copy and destructor rules?",
+      "present_when": {
+        "any": [
+          "comments that are misleading, suspicious (TODO, FIXME, HACK) or that disable code, or confusing literals and identifiers",
+          "the function relies on many global or module-level variables",
+          "hard-coded security-relevant numbers appear where named constants would be expected"
+        ],
+        "c": [
+          "#include, #define or #undef lines placed inside the function body"
+        ],
+        "cpp": [
+          "a class with pointer members or virtual methods is copied or deleted through a base pointer in the function"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is short, uses only locals and parameters, and has accurate or no comments"
+        ]
+      }
+    },
+    "CWE-1078": {
+      "name": "Inappropriate Source Code Style or Formatting",
+      "abstraction": "Class",
+      "gate": true,
+      "parents": [
+        "CWE-1076"
+      ],
+      "function_checkable": true,
+      "question": "Does the function's source show style problems, such as suspicious or inaccurate comments, confusing literals, inconsistent names or magic security constants?",
+      "present_when": {
+        "any": [
+          "comments containing TODO, FIXME, HACK or BUG, or comments that contradict the code beside them",
+          "hard-coded numbers for security values such as key sizes, permissions or timeouts",
+          "names in the function that follow mixed conventions or differ only by case or underscores"
+        ],
+        "c": [
+          "octal literals with a leading zero, a lowercase l suffix, nested /* in comments or a // comment ending in a backslash"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "consistent naming, accurate comments and named constants throughout the function"
+        ]
+      }
+    },
+    "CWE-1079": {
+      "name": "Parent Class without Virtual Destructor Method",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1076"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a base class with subclasses lacks a virtual destructor is decided by the class declarations, which no single function body contains."
+    },
+    "CWE-1087": {
+      "name": "Class with Virtual Method without a Virtual Destructor",
+      "abstraction": "Base",
+      "languages": [
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-1076"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a class with virtual methods also declares a virtual destructor is a property of the class declaration, not of any one function body."
+    },
+    "CWE-1093": {
+      "name": "Excessively Complex Data Representation",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build or traverse data through an unnecessarily convoluted structure, such as deeply nested containers or parallel arrays kept in sync by hand?",
+      "present_when": {
+        "any": [
+          "values are kept in parallel arrays or lists indexed together instead of one record type",
+          "data is accessed through several levels of nested maps, lists or pointers, such as a[x][y][\"k\"][i] or p->a->b->c->d",
+          "the same information is stored in two or more forms that the function must keep consistent"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses simple records or classes whose shape matches the data",
+          "nesting reflects a real external format, such as parsed JSON, and is accessed in one clear place"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1120": "the complexity is in control flow, branching or length rather than in data representation"
+      }
+    },
+    "CWE-1095": {
+      "name": "Loop Condition Value Update within the Loop",
+      "abstraction": "Base",
+      "gate": true,
+      "parents": [
+        "CWE-1120"
+      ],
+      "function_checkable": true,
+      "question": "Does the function contain a loop whose controlling variable or condition is changed inside the loop body?",
+      "present_when": {
+        "any": [
+          "a for loop counter is assigned or incremented inside the body as well as in the loop header",
+          "a while or for condition tests a value, such as a length or end pointer, that the body modifies"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every loop changes its counter only in the header and the body does not touch the tested values"
+        ]
+      }
+    },
+    "CWE-1098": {
+      "name": "Data Element containing Pointer Item without Proper Copy Control Element",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1076"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a type with pointer members defines copy and assignment control is set by the type's declaration, not by one function's code."
+    },
+    "CWE-1099": {
+      "name": "Inconsistent Naming Conventions for Identifiers",
+      "abstraction": "Base",
+      "gate": true,
+      "parents": [
+        "CWE-1078"
+      ],
+      "function_checkable": true,
+      "question": "Do identifiers in the function follow inconsistent naming styles, or include names that are easily confused with each other?",
+      "present_when": {
+        "any": [
+          "locals and parameters mix styles such as camelCase, snake_case and Hungarian prefixes for similar things",
+          "two names in scope differ only by case, an underscore or look-alike characters such as l and 1 or O and 0"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "names in the function follow one style and are clearly distinct"
+        ]
+      }
+    },
+    "CWE-1100": {
+      "name": "Insufficient Isolation of System-Dependent Functions",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1061"
+      ],
+      "function_checkable": true,
+      "question": "Does this function mix operating system or platform-specific calls into general logic instead of calling an isolating wrapper?",
+      "present_when": {
+        "any": [
+          "platform-specific APIs, such as Win32, POSIX, RTOS or device driver calls, are called directly among business or algorithm logic",
+          "the body branches on the platform and has separate inline implementations for each"
+        ],
+        "c": [
+          "#ifdef _WIN32 or #ifdef __linux__ blocks inside the function choose between different system calls"
+        ],
+        "python": [
+          "checks on sys.platform or os.name select different subprocess commands or file paths inside the logic"
+        ],
+        "javascript": [
+          "process.platform checks or direct child_process shell commands specific to one OS are embedded in the logic"
+        ],
+        "rust": [
+          "cfg(target_os) blocks or platform crates such as libc or windows-sys are used directly inside general logic"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is itself the platform wrapper whose only role is to adapt one system API",
+          "only portable standard library facilities are used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1105": "the machine dependence is assembly, data layout or hardware access rather than operating system calls"
+      }
+    },
+    "CWE-1102": {
+      "name": "Reliance on Machine-Dependent Data Representation",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does this function's result depend on how the machine represents data, such as type sizes, signedness, byte order, padding or float format?",
+      "present_when": {
+        "any": [
+          "raw bytes of a multi-byte number or structure are reinterpreted, copied or sent as if every machine used the same layout",
+          "code assumes a particular type width or signedness, for example storing a pointer or long in a 32-bit field or relying on plain char being signed",
+          "floating-point values are compared or serialised bit for bit as if their encoding were fixed"
+        ],
+        "cpp": [
+          "reinterpret_cast<char*> of an integer or struct is passed to ostream::write or istream::read for a file or socket format"
+        ],
+        "python": [
+          "struct.pack or struct.unpack uses native mode ('@' or no prefix) for data written to files or the network, or array/ctypes buffers are shared across machines"
+        ],
+        "javascript": [
+          "a DataView, Float32Array or Uint32Array view over an ArrayBuffer is read or written without stating byte order, then exchanged with another system"
+        ],
+        "rust": [
+          "transmute, to_ne_bytes or from_ne_bytes is used on data that leaves the process"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "values are encoded and decoded field by field with an explicit byte order and explicit fixed sizes",
+          "the data never leaves the process and only ordinary typed operations are applied to it"
+        ],
+        "c": [
+          "fixed-width types from stdint.h and sizeof are used wherever width matters, with hton/ntoh style conversions at boundaries"
+        ],
+        "cpp": [
+          "std::endian is checked and std::byteswap or explicit shifts convert std::uint32_t style fixed-width fields at boundaries"
+        ],
+        "python": [
+          "struct formats use an explicit '<', '>' or '!' prefix, or int.to_bytes/from_bytes give the byte order"
+        ],
+        "rust": [
+          "to_le_bytes, to_be_bytes or a serialisation crate with a defined format is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-031": "the issue is just declaring a plain int, long or char where a fixed-width type was expected",
+        "CWE-198": "the issue is specifically a missing or wrong byte-order conversion of received data",
+        "CWE-188": "the code relies on padding, member offsets or the placement of variables in memory"
+      }
+    },
+    "CWE-1104": {
+      "name": "Use of Unmaintained Third Party Components",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1357"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a third-party component is still maintained is a fact about its upstream project, not visible in a function's source."
+    },
+    "CWE-1105": {
+      "name": "Insufficient Encapsulation of Machine-Dependent Functionality",
+      "abstraction": "Base",
+      "gate": true,
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does the function use processor, compiler or platform-specific features such as inline assembly, raw memory layout, byte order or hardware registers directly in its logic?",
+      "present_when": {
+        "any": [
+          "inline assembly, compiler intrinsics or vendor extensions appear inside the function",
+          "the code depends on structure layout, padding, byte order or raw reinterpretation of memory",
+          "hardware registers, fixed addresses or platform-specific system calls are accessed directly"
+        ],
+        "c": [
+          "asm, __asm__, unions or pointer casts used to view the same bytes as different types, or direct access to FILE internals"
+        ],
+        "python": [
+          "ctypes, struct in native mode or platform checks such as sys.platform drive the logic"
+        ],
+        "javascript": [
+          "typed arrays or DataView over shared binary buffers, or checks on process.platform or navigator.platform"
+        ],
+        "rust": [
+          "asm!, transmute, #[repr] layout assumptions or cfg(target_arch) branches inside the logic"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses only ordinary portable language operations and library calls with no binary data or platform checks",
+          "machine-specific work is done only by calling a named wrapper whose body is elsewhere"
+        ]
+      }
+    },
+    "CWE-1108": {
+      "name": "Excessive Reliance on Global Variables",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1076"
+      ],
+      "function_checkable": true,
+      "question": "Does this function depend on reading or setting several global or module-level variables instead of using parameters, return values or object state?",
+      "present_when": {
+        "any": [
+          "the function reads or writes several global or file-scope variables to receive inputs or pass back results",
+          "the function's behaviour changes according to mutable global flags set elsewhere"
+        ],
+        "python": [
+          "global or nonlocal statements are used to change module-level state"
+        ],
+        "javascript": [
+          "the function assigns to module-level let variables, window or globalThis properties to share state"
+        ],
+        "rust": [
+          "static mut variables, or global Mutex or lazy statics, carry state between calls"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function uses only parameters, locals, its own object's fields and return values",
+          "the only module-level names used are constants, imported functions or a logger",
+          "a single global such as a hardware register block or singleton is accessed through a clear interface"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1126": "a variable is declared in a wider scope within the function than its use requires"
+      }
+    },
+    "CWE-1113": {
+      "name": "Inappropriate Comment Style",
+      "abstraction": "Base",
+      "gate": true,
+      "parents": [
+        "CWE-1078"
+      ],
+      "function_checkable": true,
+      "question": "Does the function contain comments whose style could hide code or mislead, such as nested comment openers or line comments that continue onto the next line?",
+      "present_when": {
+        "any": [
+          "a block comment contains /* or // inside it",
+          "a // comment ends with a backslash, joining the next line into the comment",
+          "comment styles are mixed in a way that makes it hard to see where comments end"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "comments are simple, closed on the same or following lines, and contain no comment markers"
+        ]
+      }
+    },
+    "CWE-1116": {
+      "name": "Inaccurate Source Code Comments",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1078"
+      ],
+      "function_checkable": true,
+      "question": "Does a comment in this function describe behaviour, units, limits or conditions that the code next to it does not actually implement?",
+      "present_when": {
+        "any": [
+          "a comment states a value, unit, range or condition that differs from the code, such as 'timeout in ms' beside a value used as seconds, or 'max 10' beside a check for 16",
+          "a doc comment lists parameters, return values or exceptions that do not match the signature or the code paths",
+          "a comment says a case is handled, checked or locked when the code below does not do so"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "comments agree with the code they describe, or the function has no explanatory comments",
+          "the comment is vague but not contradicted by the code",
+          "the comment admits a known gap, which is a suspicious comment rather than an inaccurate one"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-546": "the comment admits a bug, hack or unfinished work rather than misdescribing the code"
+      }
+    },
+    "CWE-1119": {
+      "name": "Excessive Use of Unconditional Branching",
+      "abstraction": "Base",
+      "gate": true,
+      "parents": [
+        "CWE-1120"
+      ],
+      "function_checkable": true,
+      "question": "Does the function use goto or other unconditional jumps, such as backward jumps or jumps into blocks?",
+      "present_when": {
+        "any": [
+          "one or more goto statements, including goto cleanup or retry patterns",
+          "a goto to a label earlier in the function, or to a label inside another block"
+        ],
+        "c": [
+          "setjmp and longjmp used for control flow"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function has no goto, setjmp or longjmp"
+        ]
+      }
+    },
+    "CWE-1120": {
+      "name": "Excessive Code Complexity",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Is this function excessively complex, with very many branches, deep nesting or tangled control flow that is hard to test fully?",
+      "present_when": {
+        "any": [
+          "many decision points (if, case, loop, &&, ||, catch) in one function, giving a high cyclomatic complexity",
+          "nesting four or more levels deep, or a single function that runs to hundreds of lines doing several jobs",
+          "control flow that jumps around with goto, labelled breaks, flags or early exits scattered through nested blocks"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is short with a few shallow branches",
+          "length comes from a flat list of independent cases, such as a switch table or a data initialiser"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1075": "the issue is specifically a goto or unconditional jump outside a switch",
+        "CWE-1095": "the issue is specifically a loop whose condition variable is changed inside the body",
+        "CWE-1093": "the complexity is in the shape of the data rather than in control flow"
+      }
+    },
+    "CWE-1123": {
+      "name": "Excessive Use of Self-Modifying Code",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1120"
+      ],
+      "function_checkable": true,
+      "question": "Does this function change its own or other program code at run time, such as writing machine instructions or rewriting function definitions?",
+      "present_when": {
+        "any": [
+          "the function writes into memory that holds executable code, or patches instructions or jump targets"
+        ],
+        "c": [
+          "mprotect or VirtualProtect makes code pages writable or executable and bytes are then written to them"
+        ],
+        "python": [
+          "the function reassigns other functions, methods or __code__ attributes, or uses exec to generate replacement definitions"
+        ],
+        "javascript": [
+          "the function reassigns methods on its own module or prototype, or builds code text and runs it with eval or new Function"
+        ],
+        "rust": [
+          "unsafe code writes to a function pointer target or to memory mapped as executable"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function only selects behaviour through ordinary branches, function pointers, callbacks or strategy objects",
+          "code generation is a documented JIT or test mock confined to one module"
+        ],
+        "rust": [
+          "safe Rust code, which cannot write to executable memory"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-95": "the code passes untrusted input to eval or a similar interpreter"
+      }
+    },
+    "CWE-1126": {
+      "name": "Declaration of Variable with Unnecessarily Wide Scope",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function declare a variable in a wider scope than needed, for example at the top of the function when it is used only inside one inner block or loop?",
+      "present_when": {
+        "any": [
+          "a variable declared at function scope is used only within one loop, branch or nested block",
+          "a loop counter or temporary is declared outside the loop and not used after it"
+        ],
+        "c": [
+          "the function uses a file-scope or global variable to hold a value that only this function needs within one call"
+        ],
+        "javascript": [
+          "var declares a variable whose use is confined to one block, where let or const in that block would do"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every variable is used across the scope where it is declared, or its value is needed after the inner block",
+          "the variable is declared early because the language or coding standard requires it, such as C89 block-start declarations"
+        ],
+        "python": [
+          "Python has function-level scope only, so a variable first assigned inside a block is already as narrow as the language allows"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1108": "the function relies on several shared global variables rather than one over-wide declaration"
+      }
+    },
+    "CWE-1164": {
+      "name": "Irrelevant Code",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain code that does nothing useful, such as unreachable statements, values computed and discarded, empty blocks or commented-out code?",
+      "present_when": {
+        "any": [
+          "statements that can never run, or an assignment whose value is overwritten or never read",
+          "an expression statement whose result is discarded and which has no side effect, such as x == 1; or a + b;",
+          "an empty block, or code left in comments"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "every statement contributes to the result, state or side effects of the function",
+          "an apparently unused value is a deliberate (void) cast or placeholder for a required API",
+          "an empty block carries a comment explaining why nothing is done"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-561": "a specific statement or branch can never be reached",
+        "CWE-563": "a variable is assigned a value that is never read",
+        "CWE-1071": "a block such as an if body or loop body is empty"
+      }
+    },
+    "CWE-1177": {
+      "name": "Use of Prohibited Code",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a function, API or library that common banned lists or coding standards prohibit for this language?",
+      "present_when": {
+        "any": [
+          "a call to a function that widely used banned lists forbid, where a safer replacement exists in the language or platform"
+        ],
+        "c": [
+          "gets, strcpy, strcat, sprintf, vsprintf, scanf with %s, strtok, tmpnam or mktemp is called"
+        ],
+        "javascript": [
+          "eval, new Function, setTimeout or setInterval with a string argument, or document.write is used"
+        ],
+        "python": [
+          "eval, exec, pickle.loads, marshal.loads, os.system or yaml.load without a safe loader is called"
+        ],
+        "rust": [
+          "std::mem::uninitialized, mem::zeroed for types where zero is invalid, or a deprecated unsafe std API is used"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "only bounded or safe replacements are used, such as snprintf, strlcpy, JSON.parse, ast.literal_eval or MaybeUninit",
+          "the name only matches a project wrapper that does its own bounds or input checks",
+          "the call appears only in a comment, string, test fixture or disabled code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-242": "the call is to gets or another function that can never be used safely",
+        "CWE-676": "the function can be used safely and the question is whether this call site misuses it"
+      }
+    },
+    "CWE-1242": {
+      "name": "Inclusion of Undocumented Features or Chicken Bits",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-912"
+      ],
+      "function_checkable": false,
+      "reason": "Concerns undocumented hardware configuration bits designed into a device, which function source code cannot show."
+    },
+    "CWE-1277": {
+      "name": "Firmware Not Updateable",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1329"
+      ],
+      "function_checkable": false,
+      "reason": "Whether firmware can be updated is a product capability, not something one function's source can show."
+    },
+    "CWE-1329": {
+      "name": "Reliance on Component That is Not Updateable",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1357"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a component can be updated or patched depends on product packaging and deployment, not on one function's code."
+    },
+    "CWE-1341": {
+      "name": "Multiple Releases of Same Resource or Handle",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-675"
+      ],
+      "function_checkable": true,
+      "question": "Can this function release the same resource or handle twice, such as freeing memory or closing a file descriptor that was already released?",
+      "present_when": {
+        "c": [
+          "free, fclose, close or a destroy call on a pointer or descriptor that an earlier path already released and did not reset",
+          "pthread_join or thrd_join called twice on the same thread, or after it was detached"
+        ],
+        "cpp": [
+          "delete or delete[] is applied to a raw member pointer in two places, such as a destructor and a release method, without nulling it",
+          "two std::unique_ptr or std::shared_ptr objects are constructed from the same raw pointer",
+          "join() or detach() called on a std::thread that was already joined or detached, with no joinable() check"
+        ],
+        "javascript": [
+          "fs.closeSync or fs.close on the same fd twice, or a lock release called in both a catch and a finally block"
+        ],
+        "python": [
+          "os.close(fd) twice, or a lock released explicitly and then again by a context manager or finally"
+        ],
+        "rust": [
+          "Box::from_raw, libc::close or a manual drop on the same raw pointer or descriptor more than once inside unsafe"
+        ],
+        "any": [
+          "the release is done both in an error branch and again in shared cleanup code reached afterwards"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the handle is set to NULL, -1 or None right after release and checked before any further release",
+          "each path releases the resource exactly once"
+        ],
+        "cpp": [
+          "a single std::unique_ptr, std::fstream or other RAII owner releases the resource once in its destructor"
+        ],
+        "python": [
+          "closing a Python file or socket object twice, which is a harmless no-op"
+        ],
+        "rust": [
+          "ownership with Drop releases the resource once and the compiler forbids a second use"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-415": "the double release is specifically freeing heap memory twice",
+        "CWE-675": "the repeated once-only operation is not a release"
+      }
+    },
+    "CWE-1357": {
+      "name": "Reliance on Insufficiently Trustworthy Component",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": false,
+      "reason": "Whether a component is trustworthy enough is a supply chain and design property that no single function's source can show."
+    },
+    "CWE-1395": {
+      "name": "Dependency on Vulnerable Third-Party Component",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-1357"
+      ],
+      "function_checkable": false,
+      "reason": "Known vulnerabilities in a dependency depend on its version and advisories, recorded in manifests rather than in a function's code."
+    }
+  }
+}

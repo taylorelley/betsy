@@ -1,0 +1,224 @@
+{
+  "cards": {
+    "CWE-115": {
+      "name": "Misinterpretation of Input",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-436"
+      ],
+      "function_checkable": true,
+      "question": "Does this function misread an input in a way that changes a security decision, for example treating it as a different type, encoding, length or meaning than it has?",
+      "present_when": {
+        "any": [
+          "a value's type or format is guessed from an untrusted hint, such as a file extension, magic prefix or content-type header, and the guess drives a security check",
+          "a numeric or boolean value is parsed leniently (prefix parsing, truthy strings, partial matches) and the result grants or denies something",
+          "an encoded or escaped value is checked before decoding, so the checked form differs from the used form"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "input is parsed strictly against a defined format and rejected on any mismatch",
+          "the check is made on the same decoded, typed value that is later used",
+          "the interpretation has no security effect"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-436": "the misreading arises because a second component interprets the same data differently"
+      }
+    },
+    "CWE-435": {
+      "name": "Improper Interaction Between Multiple Correctly-Behaving Entities",
+      "abstraction": "Pillar",
+      "gate": true,
+      "requires": [
+        "network",
+        "parsing",
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does this function combine its own logic with another component (parser, proxy, library, compiler, protocol peer) in a way where each could interpret the same data or behaviour differently?",
+      "present_when": {
+        "any": [
+          "the function parses, normalises or filters data that another component will parse again, such as HTTP messages, URLs, paths, filenames or file types",
+          "security decisions rely on assumptions about how a downstream server, client, library version or platform behaves",
+          "security-relevant code could be altered by compiler or runtime optimisation, such as clearing secrets or timing-safe comparisons"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function performs self-contained computation with no hand-off of parsed data or security assumption to another component",
+          "data is parsed once into a canonical form and only that form is passed on and checked"
+        ]
+      }
+    },
+    "CWE-436": {
+      "name": "Interpretation Conflict",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-435"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make a security decision about data or a request based on its own reading, when the component that later handles it may read it differently?",
+      "present_when": {
+        "any": [
+          "a filter, proxy, validator or scanner checks a raw value (URL, path, header, file extension, MIME type) and then passes the unmodified original on",
+          "the function's parser handles duplicates, encodings, case, separators or malformed parts differently from the downstream consumer",
+          "an access rule keyed on HTTP method, content type or extension assumes the backend treats them the same way"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the value is canonicalised once and the same canonical value is both checked and forwarded",
+          "malformed or ambiguous input is rejected rather than interpreted",
+          "the function is the final consumer and makes no decision on another component's behalf"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-444": "the conflicting interpretation concerns HTTP message framing between an intermediary and a server",
+        "CWE-650": "access control assumes GET or other safe methods cannot change state",
+        "CWE-115": "the function itself misreads a single input with no second component involved"
+      }
+    },
+    "CWE-437": {
+      "name": "Incomplete Model of Endpoint Features",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-436"
+      ],
+      "function_checkable": true,
+      "question": "Does this intermediary or monitoring function make decisions based on an incomplete model of what an endpoint supports, so traffic using unmodelled features slips through or is mishandled?",
+      "present_when": {
+        "any": [
+          "a proxy, firewall, scanner or gateway inspects only some protocol features, encodings or commands and forwards anything else unchecked",
+          "a deny-list of methods, verbs, file types or message types is used where the endpoint accepts more variants than listed",
+          "state tracking for a protocol ignores endpoint features such as pipelining, compression, fragmentation or upgrades"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function forwards only an allow-list of features it fully understands and rejects the rest",
+          "the function is the endpoint itself, not an intermediary or monitor",
+          "unrecognised input is rejected rather than passed through"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-444": "the gap is specifically ambiguous HTTP message framing such as Content-Length and Transfer-Encoding"
+      }
+    },
+    "CWE-439": {
+      "name": "Behavioral Change in New Version or Environment",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-435"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely for safety on behaviour of a library, platform or peer that is undocumented, version-specific or known to have changed?",
+      "present_when": {
+        "any": [
+          "a security check depends on a particular default (encoding, sort order, TLS setting, parser leniency) that is not set explicitly",
+          "the code branches on a library, OS or protocol version string and assumes behaviour only for the versions it knows",
+          "a deprecated or removed API, flag or error code is relied on to enforce a restriction"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "security-relevant settings are configured explicitly rather than taken from defaults",
+          "unknown versions or unexpected behaviour lead to refusal rather than an assumption",
+          "the function's behaviour does not depend on another component's version or environment"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-436": "two components interpret the same data differently at the same time, without any version change"
+      }
+    },
+    "CWE-444": {
+      "name": "Inconsistent Interpretation of HTTP Requests ('HTTP Request/Response Smuggling')",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-436"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse or forward HTTP messages in a way that could frame the request or response boundary differently from the server or client on the other side?",
+      "present_when": {
+        "any": [
+          "a request carrying both Content-Length and Transfer-Encoding, or duplicate or conflicting Content-Length headers, is accepted and forwarded",
+          "header names or chunk sizes are parsed leniently (extra whitespace, odd casing, obsolete line folding, bare LF) instead of being rejected",
+          "a proxy or gateway forwards the raw header block or body while computing message length its own way",
+          "a reused backend connection is written to after a malformed or partially read message"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "ambiguous framing such as both length headers, duplicates or malformed chunk sizes is rejected with an error",
+          "the function relies on a mature HTTP library to parse and re-serialise the message rather than forwarding raw bytes",
+          "the function is not an HTTP intermediary or parser, only an application handler reading parsed fields"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-436": "the conflicting interpretation concerns something other than HTTP message framing",
+        "CWE-437": "the intermediary ignores endpoint features but message boundaries are not in question"
+      }
+    },
+    "CWE-650": {
+      "name": "Trusting HTTP Permission Methods on the Server Side",
+      "abstraction": "Variant",
+      "parents": [
+        "CWE-436"
+      ],
+      "function_checkable": true,
+      "question": "Does this function let a GET, HEAD or other supposedly safe HTTP request change state, while access controls or CSRF protection only cover methods such as POST?",
+      "present_when": {
+        "any": [
+          "a handler reachable by GET deletes, updates, creates or transfers data",
+          "authorisation or CSRF checks are applied only when the method is POST, PUT or DELETE, and the same action runs for other methods",
+          "a route accepts any method (or both GET and POST) for a state-changing action"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "state-changing actions are restricted to non-safe methods and protected by authorisation and CSRF checks",
+          "the GET handler only reads data that the caller is already authorised to see",
+          "the same access check runs regardless of HTTP method"
+        ]
+      }
+    },
+    "CWE-1038": {
+      "name": "Insecure Automated Optimizations",
+      "abstraction": "Class",
+      "parents": [
+        "CWE-435"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain security-relevant code that a compiler, JIT or runtime optimiser could legally remove or reorder?",
+      "present_when": {
+        "any": [
+          "a buffer holding a key, password or secret is cleared with a plain memset or loop just before it is freed or goes out of scope",
+          "a constant-time comparison or check relies on code the optimiser may short-circuit",
+          "a security check relies on undefined behaviour, such as testing for signed overflow or a pointer wrapping after it has occurred"
+        ],
+        "c": [
+          "memory ordering for a security flag shared between threads relies on plain variables without volatile, atomics or barriers"
+        ],
+        "cpp": [
+          "a secret in a std::string, std::vector or std::array is cleared with std::fill or memset just before it is destroyed"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "secrets are cleared with an API guaranteed not to be elided, such as explicit_bzero, memset_s, SecureZeroMemory or a zeroize crate",
+          "comparisons use a library constant-time function",
+          "the function has no security-relevant step that depends on code surviving optimisation"
+        ],
+        "cpp": [
+          "a flag shared between threads is a std::atomic, and secrets are wiped with a non-elidable call such as OPENSSL_cleanse on data()"
+        ],
+        "python": [
+          "ordinary Python code, where no ahead-of-time optimiser removes stores; clearing may still be ineffective for other reasons"
+        ],
+        "javascript": [
+          "ordinary JavaScript where no secret clearing or timing-safe logic is present"
+        ]
+      }
+    }
+  }
+}

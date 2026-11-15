@@ -164,6 +164,12 @@ enum WeaknessCommand {
         #[command(flatten)]
         selection: SelectionArgs,
     },
+    /// Report coverage, always-asked cards and inconsistencies in the weakness cards.
+    Audit {
+        /// Exit with an error when the audit finds a defect in the cards.
+        #[arg(long)]
+        strict: bool,
+    },
     /// Dry-run question and request budget for a snapshot; contacts no provider.
     Plan {
         #[command(flatten)]
@@ -530,6 +536,12 @@ fn execute(cli: Cli) -> Result<()> {
                     output(&json!({"catalog_hash":c.hash,"count":entries.len(),"entries":entries}))?
                 }
             },
+            WeaknessCommand::Audit { strict } => {
+                let report = betsy::audit::audit()?;
+                let errors = report["errors"].as_array().map_or(0, Vec::len);
+                output(&report)?;
+                anyhow::ensure!(!strict || errors == 0, "{errors} card defects found");
+            }
             WeaknessCommand::Plan {
                 db,
                 snapshot,

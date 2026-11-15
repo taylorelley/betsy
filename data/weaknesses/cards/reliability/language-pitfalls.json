@@ -1,0 +1,1107 @@
+{
+  "cards": {
+    "REL-214": {
+      "name": "Floating Promise: Async Result Neither Awaited Nor Handled",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-252"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function start an async operation and discard the resulting promise, without awaiting, returning or attaching a rejection handler to it?",
+      "present_when": {
+        "javascript": [
+          "a call to an async function or a promise-returning API such as fetch, a database save or fs.promises used as a bare statement",
+          "a promise stored in a variable that is never awaited, returned or given .catch"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every promise is awaited, returned, passed to Promise.all or similar, or has .catch or a two-argument .then",
+          "the discard is explicit with void and the promise has its own error handling",
+          "the call returns a value that is not a promise"
+        ]
+      },
+      "distinguish_from": {
+        "REL-215": "the promise is lost because an async callback is passed to forEach or another non-awaiting iterator",
+        "CWE-252": "the ignored return value is a synchronous status code rather than a promise"
+      }
+    },
+    "REL-215": {
+      "name": "Async Callback Passed to an Iterator That Does Not Await It",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-703"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass an async callback to forEach, filter, reduce or map in a way that never awaits the promises the callback returns?",
+      "present_when": {
+        "javascript": [
+          "items.forEach(async (x) => { ... await ... }) where later code assumes the work has finished",
+          "items.map(async ...) whose resulting array of promises is not awaited with Promise.all or similar",
+          "an async predicate passed to filter, some or every, which treats the returned promise as truthy"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the loop is for...of with await, or the mapped promises are awaited with Promise.all or Promise.allSettled",
+          "the callback is not async and returns no promise"
+        ]
+      },
+      "distinguish_from": {
+        "REL-214": "a single promise from a direct call is discarded, not one created inside an iterator callback"
+      }
+    },
+    "REL-216": {
+      "name": "Numeric Parse Result Used Without a NaN Check",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-754",
+        "CWE-1287"
+      ],
+      "requires": [
+        "type_conversion"
+      ],
+      "function_checkable": true,
+      "question": "Does this function turn text into a number and then use the result without checking that the conversion produced a valid, finite number?",
+      "present_when": {
+        "javascript": [
+          "parseInt, parseFloat, Number(x) or +x on a request field, query parameter, form value or file text, used in arithmetic, indexing, comparison or storage with no NaN test",
+          "parseInt(x) with no radix on input that may have leading zeros or a 0x prefix",
+          "a range check such as if (n > max) relied on to reject bad input, which NaN passes"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the result is tested with Number.isNaN, Number.isFinite or Number.isInteger before use, with a failure path",
+          "the input is validated as digits by a pattern or schema before conversion",
+          "the text is a constant or comes from a trusted internal source of numbers"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1287": "the problem is accepting the wrong type of input in general, not an unchecked NaN from conversion"
+      }
+    },
+    "REL-217": {
+      "name": "for...in Used to Iterate an Array or Untrusted Object",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-710"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a for...in loop over an array, or over an object without filtering out inherited properties?",
+      "present_when": {
+        "javascript": [
+          "for (const i in someArray) used to visit array elements, so i is a string and extra properties are included",
+          "for (const k in obj) over request data or a shared object with no Object.hasOwn or hasOwnProperty check inside the loop"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the loop is for...of, forEach, an index loop, or iterates Object.keys or Object.entries",
+          "a for...in body skips keys failing Object.hasOwn or hasOwnProperty",
+          "the object was created with Object.create(null) and holds only known keys"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1321": "the code writes to an object's prototype through attacker-chosen keys rather than reading inherited keys"
+      }
+    },
+    "REL-218": {
+      "name": "typeof Object Test That Lets null Through",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-697",
+        "CWE-754"
+      ],
+      "function_checkable": true,
+      "question": "Does this function treat a value as a usable object after testing only typeof value === 'object', which is also true for null?",
+      "present_when": {
+        "javascript": [
+          "if (typeof v === 'object') followed by property access on v, with no v !== null or v != null test in the same condition or earlier"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the guard also excludes null, such as v !== null && typeof v === 'object' or v && typeof v === 'object'",
+          "the value cannot be null at that point, such as a literal object or one just constructed"
+        ]
+      },
+      "distinguish_from": {
+        "REL-230": "a truthiness test rejects valid falsy values like 0 or empty string, rather than admitting null"
+      }
+    },
+    "REL-219": {
+      "name": "Assignment to an Undeclared Variable Creating an Implicit Global",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-1108",
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function assign to a variable name that it never declares with let, const or var and that is not a known parameter or outer variable?",
+      "present_when": {
+        "javascript": [
+          "an assignment such as total = 0 or for (i = 0; ...) where the name has no declaration in the function or an enclosing scope visible in the code"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every assigned name is declared, is a parameter, or is a property such as this.x or obj.x",
+          "the name is clearly an outer variable declared in the enclosing code shown"
+        ],
+        "typescript": [
+          "TypeScript code, where the compiler rejects assignment to an undeclared name"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1108": "the function deliberately reads or writes declared global variables"
+      }
+    },
+    "REL-220": {
+      "name": "Array Sorted Without a Comparator on Non-String Values",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function sort an array of numbers, dates or other non-string values with sort() or toSorted() and no comparison function?",
+      "present_when": {
+        "javascript": [
+          "arr.sort() or arr.toSorted() with no argument where the elements are numbers, Date objects, bigints or objects"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "a comparator function is passed",
+          "the elements are strings and code-unit order is intended",
+          "the array is a typed array such as Float64Array, whose sort is numeric"
+        ]
+      },
+      "distinguish_from": {
+        "REL-194": "the values being sorted are floats that may include NaN, not compared as strings"
+      }
+    },
+    "REL-221": {
+      "name": "Line Break After return Triggering Automatic Semicolon Insertion",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-670",
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function have a return keyword followed directly by a line break, with the intended return value starting on the next line?",
+      "present_when": {
+        "javascript": [
+          "return on its own line followed by an object literal, array, string or expression on the next line, which is never returned"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the returned expression begins on the same line as return, including an opening parenthesis or brace",
+          "a bare return; is intended and nothing follows it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-561": "code is unreachable for a reason other than an inserted semicolon"
+      }
+    },
+    "REL-222": {
+      "name": "Type Assertion Overriding the Type Checker",
+      "abstraction": "Base",
+      "languages": [
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-704"
+      ],
+      "function_checkable": true,
+      "question": "Does this function force a value to an unrelated type with as any, as unknown as T or an any cast, so the compiler no longer checks that the types match?",
+      "present_when": {
+        "typescript": [
+          "x as any, <any>x or a parameter typed any is then used as a specific type",
+          "x as unknown as T between types the compiler would otherwise reject as unrelated",
+          "an object literal or partial object asserted to a full interface it does not satisfy"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "the assertion narrows to a subtype after a runtime check such as a type guard, in or instanceof",
+          "the cast is as const or a widening assertion to a supertype",
+          "the value is validated by a schema whose result type is used"
+        ]
+      },
+      "distinguish_from": {
+        "REL-225": "the asserted value comes from outside the program, such as parsed JSON or a response body",
+        "REL-223": "the assertion only removes null or undefined with the ! operator"
+      }
+    },
+    "REL-223": {
+      "name": "Non-Null Assertion on a Value That May Be Null or Undefined",
+      "abstraction": "Base",
+      "languages": [
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-754"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the non-null assertion operator ! on a value that can actually be null or undefined at that point?",
+      "present_when": {
+        "typescript": [
+          "map.get(k)!, arr.find(...)!, document.querySelector(...)! or an optional property obj.field! used without an earlier presence check",
+          "a ! on a value that comes from a parameter, request or lookup whose type includes undefined"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "an earlier check in the same function proves the value present, such as has(k) before get(k)!",
+          "the value is set unconditionally just before, or the type does not include null or undefined"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-754": "the missing check is on an error return or status, not a value asserted non-null"
+      }
+    },
+    "REL-224": {
+      "name": "Type Errors Suppressed With ts-ignore or ts-expect-error",
+      "abstraction": "Base",
+      "languages": [
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a @ts-ignore, @ts-expect-error or @ts-nocheck comment that hides a real type error on the line it covers?",
+      "present_when": {
+        "typescript": [
+          "a // @ts-ignore or // @ts-expect-error comment directly above a call, assignment or property access whose types do not match"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "the function has no suppression comments",
+          "a @ts-expect-error marks a deliberately wrong call in a test that checks the error",
+          "the comment explains a known compiler limitation and the suppressed code is correct"
+        ]
+      },
+      "distinguish_from": {
+        "REL-222": "the checker is bypassed with a type assertion rather than a comment"
+      }
+    },
+    "REL-225": {
+      "name": "External Data Asserted to a Declared Type Without Runtime Validation",
+      "abstraction": "Base",
+      "languages": [
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-1287",
+        "CWE-20"
+      ],
+      "requires": [
+        "external_input",
+        "parsing"
+      ],
+      "function_checkable": true,
+      "question": "Does this function treat parsed or received data as a declared TypeScript type without checking at run time that the data has that shape?",
+      "present_when": {
+        "typescript": [
+          "JSON.parse(...) as T, await response.json() as T, or such a result assigned to a variable of an interface type, then used",
+          "req.body, event.data, localStorage values or message payloads typed as a specific interface with no validation"
+        ]
+      },
+      "not_present_when": {
+        "typescript": [
+          "the data passes through a schema parse such as zod parse or safeParse, io-ts decode or ajv validate whose result is used",
+          "a type guard checks the required fields before the typed value is used",
+          "the data comes from a trusted internal source in the same program"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-502": "deserialisation can instantiate arbitrary types or run code, not merely produce the wrong shape",
+        "REL-222": "the asserted value is internal data, not received from outside"
+      }
+    },
+    "REL-226": {
+      "name": "Mutable Default Argument Shared Across Calls",
+      "abstraction": "Base",
+      "languages": [
+        "python"
+      ],
+      "parents": [
+        "CWE-664",
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function have a parameter whose default value is a mutable object, such as a list or dict, which the function changes or returns?",
+      "present_when": {
+        "python": [
+          "def f(items=[]), def f(opts={}), def f(seen=set()) or a default built by a call returning a mutable object, where the function appends, updates, adds to or returns that parameter"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the default is None, a number, a string, a tuple or a frozenset",
+          "the mutable default is only read and never changed, returned or stored",
+          "the shared default is a deliberate cache and the code says so"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1108": "the shared state is an explicit global variable rather than a default argument"
+      }
+    },
+    "REL-227": {
+      "name": "Closure Capturing a Loop Variable by Late Binding",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-710"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create closures inside a loop that use the loop variable and run after that iteration ends, so they all see the variable's final value?",
+      "present_when": {
+        "python": [
+          "lambda: use(i), or a nested def using i, created in a for loop and stored, returned or registered as a callback"
+        ],
+        "javascript": [
+          "for (var i = ...) with a callback, setTimeout or event handler inside that uses i after the loop moves on"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the value is bound at creation with lambda i=i:, functools.partial or a factory function",
+          "the closure is called immediately within the same iteration"
+        ],
+        "javascript": [
+          "the loop variable is declared with let or const, which creates a fresh binding per iteration",
+          "the callback runs synchronously inside the iteration"
+        ]
+      }
+    },
+    "REL-228": {
+      "name": "Collection Modified While Being Iterated",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-664"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function add or remove elements of a collection while it is looping over that same collection?",
+      "present_when": {
+        "python": [
+          "for x in lst: ... lst.remove(x), lst.pop(), lst.append(...) or del lst[i]",
+          "for k in d: ... del d[k], d.pop(k) or adding keys, or the same with a set"
+        ],
+        "javascript": [
+          "arr.forEach or for...of over arr with arr.splice, arr.push or arr.shift inside",
+          "a forward index loop that calls splice(i, 1) without adjusting i"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the loop iterates over a copy such as list(lst), lst[:], list(d) or list(d.items())",
+          "a new collection is built with a comprehension instead"
+        ],
+        "javascript": [
+          "filter or a new array is used, or the index loop runs backwards when splicing",
+          "values are reassigned in place without changing the length"
+        ]
+      }
+    },
+    "REL-229": {
+      "name": "assert Used for Runtime Validation That Optimisation Removes",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "python"
+      ],
+      "parents": [
+        "CWE-20",
+        "CWE-617"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rely on an assert statement to reject bad input, unauthorised callers or failed operations, which would be skipped when assertions are disabled?",
+      "present_when": {
+        "python": [
+          "assert user.is_admin, assert len(data) <= MAX, assert isinstance(arg, int) or similar on parameters or request data, with no other check"
+        ],
+        "c": [
+          "assert(ptr != NULL), assert(len < sizeof buf) or assert on a return value as the only check before using external data"
+        ],
+        "cpp": [
+          "assert(i < v.size()) or assert(ptr) as the only guard before v[i] or *ptr on data from input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "an explicit if check with an error path also covers the condition",
+          "the assert checks an internal invariant that holds whatever the input, such as after the code itself established it",
+          "the function is test code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-617": "an attacker can trigger the assertion to crash the program, rather than bypass it when it is disabled"
+      }
+    },
+    "REL-230": {
+      "name": "Truthiness Test Where a Missing-Value Check Was Intended",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function test whether a value is present by its truthiness, so that valid values like 0, an empty string, empty collection or false are treated as missing?",
+      "present_when": {
+        "python": [
+          "if not count:, value or default, or if x: on a parameter or field that may legitimately be 0, 0.0, \"\", [] or False, where only None means missing"
+        ],
+        "javascript": [
+          "if (!port), opts.timeout || 3000 or x ? a : b on numbers, strings or booleans where 0, '' or false are valid"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the test is is None or is not None, or the value cannot be falsy while valid, such as an object instance"
+        ],
+        "javascript": [
+          "the test uses ??, == null, === undefined or typeof checks",
+          "the value cannot be falsy while valid, such as an object or a required non-empty string"
+        ]
+      },
+      "distinguish_from": {
+        "REL-218": "a typeof test lets null through, the opposite error"
+      }
+    },
+    "REL-231": {
+      "name": "One-Shot Iterator or Generator Consumed More Than Once",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-672"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function iterate a single-pass iterator or generator more than once, so later passes see no items?",
+      "present_when": {
+        "python": [
+          "a generator expression, map, filter, zip, csv.reader or open file is stored and then looped over, summed, converted or tested with in more than once",
+          "an iterator passed in as a parameter is consumed twice"
+        ],
+        "javascript": [
+          "a generator object, iterator from .values(), .entries() or matchAll is spread or looped over more than once"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the values are materialised once with list or tuple, or the iterable is a list, tuple, dict, set or range"
+        ],
+        "javascript": [
+          "the iterable is an array, or Array.from or spread is done once and the array reused"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-672": "a closed or released resource such as a handle or connection is used again, rather than an exhausted iterator"
+      }
+    },
+    "REL-232": {
+      "name": "Naive and Time-Zone-Aware Date-Times Mixed",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-697",
+        "CWE-1024"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare, subtract or store date-times that differ in whether they carry a time zone, or mix local time with UTC?",
+      "present_when": {
+        "python": [
+          "datetime.now() or datetime.utcnow() without tz compared with or subtracted from an aware datetime, or with one parsed from an ISO string with offset",
+          "a naive datetime treated as UTC when sent, stored or converted with timestamp()"
+        ],
+        "javascript": [
+          "new Date('YYYY-MM-DD') or Date.parse of a zone-less string compared with local-time dates",
+          "getHours, getDate or setHours used on a date that represents a UTC instant, or the reverse"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "every datetime is created with tzinfo or timezone.utc, or all values are consistently naive within one documented zone"
+        ],
+        "javascript": [
+          "the code uses UTC methods consistently, epoch milliseconds, or a library with explicit zones"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1024": "the compared values are of unrelated types, not two kinds of date-time"
+      }
+    },
+    "REL-233": {
+      "name": "Exception Escaping a Destructor or noexcept Function",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-248",
+        "CWE-703"
+      ],
+      "function_checkable": true,
+      "question": "Is this function a C++ destructor or noexcept function that can let an exception escape, which would terminate the program?",
+      "present_when": {
+        "cpp": [
+          "a destructor that calls code that can throw, such as stream flush with exceptions enabled, std::string or container allocation, or a user method that throws, with no try/catch around it",
+          "a throw statement inside a destructor, or inside a function or move constructor marked noexcept",
+          "a destructor or noexcept(false) mismatch where the class is used in containers that need noexcept moves"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "every call that can throw is inside try { } catch (...) in the destructor or noexcept function",
+          "the function calls only non-throwing operations such as free, close or noexcept members",
+          "the function is not a destructor and is not marked noexcept"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-248": "an exception can escape an ordinary function to the top of the program, not a destructor or noexcept function"
+      }
+    },
+    "REL-234": {
+      "name": "Iterator, Pointer or Reference Used After Container Mutation Invalidates It",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-825",
+        "CWE-664"
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep an iterator, pointer or reference into a C++ container and use it after an operation that may invalidate it?",
+      "present_when": {
+        "cpp": [
+          "auto& x = v[0] or auto it = v.begin(), then v.push_back, insert, emplace_back or resize, then x or it used",
+          "c.erase(it) inside a range-based for loop over c, or erase in an iterator loop that then increments it",
+          "a pointer from &v[i] or v.data() stored and used after the vector grows"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the loop uses it = c.erase(it), or the erase-remove idiom",
+          "capacity is reserved before taking references and the size never exceeds it",
+          "the container is std::list, std::map or std::set and only other elements are erased"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "memory freed explicitly with free or delete is used later, not through container invalidation"
+      }
+    },
+    "REL-235": {
+      "name": "View or Reference Bound to a Temporary That Outlives It",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-825",
+        "CWE-664"
+      ],
+      "function_checkable": true,
+      "question": "Does this function keep a string_view, span, pointer or reference that refers into a temporary object and use it after the temporary is gone?",
+      "present_when": {
+        "cpp": [
+          "std::string_view sv = make_string(); or = a + b; and sv used later",
+          "const char* p = get_name().c_str(); or data() of a temporary, then p used",
+          "for (auto& x : get_obj().items()) where get_obj returns by value",
+          "a std::function or lambda storing a reference into a temporary"
+        ],
+        "c": [
+          "an array member of a struct returned by value is written or its address kept, such as f().buf[0] = 1 or p = f().buf"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the temporary is bound directly to a const T& or T&& local, which extends its lifetime",
+          "the owning value is stored in a named variable that outlives the view",
+          "the view refers to a string literal or a long-lived object"
+        ],
+        "c": [
+          "the returned struct is stored in a local before its array member is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-562": "the function returns the address of its own local variable",
+        "REL-240": "a lambda captures locals by reference and outlives the scope"
+      }
+    },
+    "REL-236": {
+      "name": "Object Used After Being Moved From",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-672",
+        "CWE-664"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a C++ object after moving from it, other than to assign it a new value or destroy it?",
+      "present_when": {
+        "cpp": [
+          "f(std::move(x)) or y = std::move(x) followed by a read of x, such as x.size(), *x or passing x again",
+          "std::move of the same variable inside a loop without reassigning it each iteration",
+          "a unique_ptr dereferenced after being moved into another owner"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the moved-from variable is not used again, or is reassigned, cleared or reset before reuse",
+          "the type documents a usable moved-from state that the code relies on deliberately"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "the memory was freed rather than moved from"
+      }
+    },
+    "REL-237": {
+      "name": "Mutex Locked and Unlocked by Hand Instead of With a Scoped Guard",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-667"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function lock a C++ mutex with lock() and unlock it by hand, with a return, break or possible exception in between?",
+      "present_when": {
+        "cpp": [
+          "m.lock() ... m.unlock() where code between them can return, break, continue or call something that can throw"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the lock is held through std::lock_guard, std::unique_lock or std::scoped_lock",
+          "the code between lock and unlock has a single path and cannot throw"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-764": "the same lock is acquired more than once",
+        "CWE-833": "two locks are taken in inconsistent orders"
+      }
+    },
+    "REL-238": {
+      "name": "Derived Object Sliced by Copying Into a Base Value",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-704"
+      ],
+      "function_checkable": true,
+      "question": "Does this function copy a derived C++ object into a value of its base class type, so the derived part is lost?",
+      "present_when": {
+        "cpp": [
+          "a parameter of type Base taken by value receiving a Derived argument, or Base b = derived;",
+          "std::vector<Base> or another container of base values receiving derived objects",
+          "catch (Base e) by value for a hierarchy of exception types"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the base is taken by reference, pointer or smart pointer",
+          "the base class has no virtual functions and no derived data is needed"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-843": "memory is accessed as an incompatible type through a cast, not copied into a base"
+      }
+    },
+    "REL-239": {
+      "name": "Virtual Function Called From a Constructor or Destructor",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-710",
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Is this function a C++ constructor or destructor that calls a virtual member function, expecting a derived class's override to run?",
+      "present_when": {
+        "cpp": [
+          "a constructor or destructor body that calls a member declared virtual, such as init(), validate() or onDestroy()",
+          "a call to a pure virtual function from a constructor or destructor"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the function is not a constructor or destructor",
+          "the called member is not virtual, or is qualified with the class name to call the current class version deliberately",
+          "the class is final"
+        ]
+      }
+    },
+    "REL-240": {
+      "name": "Lambda Capturing Locals by Reference That Outlives Their Scope",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-825",
+        "CWE-416"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create a lambda that captures local variables by reference and that can run after the function has returned?",
+      "present_when": {
+        "cpp": [
+          "a [&] or [&x] lambda returned, stored in a member or global, or passed to std::thread, detach, std::async, a timer or a callback registration",
+          "[this] or [&] captured in a callback that may outlive the object"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "the lambda is called or joined before the function returns, such as in std::sort or a joined thread",
+          "locals are captured by value, by move or through shared ownership"
+        ]
+      },
+      "distinguish_from": {
+        "REL-235": "a view or reference to a temporary dangles, without a lambda"
+      }
+    },
+    "REL-241": {
+      "name": "std::thread Destroyed While Joinable or Detached While Using Locals",
+      "abstraction": "Base",
+      "languages": [
+        "cpp"
+      ],
+      "parents": [
+        "CWE-664",
+        "CWE-404"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function create a std::thread that can be destroyed without being joined, or detach one that still uses the function's local data?",
+      "present_when": {
+        "cpp": [
+          "std::thread t(...) followed by a return, throw or break path that skips t.join()",
+          "t.detach() on a thread whose function or lambda references locals or this"
+        ]
+      },
+      "not_present_when": {
+        "cpp": [
+          "std::jthread or an RAII wrapper joins on every path",
+          "join is called on every path, including in a catch block",
+          "a detached thread holds only copies or shared ownership of its data"
+        ]
+      },
+      "distinguish_from": {
+        "REL-240": "a reference-capturing lambda outlives its scope in a callback rather than a thread"
+      }
+    },
+    "REL-242": {
+      "name": "Lock Guard or RefCell Borrow Held Across an await or Re-entrant Call",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-833",
+        "CWE-667"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this Rust function keep a lock guard or RefCell borrow alive across an .await, or while calling code that may lock or borrow the same value again?",
+      "present_when": {
+        "rust": [
+          "let guard = mutex.lock() (std or parking_lot) still in scope when an .await runs",
+          "a borrow() or borrow_mut() of a RefCell held while calling a closure, callback or method that borrows the same cell",
+          "a lock held while calling a function that takes the same lock"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the guard is dropped or its block ends before every .await and re-entrant call",
+          "the lock is tokio::sync::Mutex or another async mutex designed to be held across await, with no re-entrant locking"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1322": "the async function calls a blocking operation, rather than holding a guard across await",
+        "PERF-020": "the lock is held across slow I/O, causing contention but not deadlock"
+      }
+    },
+    "REL-307": {
+      "name": "Global or Sticky Regular Expression Reused Across Calls",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call test or exec on a regular expression object that has the g or y flag and outlives the call, so the position left by one match changes the next result?",
+      "present_when": {
+        "javascript": [
+          "a regex literal or RegExp with the g or y flag is stored in a module-level constant, a closure or a field, and this function calls .test() or .exec() on it once per input",
+          "the same g-flagged regex is tested against several strings in a row, for example inside filter, some or a loop, without resetting lastIndex"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the regex has neither the g nor the y flag",
+          "the regex is created inside the function for each use, or lastIndex is set to 0 before each test",
+          "the regex is only passed to match, matchAll, replace, replaceAll or split, which do not depend on a position left by an earlier call",
+          "exec is called in a loop over one string until it returns null, which is the intended use of the g flag"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-185": "the pattern itself matches the wrong strings, whatever state the regex object carries"
+      }
+    },
+    "REL-308": {
+      "name": "Promise Returned Without await From Inside a try Block",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-703"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this async function return a promise from inside a try block without awaiting it, so a later rejection skips the function's own catch or finally handling?",
+      "present_when": {
+        "javascript": [
+          "return somePromiseCall() inside try { } in an async function whose catch block is meant to handle that call's failure",
+          "a promise is returned from a try block whose finally releases a resource the pending operation still uses"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the statement is return await, or the promise is awaited into a variable before it is returned",
+          "the return is outside any try block, so there is no local handler to skip",
+          "the returned value is not a promise",
+          "the try has no catch and its finally does nothing the pending operation depends on"
+        ]
+      },
+      "distinguish_from": {
+        "REL-214": "the promise is dropped altogether rather than returned to the caller"
+      }
+    },
+    "REL-309": {
+      "name": "Framework State Mutated in Place Instead of Replaced",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-471"
+      ],
+      "function_checkable": true,
+      "question": "Does this function change an object or array held in UI framework state in place, so the framework sees the same reference and may not update what depends on it?",
+      "present_when": {
+        "javascript": [
+          "a value from useState, useReducer, this.state, props or a store is changed with push, splice, sort, reverse, an index or property assignment, or delete",
+          "the mutated object is then passed back to its setter, as in items.push(x); setItems(items)",
+          "a reducer changes its state argument and returns that same object"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "a new array or object is built, for example with spread, map, filter, concat, slice, toSorted or structuredClone, and passed to the setter",
+          "the state is managed by a library that tracks in-place changes, such as Immer drafts, Vue or Svelte reactive values, MobX observables or signals",
+          "the mutated value is a local copy or a ref whose changes are not meant to trigger rendering"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-471": "the changed data is not framework state but something another party assumed would stay fixed"
+      }
+    },
+    "REL-310": {
+      "name": "String Sliced at a Byte Offset That May Split a Character",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-1285"
+      ],
+      "requires": [
+        "memory_buffers"
+      ],
+      "function_checkable": true,
+      "question": "Does this function slice or split a str at a byte offset that is not known to fall on a character boundary, so text outside ASCII can make it panic?",
+      "present_when": {
+        "rust": [
+          "&s[..n], &s[a..b] or s.split_at(n) on a str or String where the offset is a fixed number, a length limit or arithmetic on len(), and the text can hold non-ASCII characters",
+          "String::truncate, drain, insert or remove is called with such an offset",
+          "an offset counted in characters, for example from chars().count(), is used as a byte index"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the offset comes from find, rfind, match_indices, char_indices or another API that returns character boundaries of the same string",
+          "the code checks is_char_boundary, or uses get(..n), split_at_checked, floor_char_boundary or chars().take(n)",
+          "the value is a byte slice or Vec<u8> rather than a str",
+          "the text is shown to be ASCII, for example by an is_ascii check or because the function built it from ASCII literals"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-125": "the offset lies beyond the end of the data, rather than inside a multi-byte character"
+      }
+    },
+    "REL-311": {
+      "name": "Coroutine or Future Created but Never Awaited",
+      "abstraction": "Base",
+      "languages": [
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-252"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call an async function and then drop the coroutine or future without awaiting, spawning or returning it, so its body never runs?",
+      "present_when": {
+        "python": [
+          "a call to an async def function or other coroutine function is a bare statement with no await, as in self.save() where save is async",
+          "a coroutine object is stored in a variable that is never awaited, gathered, scheduled or returned"
+        ],
+        "rust": [
+          "a call to an async fn, or an async block, is a statement or is bound to _ and is never awaited, polled, spawned or returned",
+          "a future is built for its side effect and dropped at the end of the scope"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the result is awaited, returned to the caller, or passed to a function that drives it"
+        ],
+        "python": [
+          "the coroutine is handed to asyncio.create_task, ensure_future, gather, wait, run or a TaskGroup",
+          "the called function is an ordinary function, not a coroutine function"
+        ],
+        "rust": [
+          "the future is passed to tokio::spawn, join!, select!, block_on or a FuturesUnordered",
+          "the call is to an ordinary fn that does its work before returning"
+        ]
+      },
+      "distinguish_from": {
+        "REL-297": "the task was started and does run, but its result or error is never collected"
+      }
+    }
+  }
+}

@@ -244,16 +244,23 @@ impl LanguageAdapter for Adapter {
                 flags.template = lang == "cpp";
             }
         }
-        // Rust attributes syntactically belong to the next item, but are siblings.
+        // Rust attributes syntactically belong to the next item, but are siblings. Comments,
+        // including doc comments, may sit between an attribute and its item; they are stepped
+        // over and only join the span when an attribute precedes them.
         if lang == "rust" || matches!(lang, "typescript" | "tsx") {
             let mut prev = n.prev_named_sibling();
             while let Some(p) = prev {
-                if !(lang == "rust" && p.kind() == "attribute_item"
+                let comment =
+                    lang == "rust" && matches!(p.kind(), "line_comment" | "block_comment");
+                if !(comment
+                    || lang == "rust" && p.kind() == "attribute_item"
                     || matches!(lang, "typescript" | "tsx") && p.kind() == "decorator")
                 {
                     break;
                 }
-                definition.start = p.start_byte();
+                if !comment {
+                    definition.start = p.start_byte();
+                }
                 flags.decorated |= p.kind() == "decorator";
                 prev = p.prev_named_sibling();
             }
