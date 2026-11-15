@@ -8,7 +8,7 @@ in the [README](../../README.md#weakness-cards) and the cards' status in
 
 | Content | Cards | Catalog hash (SHA-256 over every file's path and content) |
 |---|---:|---|
-| `cards/` | 1,093 | `c83fd709239195e12e1d856d8f2a56ec5113fcb2fa327132edefa8570f50eb01` |
+| `cards/` | 1,093 | `c438c0373bebce86935a32bbdbad151709d10a9525040f6d02526143fe00b354` |
 
 `betsy weaknesses audit` prints the same hash as `catalog_hash`.
 
