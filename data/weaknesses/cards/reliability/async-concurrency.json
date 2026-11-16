@@ -1,0 +1,358 @@
+{
+  "cards": {
+    "REL-312": {
+      "name": "Shared State Checked Before an await and Updated After It",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-362"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "sources": [
+        {
+          "standard": "ESLint",
+          "rule": "require-atomic-updates"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this async function read or test shared state, then await, and afterwards write or rely on that state as if nothing could have changed it in between?",
+      "present_when": {
+        "any": [
+          "a cache, map, flag or field is tested (missing, not started, under a limit), an await follows, and the code then sets or uses it without testing again, so two overlapping calls both pass",
+          "a value read from shared state before an await is written back after it, such as total = total + await f()"
+        ],
+        "javascript": [
+          "a module-level variable, this.x or a closed-over let is read before await and assigned after it in a handler that can run again before it finishes"
+        ],
+        "python": [
+          "self.x or a module global is checked, an await follows, and it is then updated with no asyncio.Lock around the whole sequence"
+        ],
+        "rust": [
+          "a lock guard is released before .await and the value read under it is written back after locking again, without reading it again"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the state is local to this call and no other task can reach it",
+          "no await lies between the check and the update, or an async lock or queue serialises the callers",
+          "the pending promise or future itself is stored before the first await, so later callers share it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-367": "the state checked is a file or another external resource, not memory shared between tasks"
+      }
+    },
+    "REL-313": {
+      "name": "Async Function or Throwing Callback Inside a Promise Executor",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-703"
+      ],
+      "sources": [
+        {
+          "standard": "ESLint",
+          "rule": "no-async-promise-executor"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a promise whose executor can fail in a way that neither rejects the promise nor reaches a handler?",
+      "present_when": {
+        "javascript": [
+          "new Promise(async (resolve, reject) => { ... }) where an await inside can reject, leaving the outer promise pending for ever",
+          "a throw inside a callback nested in the executor, such as in setTimeout, an event listener or a Node-style callback, with no call to reject",
+          "an error argument of a callback inside the executor is ignored and only resolve is ever called"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the executor is synchronous and every failure path calls reject",
+          "the awaited work is wrapped in try/catch that calls reject, or the function is simply async and returns the awaited value",
+          "util.promisify or a promise-returning API is used instead of a hand-written executor"
+        ]
+      },
+      "distinguish_from": {
+        "REL-214": "a promise is created and nobody awaits or handles it, with no executor at fault"
+      }
+    },
+    "REL-314": {
+      "name": "Completion Callback or Resolver Called Twice or Skipped on Some Path",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-670"
+      ],
+      "sources": [
+        {
+          "standard": "eslint-plugin-n",
+          "rule": "callback-return"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Can this function call its completion callback, next, resolve or reject more than once, or leave by some path without calling it at all?",
+      "present_when": {
+        "javascript": [
+          "if (err) callback(err); with no return, so execution continues and the callback is called again further down",
+          "a callback or next() called inside a loop or in both a try block and its catch",
+          "a branch, early return or caught error after which neither the callback nor resolve or reject is called, so the caller waits for ever",
+          "an Express-style handler that both sends a response and calls next(), or sends two responses"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every path ends in exactly one return callback(...), next(...), resolve(...) or reject(...)",
+          "the callback is a listener meant to fire repeatedly, such as an event or stream data handler",
+          "a once-style wrapper or a done flag guards the call"
+        ]
+      },
+      "distinguish_from": {
+        "REL-313": "the fault is an async or throwing promise executor, not the count of calls"
+      }
+    },
+    "REL-315": {
+      "name": "try Block Around Work Whose Error Arrives Asynchronously",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-703"
+      ],
+      "function_checkable": true,
+      "question": "Does this function wrap a call in try and catch although the failure it means to handle is raised later, outside the try block?",
+      "present_when": {
+        "javascript": [
+          "try { setTimeout(() => risky(), 0) } catch, or a try around registering an event listener or Node-style callback that throws later",
+          "try { promiseCall().then(...) } catch or try { asyncFn() } catch with no await, so a rejection bypasses the catch"
+        ],
+        "python": [
+          "try around threading.Thread(...).start(), executor.submit(...), loop.call_soon(...) or asyncio.create_task(...), with the except meant for errors inside the started work",
+          "try around a call that only builds a generator or coroutine, whose body runs after the try has ended"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the call is awaited inside the try, or the callback has its own try/catch or .catch handler",
+          "the catch is only for synchronous failures of the scheduling call itself"
+        ],
+        "python": [
+          "the future, task or thread result is awaited or fetched with result() inside the try",
+          "the generator is iterated inside the try"
+        ]
+      },
+      "distinguish_from": {
+        "REL-308": "a promise is returned from inside try without await",
+        "REL-297": "no try is present; a background task's error is simply never fetched"
+      }
+    },
+    "REL-316": {
+      "name": "Writes Queued Without Waiting for the Sink to Drain",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-770"
+      ],
+      "requires": [
+        "network",
+        "filesystem",
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does this function write to a stream, socket or queue in a loop without waiting when the receiver falls behind, so pending data builds up in memory?",
+      "present_when": {
+        "javascript": [
+          "stream.write(...), res.write(...) or socket.send(...) called in a loop with the boolean result ignored and no wait for the drain event",
+          "a data handler that writes each chunk onward without pause and resume, pipe or pipeline",
+          "WebSocket send in a loop with no check of bufferedAmount"
+        ],
+        "python": [
+          "asyncio writer.write(...) in a loop with no await writer.drain()",
+          "queue.put_nowait or an unbounded asyncio.Queue or queue.Queue filled by a producer faster than its consumer, with no maxsize"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "pipe, pipeline or for await is used, or the loop waits for drain when write returns false",
+          "a small fixed number of writes"
+        ],
+        "python": [
+          "await writer.drain() follows the writes, or the queue has a maxsize and put is awaited",
+          "a small fixed number of writes"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-770": "resources are allocated per request without a cap, rather than writes outrunning a slow receiver"
+      }
+    },
+    "REL-317": {
+      "name": "select! or Timeout Dropping a Future With Work Half Done",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-662"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "sources": [
+        {
+          "standard": "Tokio documentation",
+          "rule": "select! cancellation safety"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function race futures so that the loser is dropped part-way through an operation that cannot safely be abandoned?",
+      "present_when": {
+        "rust": [
+          "tokio::select! in a loop with a branch such as read_exact, read_to_end, read_line, write_all or a multi-step async fn, built afresh each iteration, so bytes already read or written are lost when another branch wins",
+          "tokio::time::timeout or futures::select around a future that holds partly applied state, such as a message half sent or a transaction half done",
+          "a future dropped by select! after it took an item from a channel or lock but before using it"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "every branch is documented cancellation safe, such as recv on an mpsc channel, or the future is created once, pinned outside the loop and polled by reference",
+          "the dropped work is idempotent or its partial progress is kept in state outside the future"
+        ]
+      },
+      "distinguish_from": {
+        "REL-311": "the future is never polled at all"
+      }
+    },
+    "REL-318": {
+      "name": "Lock Guard Released at Once by Binding It to an Underscore",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-667"
+      ],
+      "requires": [
+        "concurrency"
+      ],
+      "sources": [
+        {
+          "standard": "Clippy",
+          "rule": "let_underscore_lock"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function take a lock but drop the guard straight away, so the code it was meant to protect runs unlocked?",
+      "present_when": {
+        "rust": [
+          "let _ = mutex.lock(); or let _ = rwlock.write(); followed by code that touches the protected data",
+          "mutex.lock().unwrap(); as a bare statement used as if it held the lock for the rest of the block",
+          "a guard created inside an inner block or a temporary expression that ends before the access it should cover"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the guard is bound to a name such as _guard or guard and lives until the end of the critical section",
+          "the lock is taken only to read or copy one value within the same expression"
+        ]
+      },
+      "distinguish_from": {
+        "REL-242": "the guard is held too long, across an await or re-entrant call, instead of dropped too early"
+      }
+    },
+    "REL-319": {
+      "name": "Process Exit or Return Before Pending Work or Buffered Output Completes",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-705"
+      ],
+      "function_checkable": true,
+      "question": "Does this function end the process, the runtime or itself while work it started or output it buffered may still be unfinished, so that work is silently lost?",
+      "present_when": {
+        "javascript": [
+          "process.exit() called right after console.log, a stream write, a logger call or an un-awaited promise, so pending output or requests are cut off",
+          "a serverless or request handler that returns or responds before a promise it started has settled"
+        ],
+        "python": [
+          "work handed to a daemon thread, or a task from create_task, with the main function returning or calling sys.exit or os._exit before it finishes",
+          "os._exit or a kill after writing to a buffered file or stdout with no flush"
+        ],
+        "rust": [
+          "main or a runtime block returns while tokio::spawn or thread::spawn work is not joined, or std::process::exit skips destructors that flush a BufWriter"
+        ],
+        "c": [
+          "_exit, abort or quick_exit after buffered stdio output with no fflush, or main returning while detached threads still write results"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "started work is awaited, joined or drained before the exit, and buffers are flushed or closed",
+          "the abandoned work is deliberately best-effort, such as telemetry, and the code says so"
+        ]
+      },
+      "distinguish_from": {
+        "REL-294": "the objection is that library or handler code ends the whole process at all, not that pending work is lost",
+        "REL-297": "the background work runs to completion but its error is never looked at"
+      }
+    },
+    "REL-320": {
+      "name": "Fixed Sleep Used to Wait for Another Task or External State",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-821",
+        "CWE-662"
+      ],
+      "requires": [
+        "concurrency",
+        "network",
+        "resources",
+        "filesystem"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pause for a fixed time in the hope that another thread, process or service will have finished by then, instead of waiting on a signal of completion?",
+      "present_when": {
+        "any": [
+          "a sleep or delay of a fixed length placed after starting a thread, process, server or request and before using its result, with no check that the result is ready",
+          "a sleep added before a retry, read or assertion with a comment or name suggesting it lets something settle, start up or propagate"
+        ],
+        "javascript": [
+          "await new Promise(r => setTimeout(r, 500)) before reading state another task writes"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the code waits on a join, future, condition variable, event, channel, health check or readiness probe",
+          "the sleep is inside a polling loop that tests the awaited condition and has a deadline",
+          "the delay is the function's purpose, such as rate limiting, backoff between retries or animation timing"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-021": "a loop polls with no sleep at all and wastes CPU"
+      }
+    }
+  }
+}

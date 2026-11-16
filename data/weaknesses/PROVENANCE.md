@@ -8,20 +8,21 @@ in the [README](../../README.md#weakness-cards) and the cards' status in
 
 | Content | Cards | Catalog hash (SHA-256 over every file's path and content) |
 |---|---:|---|
-| `cards/` | 1,093 | `c438c0373bebce86935a32bbdbad151709d10a9525040f6d02526143fe00b354` |
+| `cards/` | 1,149 | `896241aed1b6324ce03f2099fe4305ae69ac113a0737242a39beca0a15fc675b` |
 
 `betsy weaknesses audit` prints the same hash as `catalog_hash`.
 
 | IDs | Catalog | Cards | Origin |
 |---|---|---:|---|
-| `CWE-` | security | 754 | MITRE CWE 4.20 (released 2026-04-30) |
+| `CWE-` | security | 755 | MITRE CWE 4.20 (released 2026-04-30) |
 | `REL-001` to `REL-213` | reliability | 213 | scorpius-cli reliability catalog |
 | `PERF-001` to `PERF-010` | performance | 10 | scorpius-cli performance catalog |
-| `REL-214` to `REL-311` | reliability | 98 | written for BETSY |
-| `PERF-011` to `PERF-028` | performance | 18 | written for BETSY |
+| `REL-214` to `REL-359` | reliability | 146 | written for BETSY |
+| `PERF-011` to `PERF-035` | performance | 25 | written for BETSY |
 
 `REL-` and `PERF-` cards name the published rules they were written from in `sources`, by
-standard and rule number. The earlier catalog files recorded none for `REL-001` to `REL-025`.
+standard and rule number. For `REL-312` onwards and `PERF-029` onwards the sources are lint
+rule names recalled while drafting, not yet checked against the tools' current releases. The earlier catalog files recorded none for `REL-001` to `REL-025`.
 
 ## History
 
@@ -38,7 +39,8 @@ one `cards.json` into the family files under `cards/`.
 ## MITRE CWE content
 
 Cards with `CWE-` IDs use MITRE's identifiers, names and CWE-1000 hierarchy, and their
-questions and patterns are new wording derived from MITRE CWE 4.20. A check, run while the
+questions and patterns are new wording derived from MITRE CWE 4.20. `CWE-1426` was added later by ID and name; confirm both against
+the MITRE release before the cards ship. A check, run while the
 source files were still present, rejected any ten consecutive words copied from an entry's
 description. The CWE terms appear to permit derived works when the notice in `CWE_NOTICE.txt`
 is kept; this has not yet been confirmed with Legal and must be before the cards ship.

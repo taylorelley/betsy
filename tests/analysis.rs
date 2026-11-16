@@ -106,7 +106,7 @@ fn cards_are_the_whole_catalog_and_ids_normalize() {
             count("reliability"),
             count("performance")
         ),
-        (754, 311, 28)
+        (755, 359, 35)
     );
     // The card files are the only weakness definitions; PROVENANCE.md records their hash.
     let provenance = include_str!("../data/weaknesses/PROVENANCE.md");

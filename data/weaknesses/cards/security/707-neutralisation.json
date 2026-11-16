@@ -3374,6 +3374,40 @@
         "CWE-88": "the input ends up as arguments to an operating system command",
         "CWE-94": "the input is turned into source code that is executed"
       }
+    },
+    "CWE-1426": {
+      "name": "Improper Validation of Generative AI Output",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "interpreter_output",
+        "network",
+        "external_input",
+        "parsing"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take text produced by a generative AI model and pass it to code execution, a query, a command, a page, a file path or another privileged action without validating it first?",
+      "present_when": {
+        "any": [
+          "a model completion is given to eval, exec, a shell, a SQL query, a template or an HTML sink as it stands",
+          "JSON, a tool call or a function name returned by a model is parsed and acted on with no schema check, allow-list or bounds on its arguments",
+          "model output chooses a file path, URL, recipient or amount for an action that is then carried out with the application's own privileges",
+          "model output is stored or shown to other users as trusted content with no encoding or filtering"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the output is validated against a schema, an allow-list of actions or typed fields before use, and encoded for the sink it reaches",
+          "the generated code or command runs only in a sandbox with no access to sensitive data, or a person approves it first",
+          "the output is only displayed as plain text to the user who asked for it"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1427": "the weakness is untrusted text entering the prompt, rather than the model's answer being trusted afterwards",
+        "CWE-94": "the code that is executed comes straight from external input with no model in between"
+      }
     }
   }
 }

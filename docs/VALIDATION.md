@@ -14,7 +14,7 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `strace -f -e trace=network -o <scratch>/net.trace cargo test --locked --offline` | Passed: 61 tests; every connect was to 127.0.0.1, the local HTTP test server; no external addresses |
 | `./target/release/betsy scan tests/fixtures --db <scratch>/smoke.sqlite --strict` | Sealed, source_complete=true, 37 occurrences |
 | `./target/release/betsy verify --db <scratch>/smoke.sqlite --snapshot <returned-id> --format json` | valid=true; 37 occurrences |
-| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 40,441 naive questions (1,093 cards for each of 37 functions); 28,179 after prefilter; hierarchical lower bound 1,239, before syntax traits |
+| `./target/release/betsy weaknesses plan --db <scratch>/smoke.sqlite --snapshot <returned-id>` | 42,513 naive questions (1,149 cards for each of 37 functions); 29,420 after prefilter; hierarchical lower bound 1,239, before syntax traits |
 | `./target/release/betsy analyze --db <scratch>/smoke.sqlite --snapshot <returned-id> --provider mock --mock-file <script>` with `{"default":0.0}` | Finished; 37 completed, 0 positives, 37 requests (one root round per function), 1,085 questions asked and 154 subtrees ruled out by the parser |
 | `./target/release/betsy run create --db <scratch>/smoke.sqlite --snapshot <returned-id> --analyzer echo-v1` | Created a dispatch run; returned a run ID |
 | `./target/release/betsy run exec --db <scratch>/smoke.sqlite --run <returned-run-id> --profile echo-v1 -- cat` | Finished; 37 completed, each result equal to its request; nested callables and syntax traits present where expected |
@@ -22,7 +22,7 @@ with the checked-in Cargo.lock and pinned Tree-sitter grammars.
 | `cargo audit --version` | Not installed locally; audit not run. Separate CI job installs and runs cargo-audit. |
 
 Per-language plans for the fixtures (planned questions per function, after the prefilter):
-C 895, C++ 938, JavaScript 709, Python 715, Rust 733, TypeScript 713, each at most six
+C 915, C++ 959, JavaScript 750, Python 750, Rust 761, TypeScript 754, each at most six
 rounds deep.
 
 ## v0.1 inventory and dispatch
@@ -98,7 +98,7 @@ validated; that a `detached` card has no parents; that traits are validated; and
 parser settles syntax traits as absent only for a clean parse and only for languages that list
 node kinds, and that division and shifts written as method calls count as present. An
 integration test checks that a Rust function's span includes its attributes when comments sit
-between them and the function. All 1,093 cards load, and the 1,013 checkable ones render within the limit for all
+between them and the function. All 1,149 cards load, and the 1,069 checkable ones render within the limit for all
 seven languages. They have not been run against a provider or
 labelled code.
 

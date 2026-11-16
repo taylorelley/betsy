@@ -1,0 +1,115 @@
+{
+  "cards": {
+    "REL-328": {
+      "name": "Pointer Taken From a Temporary That Is Dropped at Once",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-416",
+        "CWE-825"
+      ],
+      "sources": [
+        {
+          "standard": "Rust compiler lints",
+          "rule": "temporary_cstring_as_ptr"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function take a raw pointer from a temporary owner that is dropped at the end of the same statement, and use the pointer afterwards?",
+      "present_when": {
+        "rust": [
+          "CString::new(s).unwrap().as_ptr() stored in a variable or passed on after the statement ends",
+          "as_ptr() or as_mut_ptr() called on a temporary String, Vec, Box or to_owned() result, such as s.to_string().as_ptr()",
+          "a pointer from as_ptr() used after the owning Vec or String was pushed to, reallocated, moved or dropped"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the owner is bound to a variable that outlives every use of the pointer",
+          "the temporary's pointer is used only inside the same full expression, such as as an argument of one call",
+          "ownership is handed over with into_raw and later reclaimed with from_raw"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-416": "the memory was freed explicitly rather than by a temporary's drop at the end of a statement"
+      }
+    },
+    "REL-329": {
+      "name": "Aliasing or Mutability Rules Broken Through Raw Pointers",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-758"
+      ],
+      "requires": [
+        "unsafe_code"
+      ],
+      "sources": [
+        {
+          "standard": "Rust compiler lints",
+          "rule": "invalid_reference_casting"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does unsafe code in this function create references that break Rust's aliasing rules, such as a mutable reference alongside another reference to the same data?",
+      "present_when": {
+        "rust": [
+          "a shared reference or *const T cast to *mut T and written through, or turned into &mut T, where the data is not inside an UnsafeCell",
+          "two &mut references to the same or overlapping memory made from one raw pointer, or &mut *ptr while another reference to the target is live",
+          "transmute from &T to &mut T, or a function returning &mut T derived from a &self or &T argument",
+          "static mut read or written through references from code that may run on several threads or re-entrantly"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "interior mutability goes through UnsafeCell, Cell, RefCell, a lock or an atomic",
+          "disjoint parts are split with split_at_mut or by borrowing separate fields",
+          "the raw pointer is the only access path while the mutable reference lives"
+        ]
+      },
+      "distinguish_from": {
+        "REL-007": "the cast is flagged only for hiding its target type behind an underscore",
+        "CWE-362": "the access is a data race between threads rather than an aliasing rule broken within one"
+      }
+    },
+    "REL-330": {
+      "name": "Panic That Can Unwind Out of an extern \"C\" Function or Callback",
+      "abstraction": "Base",
+      "languages": [
+        "rust"
+      ],
+      "parents": [
+        "CWE-758"
+      ],
+      "sources": [
+        {
+          "standard": "The Rustonomicon",
+          "rule": "FFI and unwinding"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Is this function called from foreign code, and can it panic so that unwinding would cross the foreign boundary?",
+      "present_when": {
+        "rust": [
+          "an extern \"C\" fn or #[no_mangle] function whose body calls unwrap, expect, panic!, assert!, indexes a slice, or divides by a value that may be zero",
+          "a Rust closure or function passed as a callback to a C library that can panic",
+          "arguments from foreign code, such as pointers and lengths, used in operations that panic on bad values"
+        ]
+      },
+      "not_present_when": {
+        "rust": [
+          "the body is wrapped in std::panic::catch_unwind and a failure is turned into an error code",
+          "every fallible step returns an error value instead of panicking",
+          "the function uses the \"C-unwind\" ABI on purpose, or the crate aborts on panic and that is the intended behaviour"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-754": "the missing check matters whether or not the caller is foreign code"
+      }
+    }
+  }
+}

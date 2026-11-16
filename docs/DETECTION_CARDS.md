@@ -18,14 +18,14 @@ entries. The earlier files remain in the git history.
 
 **Complete in coverage, not yet validated and not cleared to ship.**
 
-- There are 1,093 cards. 1,013 are checkable; 80 are marked not function-checkable and listed
+- There are 1,149 cards. 1,069 are checkable; 80 are marked not function-checkable and listed
   below. Six of those 80 (CWE-382, CWE-564, CWE-609, CWE-690, CWE-1051 and CWE-1106) exist only
   because another card's `distinguish_from` names them; they were never planned.
 - Every card has `status` `draft`. No card has been marked `reviewed` or `validated`.
 - The 215 other entries of the earlier catalog files that had no card were never planned for
   any language (hardware-only, introduced outside code, wrong language, or a gate with nothing
   below it). They are no longer known to BETSY, so naming one with `--weakness` is an error.
-- 116 cards are BETSY's own weaknesses (REL-214 to REL-311 and PERF-011 to PERF-028); see
+- 171 cards are BETSY's own weaknesses (REL-214 to REL-359 and PERF-011 to PERF-035); see
   "BETSY's own weaknesses" below.
 - The cards for `CWE-` entries are new wording derived from MITRE content. Legal must confirm
   that the CWE terms of use allow this, with the notice in `data/weaknesses/CWE_NOTICE.txt`
@@ -42,7 +42,7 @@ passed on the last commit that had them, and the card wording has not changed si
 has read only a sample.
 
 Skipping the uncheckable cards saves 51 to 72 questions per function, depending on the
-language; the fixtures now plan 709 to 938.
+language; the fixtures now plan 750 to 959.
 
 ## Structure and audit
 
@@ -55,7 +55,7 @@ The cards were restructured so that each one is self-contained and gaps are visi
   and all 5,393 questions were byte-identical before and after this step.
 - **Sources and status.** `REL-` and `PERF-` cards carry `sources`, recovered from the rule
   mappings in the removed catalog files (MISRA C:2012, Goldberg 1991, SEI CERT C, C++ and
-  Java, and the references named below); rule titles were not carried over. 81 cards have
+  Java, and the references named below); rule titles were not carried over. 113 cards have
   none: REL-001 to REL-025, whose origin the earlier files did not record, and the cards
   written for BETSY without a published rule. `status` records how far a card has been
   checked.
@@ -86,8 +86,8 @@ What the audit still shows, for a person to decide:
   CWE-543 and nine `REL-` cards from MISRA C), so the limit may be narrower than the weakness.
   Separately, CWE-248 (uncaught exception) is limited to C++ and has only C++ patterns,
   although exceptions go uncaught in other languages too.
-- 744 of 1,444 `distinguish_from` links are one-way, and 134 checkable cards have none.
-- 428 to 483 of the cards planned for each language have no pattern specific to it.
+- 822 of 1,530 `distinguish_from` links are one-way, and 137 checkable cards have none.
+- 436 to 493 of the cards planned for each language have no pattern specific to it.
 
 ## BETSY's own weaknesses
 
@@ -95,6 +95,7 @@ The scorpius-cli catalogs had no reliability entries for JavaScript, TypeScript,
 and only ten performance entries (REL-001 to REL-213 and PERF-001 to PERF-010). BETSY added its
 own, continuing the same ID sequences:
 
+- REL-312 to REL-359 and PERF-029 to PERF-035, added in the third round described below.
 - REL-307 to REL-311, added after the first audit, each checked against the existing cards by
   keyword: a global or sticky regular expression reused across calls, a promise returned
   without `await` from inside a `try` block, and framework state mutated in place (JavaScript,
@@ -173,6 +174,86 @@ files and remains in the git history.
   non-temporal stores, TLB and NUMA placement depend on type declarations, hardware or
   deployment and were left out.
 
+### Entries from the third round: gaps by language and bug type
+
+A third round listed the bug types that linters, compiler lints and bug taxonomies commonly
+name for the seven scanned languages, and checked each against the existing cards by keyword.
+About a third of the candidates were already covered and were dropped; the examples are
+listed at the end of this section. The 55 that had no card were added as REL-312 to REL-359
+and PERF-029 to PERF-035, in new family files, with one CWE that had been missing:
+
+- **Asynchronous code and concurrency (REL-312 to REL-320, `async-concurrency.json`).** Shared
+  state checked before an `await` and updated after it; async or throwing promise executors;
+  completion callbacks called twice or not at all; `try` around work whose error arrives
+  later; writes that ignore backpressure; `select!` or a timeout dropping a future part-way
+  (Rust); a lock guard bound to `_` and released at once (Rust); the process exiting before
+  pending work or buffered output completes; and a fixed sleep used to wait for another task.
+- **React components and hooks (REL-321 to REL-327 and PERF-029, `react.json`).** Hooks called
+  conditionally, dependency lists missing a value, state computed from a stale snapshot,
+  effects or render bodies that update their own state, responses applied after unmount or out
+  of order, missing or index keys, `&&` rendering `0`, and fresh objects defeating memoisation.
+- **Rust (REL-328 to REL-330, `rust-pitfalls.json`).** A pointer taken from a temporary
+  `CString` or `Vec`, aliasing rules broken through raw pointers, and a panic that can unwind
+  out of an `extern "C"` function.
+- **Python and JavaScript (REL-331 to REL-349, `scripting-pitfalls.json`).** Repeated or
+  filled collections sharing one element, an inner declaration that hides the outer variable
+  it meant to update, `strip` with a multi-character set, missing or stray commas, exceptions
+  replaced without their cause, the return value of an in-place method used as the result,
+  chained pandas or NumPy assignment, defaults evaluated once, sequences paired without a
+  length check, unstable `hash()` values persisted, reliance on unspecified ordering,
+  environment strings used as booleans or numbers, methods passed without their receiver,
+  callbacks that receive extra arguments, functions called where a reference was expected,
+  shallow copies and aliases, in-place changes to a caller's collection, HTTP responses used
+  without a status check, and zero-based date fields.
+- **Logic and data handling, all languages (REL-350 to REL-359, `logic-data.json`).**
+  Duplicated conditions and identical branches, copy-and-paste lines with a variable left
+  unchanged, the remainder of a negative value used as an index, quantities in the wrong
+  unit, dates and versions compared as text, structured formats handled with plain string
+  operations, a paged result treated as complete, related data-store writes that are not
+  atomic, short or interrupted reads and writes, and wrapping tick counters compared directly.
+- **Performance (PERF-030 to PERF-035, `algorithms-frameworks.json`).** A growing collection
+  copied on every iteration, row-by-row loops over array or DataFrame data, clients and pools
+  built on every call, a linear scan or length recount repeated in a loop, avoidable
+  allocation in a hot loop, and more fields fetched than are used.
+- **CWE-1426 (improper validation of generative AI output)** was absent from the earlier
+  catalog files. It hangs under CWE-707 beside CWE-1427, which covers the prompt side.
+
+The round was built to add coverage without adding cost to a clean function:
+
+- Every new card has a planned parent, so none is a root and none is asked in round 1. The
+  findings asked of every function, the round-1 question counts and the mock run on the
+  fixtures (1,085 questions with every answer negative) are unchanged.
+- No model-asked gate was added, for the reason given under "Structure and audit". Cards
+  hang under the nearest existing card whose question their code would answer yes to.
+- 26 of the cards name traits. The React cards require the new asked trait `ui_components`,
+  which JSX proves present for JavaScript and TSX; it is not a syntax trait, because a custom
+  hook that calls only other custom hooks has no node kind or fixed name the parser could
+  look for. REL-329 requires the syntax trait `unsafe_code`, so the parser rules it out for
+  safe Rust at no cost.
+- Each card lists only the languages in which its pattern occurs, and names the neighbouring
+  cards in `distinguish_from`.
+
+Sources are given where a published lint rule describes the same defect (ESLint,
+eslint-plugin-react, eslint-plugin-react-hooks, typescript-eslint, eslint-plugin-unicorn,
+eslint-plugin-n, Clippy and rustc lints, flake8-bugbear, Pylint, and the pandas, Tokio and
+Rustonomicon documentation). The rule names were written from memory and have not been
+checked against the current releases of those tools, so verify them before relying on them.
+32 of the new cards have no source.
+
+Candidates dropped because a card already asks about them: blocking calls in async code
+(CWE-1322), missing timeouts (CWE-1088), `find` and `indexOf` results tested against the
+wrong sentinel (CWE-253), conditions that are always true (CWE-571), lazy iterators built and
+dropped (REL-280), lookups assumed to succeed and empty results (CWE-754), device and FIFO
+names (CWE-66), macro arguments evaluated twice (REL-034), `memset` on non-trivial objects
+(REL-260, CWE-475), text split inside a character (CWE-176), double-checked locking in C++
+(CWE-543, CWE-1096), separate load and store on an atomic (CWE-821), swallowed cancellation
+(CWE-396), replacing only the first match (CWE-793), unbounded caches and a thread per item
+(CWE-770, CWE-1050), and a full sort to read one element (CWE-1176).
+
+BETSY scans JavaScript, TypeScript, TSX, Python, Rust, C and C++. Cards for Java, Go, C#,
+PHP, Ruby, Kotlin or Swift would never be planned, so none were written; those languages
+need a grammar and an extraction adapter first.
+
 Where a CERT C or C++ rule was a form of an entry that already had a card, the card gained a
 pattern instead of a new entry being added: REL-034, REL-039, REL-096, REL-113, REL-132, REL-135,
 REL-145, REL-146, REL-165, REL-172, REL-235, CWE-191, CWE-364, CWE-366, CWE-475, CWE-476,
@@ -224,6 +305,15 @@ These came up while drafting and are the first places to look when reviewing res
   PERF-028 (linked lists), which is often a reasonable design choice; REL-244 (C23 attributes),
   which will rarely apply; and REL-278 (mixed return types), which overlaps documented `Optional`
   returns. REL-289 (comparator contract) overlaps the JavaScript comparator pattern of CWE-475.
+- **Entries from the third round (REL-312 to REL-359, PERF-029 to PERF-035, CWE-1426)** have
+  not been run against a model. The likeliest to be noisy are REL-351 (copied line with a
+  variable left unchanged), REL-353 (wrong unit) and REL-341 (unspecified order), which ask
+  for a judgement about intent; REL-347 (in-place change to a caller's collection), which is
+  often deliberate; and PERF-032, PERF-034 and PERF-035, which depend on how hot the code is.
+  The likeliest to be hidden by gating are REL-351, which sits directly under the CWE-710
+  gate because no existing finding describes it, and REL-350 under CWE-1164, REL-332 and
+  REL-337 under CWE-563 and REL-349 under CWE-193, whose parents ask a narrower question. If
+  `betsy run recall` shows misses, move them up to the gate above or mark them `detached`.
 - **Narrow sibling distinctions** (CWE-152 to CWE-154, CWE-796 and CWE-797, CWE-32 to CWE-35)
   depend on fine wording and may still be confused.
 

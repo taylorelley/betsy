@@ -1,0 +1,268 @@
+{
+  "cards": {
+    "REL-321": {
+      "name": "Hook Called Conditionally, in a Loop or After an Early Return",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-573"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "sources": [
+        {
+          "standard": "eslint-plugin-react-hooks",
+          "rule": "rules-of-hooks"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this component or custom hook call a hook somewhere other than unconditionally at its top level?",
+      "present_when": {
+        "javascript": [
+          "useState, useEffect, useMemo, useContext or a custom useX call inside an if, a ternary, a && expression, a loop, a switch or a try block",
+          "a hook call placed after a conditional return, so some renders skip it",
+          "a hook called inside a nested function, event handler, callback passed to map, or a class method"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every hook call is at the top level of the component or custom hook, before any return",
+          "the condition is inside the hook's callback rather than around the hook call",
+          "the function named useX is not a React-style hook, or the call is the use API that may be conditional"
+        ]
+      }
+    },
+    "REL-322": {
+      "name": "Effect, Memo or Callback Dependency List Missing a Value It Reads",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-573"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "sources": [
+        {
+          "standard": "eslint-plugin-react-hooks",
+          "rule": "exhaustive-deps"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does a hook callback in this function read a prop, state or local value that its dependency list leaves out, so it keeps using an old value?",
+      "present_when": {
+        "javascript": [
+          "useEffect, useLayoutEffect, useMemo or useCallback whose callback reads props, state or values computed in the component that are absent from the dependency array",
+          "an empty dependency array on a callback that reads state or props which change, such as an interval callback reading count",
+          "the exhaustive-deps lint rule disabled by a comment above the hook"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "every reactive value read in the callback is listed, or there is no array and running every render is intended",
+          "the omitted values are stable: state setters, dispatch, refs, imports or module constants",
+          "the latest value is reached through a ref or a functional state update"
+        ]
+      },
+      "distinguish_from": {
+        "REL-323": "a state setter is given a value computed from a stale variable, whatever the dependency list says",
+        "REL-324": "the list is complete but the effect changes one of its own entries"
+      }
+    },
+    "REL-323": {
+      "name": "State Update Computed From a Stale Snapshot",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-573"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compute a new state value from a state variable captured earlier, or read state straight after setting it, where the value may be out of date?",
+      "present_when": {
+        "javascript": [
+          "setCount(count + 1) called more than once in one handler, or inside a timer, promise callback or event listener created in an earlier render",
+          "setItems([...items, x]) after an await, using the items captured before it",
+          "state read on the line after its setter was called, expecting the new value",
+          "this.setState({ n: this.state.n + 1 }) in a class component where updates may batch"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the functional form is used, such as setCount(c => c + 1) or setState(prev => ...)",
+          "the new value does not depend on the previous state",
+          "a reducer or ref holds the value"
+        ]
+      },
+      "distinguish_from": {
+        "REL-309": "state is changed in place rather than computed from an old copy"
+      }
+    },
+    "REL-324": {
+      "name": "Effect or Render Body That Updates the State It Depends On",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-573"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "function_checkable": true,
+      "question": "Does this component set state during render, or in an effect that runs again because of that same update, so it can re-render without end?",
+      "present_when": {
+        "javascript": [
+          "a state setter called directly in the component body, outside any handler or effect and with no guarding condition",
+          "useEffect with no dependency array that sets state every time it runs",
+          "an effect that sets a state variable listed in its own dependencies, or sets state to a new object or array that a dependency is derived from",
+          "onClick={setOpen(true)} or onClick={handle()} that updates state while rendering"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the update is guarded so it stops, such as comparing with the previous value before setting",
+          "the setter runs in an event handler, or in an effect whose dependencies the update does not change",
+          "the value is derived during render or with useMemo instead of being stored in state"
+        ]
+      },
+      "distinguish_from": {
+        "REL-345": "a function is called at once where a callback was expected, with no state update that re-triggers rendering"
+      }
+    },
+    "REL-325": {
+      "name": "Async Result Applied After Unmount or After a Newer Request Started",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-362"
+      ],
+      "requires": [
+        "ui_components",
+        "concurrency"
+      ],
+      "function_checkable": true,
+      "question": "Does an effect or handler in this function start an asynchronous request and apply its result without checking that it is still the latest request for a mounted component?",
+      "present_when": {
+        "javascript": [
+          "useEffect that fetches using a prop or state value and calls a state setter in then or after await, with no cleanup that cancels or ignores the response",
+          "a search or autocomplete handler that sets results from each response, so a slow early response overwrites a later one",
+          "a state setter called after an await in a component that may have unmounted, with no AbortController or ignore flag"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the effect's cleanup aborts the request or sets a flag checked before the state is set",
+          "a data library such as React Query, SWR or a router loader owns the request",
+          "the request does not depend on changing input and runs once"
+        ]
+      },
+      "distinguish_from": {
+        "REL-300": "a listener, timer or subscription is left registered, rather than a response applied late",
+        "REL-312": "the shared state is not component state set from a request"
+      }
+    },
+    "REL-326": {
+      "name": "List Items Rendered With Missing, Index or Unstable Keys",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-573"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "sources": [
+        {
+          "standard": "eslint-plugin-react",
+          "rule": "jsx-key"
+        },
+        {
+          "standard": "eslint-plugin-react",
+          "rule": "no-array-index-key"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function render a list of elements whose keys are missing, taken from the array index, or regenerated on each render, although the list can reorder, grow or shrink?",
+      "present_when": {
+        "javascript": [
+          "items.map(item => <Row ... />) with no key prop on the returned element",
+          "key={index} or key={i} on a list that is sorted, filtered, prepended to or has items removed, especially when rows hold inputs or local state",
+          "key={Math.random()}, key={uuid()} or key={Date.now()} computed during render"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the key is a stable identifier from the data, such as item.id",
+          "the list is static and never reordered, so an index key is harmless",
+          "the key is on a fragment or element that is not part of a list"
+        ]
+      }
+    },
+    "REL-327": {
+      "name": "Numeric or Empty-String Condition Rendered by && in JSX",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-697"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "sources": [
+        {
+          "standard": "eslint-plugin-react",
+          "rule": "jsx-no-leaked-render"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function use value && <Element /> in JSX where the value can be 0, NaN or an empty string, so that value itself is rendered or the element is wrongly hidden?",
+      "present_when": {
+        "javascript": [
+          "{count && <Badge />}, {items.length && <List />} or {total && ...}, which renders 0 when the number is zero",
+          "{text && <p>...</p>} in React Native, where an empty string outside a Text element is an error"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the left side is a boolean, such as count > 0, !!value, Boolean(value) or a comparison",
+          "a ternary with an explicit null branch is used",
+          "the value is an object, array or boolean that can never be 0 or an empty string"
+        ]
+      },
+      "distinguish_from": {
+        "REL-230": "the truthiness test is not the left side of && in rendered markup"
+      }
+    }
+  }
+}

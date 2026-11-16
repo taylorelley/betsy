@@ -1,0 +1,363 @@
+{
+  "cards": {
+    "REL-350": {
+      "name": "Duplicated Condition, Identical Branches or Self-Operand Expression",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1164"
+      ],
+      "sources": [
+        {
+          "standard": "ESLint",
+          "rule": "no-dupe-else-if"
+        },
+        {
+          "standard": "ESLint",
+          "rule": "no-self-compare"
+        },
+        {
+          "standard": "Clippy",
+          "rule": "if_same_then_else"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a repeated condition, two branches with the same body, or an operator applied to the same operand on both sides, suggesting an editing mistake?",
+      "present_when": {
+        "any": [
+          "an if / else-if chain or switch that tests the same condition twice, so the later branch can never run",
+          "an if and its else, or two cases, with identical bodies although the conditions differ in meaning",
+          "the same expression on both sides of ==, !=, <, >, &&, ||, -, / or ^, such as a.x == a.x or len - len",
+          "a variable or field assigned to itself, such as x = x or this.name = this.name"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "x != x or x == x used on purpose as a NaN test",
+          "identical bodies are intentional and merged or commented as such, or cases fall through deliberately",
+          "self-assignment that has an effect, such as triggering a setter or silencing an unused warning"
+        ]
+      },
+      "distinguish_from": {
+        "REL-351": "the statements differ but one variable in a copied line was left unchanged",
+        "CWE-571": "the condition is always true for a reason other than repeating an operand or an earlier test"
+      }
+    },
+    "REL-351": {
+      "name": "Statement Copied From a Sibling Without Updating a Variable",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-710"
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a line or block that mirrors a neighbouring one but still uses a name from the original where the pattern calls for its counterpart?",
+      "present_when": {
+        "any": [
+          "paired statements where the second repeats a name from the first, such as x = p.x; y = p.x, width = w; height = w or min = a[i]; max = a[i] with the wrong comparison",
+          "an inner loop that tests, increments or indexes with the outer loop's variable, such as for (j = 0; j < n; i++) or a[i] where a[j] is meant",
+          "a check on one variable followed by use of its sibling, such as if (left != null) use(right), or a bounds test on rows applied to a column index",
+          "a series of similar cases or fields where one entry repeats the previous entry's constant, key or message"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the repeated name is correct for the calculation, such as a square or a symmetric default",
+          "each line of the pattern uses its own counterpart consistently"
+        ]
+      },
+      "distinguish_from": {
+        "REL-350": "the two operands or branches are textually identical rather than one name being wrong",
+        "CWE-628": "the wrong variable is an argument of a single call with no mirrored sibling statement"
+      }
+    },
+    "REL-352": {
+      "name": "Remainder of a Possibly Negative Value Used as an Index or Parity Test",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "javascript",
+        "typescript",
+        "tsx",
+        "rust"
+      ],
+      "parents": [
+        "CWE-682"
+      ],
+      "requires": [
+        "arithmetic",
+        "memory_buffers"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the % remainder of a value that can be negative as an index, a bucket number or an odd/even test, in a language where the remainder takes the sign of the dividend?",
+      "present_when": {
+        "any": [
+          "hash % n, (i - 1) % n or offset % size used as an array index or bucket, where the left side is signed and can be negative",
+          "x % 2 == 1 used to test for odd numbers when x can be negative"
+        ],
+        "rust": [
+          "a signed value with % cast with as usize for indexing, where rem_euclid was needed"
+        ],
+        "javascript": [
+          "(index - 1) % length when stepping backwards through a list, giving -1"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the left operand is unsigned or shown to be non-negative",
+          "the result is normalised, such as ((x % n) + n) % n, rem_euclid or Math.abs applied safely",
+          "oddness is tested with x % 2 != 0 or a bit mask"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-369": "the divisor can be zero",
+        "CWE-129": "the index is out of range for a reason other than a negative remainder"
+      }
+    },
+    "REL-353": {
+      "name": "Quantity Used in the Wrong Unit or Scale",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass, add or compare a quantity in one unit where another unit or scale is expected?",
+      "present_when": {
+        "any": [
+          "a duration in seconds given to an API that takes milliseconds, or the reverse, such as sleep(5000) in Python or setTimeout(fn, 5)",
+          "values in different units combined or compared with no conversion: bytes with kilobytes, a percentage with a fraction, degrees with radians, feet with metres, knots with km/h, local time with UTC seconds",
+          "a variable or parameter whose name states one unit, such as timeoutMs or size_kb, assigned from or passed as a value named for another",
+          "an epoch timestamp in seconds compared with one in milliseconds, or a conversion factor applied twice or in the wrong direction"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a conversion with the right factor is visible, or typed quantities such as Duration, timedelta or std::chrono are used throughout",
+          "names, constants and API documentation agree on the unit"
+        ]
+      },
+      "distinguish_from": {
+        "REL-301": "the clock source is wrong rather than the unit",
+        "REL-302": "calendar lengths are assumed fixed"
+      }
+    },
+    "REL-354": {
+      "name": "Dates, Versions or Numbers Compared as Strings",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-1025",
+        "CWE-697"
+      ],
+      "function_checkable": true,
+      "question": "Does this function order or compare values that carry numeric or calendar meaning by their text, so that the comparison follows character order instead?",
+      "present_when": {
+        "any": [
+          "version strings compared with <, > or a string sort, so '1.10' sorts before '1.9'",
+          "dates or times compared as strings in a format that is not fixed-width year-first, such as '9/1/2026' against '10/1/2026', or with mixed zones or precision",
+          "numeric strings from input, files or a database text column compared or sorted without conversion, so '10' sorts before '9'"
+        ],
+        "javascript": [
+          "arr.sort() on version, date or id strings, or '10' < '9' between two strings from form fields"
+        ],
+        "python": [
+          "sorted(versions), max(dates) or a < b on str values holding numbers, versions or dates"
+        ],
+        "c": [
+          "strcmp or std::string comparison used to order version numbers or unpadded numeric fields"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the values are parsed into numbers, dates or version tuples before comparing, or a version library is used",
+          "the text is fixed-width, zero-padded and ISO 8601 with one zone, so text order equals value order",
+          "only equality is tested and the format is canonical"
+        ]
+      },
+      "distinguish_from": {
+        "REL-220": "a JavaScript array of numbers is sorted with no comparator",
+        "REL-284": "floating-point values are turned into strings in order to compare them"
+      }
+    },
+    "REL-355": {
+      "name": "Structured Text Split or Assembled With Plain String Operations",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-707"
+      ],
+      "requires": [
+        "parsing",
+        "interpreter_output"
+      ],
+      "function_checkable": true,
+      "question": "Does this function parse or build a structured format with simple splitting, concatenation or a regular expression, where quoting, escaping or nesting in the data would break it?",
+      "present_when": {
+        "any": [
+          "CSV handled with split(',') or join(','), with no handling of quoted fields, embedded commas or line breaks",
+          "JSON, XML, HTML or YAML built by concatenating or formatting values into text, or picked apart with a regular expression or substring search",
+          "a URL or query string built by joining values with ?, & and = without encoding, or a path, host or parameter extracted by splitting on / or ?",
+          "a command line, header, key=value file or log line split on spaces or another delimiter that the fields themselves may contain"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a parser or serialiser for the format is used, such as a csv, json, URL or shlex library",
+          "the fields are fixed tokens that cannot contain the delimiter, such as numbers or identifiers validated beforehand"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-116": "the output goes to an interpreter and the concern is escaping for that interpreter",
+        "CWE-1236": "spreadsheet formula characters in CSV cells are the concern"
+      }
+    },
+    "REL-356": {
+      "name": "Paged or Truncated Result Treated as Complete",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-754"
+      ],
+      "requires": [
+        "network",
+        "data_store",
+        "filesystem"
+      ],
+      "function_checkable": true,
+      "question": "Does this function take one page or a capped batch of results from an API, query or listing and treat it as the whole set?",
+      "present_when": {
+        "any": [
+          "a list call to a cloud, REST or database API whose response carries a next token, cursor, marker, is-truncated flag or total count that the code never reads",
+          "a query or search with a default or explicit limit whose result is used to decide that something does not exist, to compute a total, or to delete or sync everything",
+          "a single read of a directory, message queue or stream batch assumed to return every entry"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the code loops until no next token or cursor remains, or uses a paginator or iterator that does so",
+          "only the first page is wanted and the code says so, such as showing a preview or the top N",
+          "the source documents that it returns every result in one response"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "the opposite risk: everything is loaded with no limit",
+        "REL-358": "a byte stream read or write transfers fewer bytes than asked"
+      }
+    },
+    "REL-357": {
+      "name": "Related Data-Store Writes Not Made Atomic",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-664"
+      ],
+      "requires": [
+        "data_store"
+      ],
+      "function_checkable": true,
+      "question": "Does this function change stored data in several steps that must all succeed or fail together, or as a read-then-write, without a transaction, atomic operation or version check?",
+      "present_when": {
+        "any": [
+          "two or more inserts, updates or deletes that belong together, such as debit and credit or parent and child rows, issued outside one transaction, so a failure between them leaves half the change",
+          "a value read from a database, cache or key-value store, changed in memory and written back, such as a counter, balance or stock level, with no atomic increment, row lock or compare-and-set",
+          "a check for an existing record followed by an insert, with no unique constraint or upsert to cover two concurrent callers",
+          "a write to a database followed by a write to a second system, such as a queue, cache or file, with no handling for the second failing"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the statements run inside one transaction, batch or atomic block that rolls back on error",
+          "an atomic operation is used: an SQL update with an expression, INCR, upsert, conditional write or optimistic version column",
+          "the writes are independent, or an outbox, saga or compensating step is visible"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-367": "the check and use concern a file or permission rather than stored records",
+        "REL-312": "the state is in process memory shared between async tasks"
+      }
+    },
+    "REL-358": {
+      "name": "Partial or Interrupted Read or Write Not Completed",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-252",
+        "CWE-754"
+      ],
+      "requires": [
+        "filesystem",
+        "network",
+        "resources"
+      ],
+      "sources": [
+        {
+          "standard": "Clippy",
+          "rule": "unused_io_amount"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a read, write, send or receive that may transfer fewer bytes than requested, or be interrupted, and carry on as if the whole amount was transferred?",
+      "present_when": {
+        "c": [
+          "read, write, send, recv, fread or fwrite called once with the count returned ignored or tested only for -1, and the full buffer then treated as valid or sent",
+          "a failure with errno EINTR or EAGAIN treated as fatal, or not retried, on a descriptor where it is expected"
+        ],
+        "python": [
+          "sock.send(data) with its return value ignored, sock.recv(n) or os.read(fd, n) assumed to return n bytes or one whole message, or os.write with the count ignored"
+        ],
+        "rust": [
+          "Read::read or Write::write called with the returned count discarded, or the buffer used in full after a single read"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the call sits in a loop that advances by the count returned until everything is transferred, and retries on EINTR"
+        ],
+        "python": [
+          "sendall, a buffered file object's read or write, or a loop on the returned count is used"
+        ],
+        "rust": [
+          "read_exact, read_to_end, write_all or a loop over the returned count is used"
+        ],
+        "any": [
+          "a short transfer is meaningful and handled, such as reading a datagram or streaming chunks of any size"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-252": "the unchecked result is an error indicator, not a byte count that may be short",
+        "REL-356": "a list or query result, not a byte stream, is incomplete"
+      }
+    },
+    "REL-359": {
+      "name": "Wrapping Tick Counter Compared Directly Instead of by Elapsed Difference",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-128",
+        "CWE-682"
+      ],
+      "function_checkable": true,
+      "question": "Does this function compare a free-running tick or millisecond counter with a computed deadline directly, so the test fails when the counter wraps?",
+      "present_when": {
+        "c": [
+          "deadline = now + timeout; followed by now > deadline, now >= deadline or a while (now < deadline) loop, with now from millis(), micros(), HAL_GetTick, GetTickCount, jiffies, clock() or a hardware timer register",
+          "two samples of a wrapping counter compared with < or > to decide which is later",
+          "elapsed time computed in a type wider or narrower than the counter, or with signed arithmetic that breaks at the wrap"
+        ]
+      },
+      "not_present_when": {
+        "c": [
+          "the elapsed time is computed as an unsigned difference in the counter's own width and compared with the interval, such as (uint32_t)(now - start) >= timeout",
+          "a helper such as time_after is used, or the counter is 64 bits wide in a unit that cannot wrap in service"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-190": "an arithmetic result overflows for a reason other than a free-running timer wrapping",
+        "REL-301": "a wall clock that can jump is used, rather than a monotonic counter that wraps"
+      }
+    }
+  }
+}

@@ -298,6 +298,16 @@
       "present_if": {
         "rust": ["unsafe"]
       }
+    },
+    {
+      "key": "ui_components",
+      "question": "Is this function a UI component or a component hook, for example one that returns JSX or calls React-style hooks such as useState or useEffect?",
+      "true": "The function renders UI markup or calls component hooks.",
+      "false": "The function neither renders UI markup nor calls component hooks.",
+      "present_if": {
+        "javascript": ["jsx_element", "jsx_self_closing_element"],
+        "tsx": ["jsx_element", "jsx_self_closing_element"]
+      }
     }
   ]
 }

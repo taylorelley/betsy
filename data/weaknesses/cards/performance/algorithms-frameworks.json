@@ -1,0 +1,277 @@
+{
+  "cards": {
+    "PERF-029": {
+      "name": "Fresh Object, Array or Function Passed to Memoised Children or Dependencies on Every Render",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "requires": [
+        "ui_components"
+      ],
+      "function_checkable": true,
+      "question": "Does this component create a new object, array or function on each render and hand it to a memoised child, a context provider or a hook dependency list, defeating the memoisation?",
+      "present_when": {
+        "javascript": [
+          "an inline object, array or arrow function passed as a prop to a component wrapped in React.memo or PureComponent, inside a large list or a frequently re-rendered parent",
+          "<Context.Provider value={{ ... }}> with an object literal built during render, re-rendering every consumer",
+          "an object, array or function built in the component body and listed in a useEffect, useMemo or useCallback dependency array, so the hook runs on every render",
+          "an expensive computation over a large collection run directly in the render body on every render"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the value is wrapped in useMemo or useCallback with correct dependencies, or defined outside the component",
+          "the child is not memoised and the tree is small, so the extra render is negligible",
+          "the React Compiler or a signal-based framework handles memoisation"
+        ]
+      },
+      "distinguish_from": {
+        "REL-322": "the dependency list is missing a value, a correctness fault rather than wasted renders",
+        "PERF-006": "the repeated computation does not involve a render or memoised component"
+      }
+    },
+    "PERF-030": {
+      "name": "Growing Collection Copied on Every Iteration",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-407"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function rebuild a growing array, list, map or object by copying all of it on each step of a loop or reduction, making the whole run quadratic?",
+      "present_when": {
+        "javascript": [
+          "reduce((acc, x) => ({ ...acc, [k]: v }), {}) or reduce((acc, x) => [...acc, x], []) over an input-sized array",
+          "arr = arr.concat(x), arr = [...arr, x] or obj = { ...obj, [k]: v } inside a loop"
+        ],
+        "python": [
+          "items = items + [x], t = t + (x,) or d = {**d, k: v} inside a loop",
+          "np.append, np.concatenate, np.vstack, pd.concat or DataFrame.append called per iteration on the accumulated result"
+        ],
+        "rust": [
+          "a Vec, String or map cloned and extended on each iteration, or acc = [acc, item].concat() in a fold"
+        ],
+        "cpp": [
+          "a container or string copied and reassigned each iteration, such as v = v + x for a user type or s = s + piece on a long string"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the accumulator is changed in place with push, append, insert or +=, or pieces are collected and joined once at the end",
+          "the loop has a small fixed bound"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-004": "the value rebuilt each time is a text string joined piece by piece",
+        "PERF-013": "the container grows in place and only lacks a capacity reservation"
+      }
+    },
+    "PERF-031": {
+      "name": "Row-by-Row Loop Over Array or DataFrame Data",
+      "abstraction": "Base",
+      "languages": [
+        "python"
+      ],
+      "parents": [
+        "CWE-1176"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does this function loop in Python over the rows or elements of a NumPy array or pandas DataFrame to do work that a single vectorised operation would do?",
+      "present_when": {
+        "python": [
+          "for i, row in df.iterrows(), df.itertuples() or range(len(df)) with df.loc[i] or df.iloc[i] used to compute or assign per row",
+          "df.apply(func, axis=1) for arithmetic, comparisons or string operations that column expressions provide",
+          "a Python for loop over the indices of a large NumPy array doing element-wise arithmetic, comparison or accumulation"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "column or array expressions, np.where, groupby, merge or a built-in reduction do the work",
+          "each row needs a call with no vectorised form, such as a network request, or the data is known to be small"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-025": "the loop order works against the array's storage order, in any language",
+        "PERF-030": "the cost comes from copying a growing result each iteration"
+      }
+    },
+    "PERF-032": {
+      "name": "Client, Pool or Connection Built on Every Call",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-400"
+      ],
+      "requires": [
+        "network",
+        "data_store"
+      ],
+      "function_checkable": true,
+      "question": "Does this function construct a costly reusable client on each call, such as an HTTP client, connection pool or database connection, instead of using a shared one?",
+      "present_when": {
+        "any": [
+          "a request handler or frequently called helper that opens a new database connection, creates a connection pool or builds an SDK client each time it runs",
+          "an HTTP client or session with its own TLS setup and connection pool created per request and dropped afterwards"
+        ],
+        "python": [
+          "requests.get or requests.post called repeatedly against one host with no Session, or boto3.client(...), create_engine(...) or httpx.Client() inside the function"
+        ],
+        "javascript": [
+          "new PrismaClient(), new Pool(...), mongoose.connect or new S3Client(...) inside a handler"
+        ],
+        "rust": [
+          "reqwest::Client::new() or a database pool built inside a handler or loop"
+        ],
+        "c": [
+          "curl_easy_init and cleanup, or a full connect and TLS handshake, for each request to the same server"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the client is created once at module, application or struct level and passed in or reused",
+          "the function runs once per process, such as a script entry point or start-up code"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1050": "the resource is acquired inside a loop in this function, once per iteration",
+        "PERF-008": "the repeated cost is the request itself, whose result could be cached"
+      }
+    },
+    "PERF-033": {
+      "name": "Linear Scan or Length Recount Repeated Inside a Loop",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-407"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does a loop in this function repeat an operation that walks a string or sequence from the start each time, such as recounting its length or seeking to a position?",
+      "present_when": {
+        "c": [
+          "strlen(s) in a loop condition or body over the same string, or strcat onto one growing buffer in a loop"
+        ],
+        "cpp": [
+          "std::advance, std::next or std::distance on std::list or forward iterators inside a loop over positions"
+        ],
+        "python": [
+          "lst.index(x), lst.count(x) or s.count(x) inside a loop over the same data, or len(list(generator)) recomputed each pass"
+        ],
+        "rust": [
+          "s.chars().nth(i), s.chars().count() or iter.nth(i) inside a loop over i, or a linked list indexed by position"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the length or position is computed once before the loop, or an iterator, pointer or index is carried forward",
+          "the sequence offers constant-time length and indexing, or is short and fixed"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-007": "the repeated scan is a membership or key search that a set or map would replace",
+        "PERF-004": "the cost is building a string by repeated concatenation in a language with immutable strings"
+      }
+    },
+    "PERF-034": {
+      "name": "Avoidable Allocation Inside a Hot Loop",
+      "abstraction": "Base",
+      "languages": [
+        "c",
+        "cpp",
+        "rust"
+      ],
+      "parents": [
+        "CWE-1050",
+        "CWE-400"
+      ],
+      "requires": [
+        "iteration"
+      ],
+      "function_checkable": true,
+      "question": "Does a loop in this function allocate and free heap memory on every iteration where one buffer could be reused or the allocation moved outside?",
+      "present_when": {
+        "c": [
+          "malloc or calloc and free of a scratch buffer of the same size inside a loop body"
+        ],
+        "cpp": [
+          "a std::vector, std::string, std::map or std::function constructed inside a loop body and filled each time, or make_shared or new per element where values would do"
+        ],
+        "rust": [
+          "Vec::new(), String::new(), format!, to_string(), to_vec(), collect() into a temporary or Box::new inside a loop that runs per item of a large input"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the buffer is created once outside the loop and cleared or overwritten each pass",
+          "the allocated value is kept, moved into a collection or returned, so it is needed per item",
+          "the loop runs a small fixed number of times"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-013": "one container grows across iterations without a reserved capacity",
+        "PERF-014": "a large existing value is copied rather than a new one allocated"
+      }
+    },
+    "PERF-035": {
+      "name": "More Columns or Fields Fetched Than the Function Uses",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-400"
+      ],
+      "requires": [
+        "data_store",
+        "network"
+      ],
+      "function_checkable": true,
+      "question": "Does this function fetch whole records, wide rows or large payloads and then use only a few of their fields?",
+      "present_when": {
+        "any": [
+          "SELECT * or an ORM call loading full entities, including large text or binary columns, where the code reads one or two fields",
+          "a related collection or nested document loaded in full only to read an id, a name or a count",
+          "an API called for a full resource representation when a field mask, projection or lighter endpoint exists and only a small part is used"
+        ],
+        "python": [
+          "Model.objects.all() or session.query(Model) iterated for one attribute, with no only(), values(), values_list() or load_only()"
+        ],
+        "javascript": [
+          "findMany or find with no select or projection, then map(x => x.id)"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the query names the columns it needs or uses a projection, or most fetched fields are used",
+          "the row is small, or the full entity is passed on to code that needs it"
+        ]
+      },
+      "distinguish_from": {
+        "PERF-002": "too many rows are loaded, rather than too many fields per row",
+        "PERF-019": "rows are fetched only to count them or test that one exists"
+      }
+    }
+  }
+}

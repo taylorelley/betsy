@@ -1,0 +1,743 @@
+{
+  "cards": {
+    "REL-331": {
+      "name": "Sequence Repetition or fill Sharing One Mutable Element",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-665"
+      ],
+      "function_checkable": true,
+      "question": "Does this function build a collection whose slots all refer to the same mutable object, and then change the slots as if they were separate?",
+      "present_when": {
+        "python": [
+          "[[0] * n] * m, [[]] * n or [{}] * n followed by an indexed assignment, append or update on one row",
+          "dict.fromkeys(keys, []) or dict.fromkeys(keys, {}) whose values are then appended to or updated"
+        ],
+        "javascript": [
+          "new Array(n).fill([]), Array(n).fill({}) or fill(new Map()) followed by a push or property write on one element",
+          "one object literal created outside a loop and pushed on every iteration after being changed"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "a comprehension builds each element, such as [[0] * n for _ in range(m)]",
+          "the repeated element is immutable: a number, string, tuple or None"
+        ],
+        "javascript": [
+          "Array.from({ length: n }, () => []) or a map callback creates each element",
+          "the filled value is a primitive, or the elements are never changed"
+        ]
+      },
+      "distinguish_from": {
+        "REL-226": "the shared object is a default argument rather than a repeated element",
+        "REL-346": "one copy is made and then changed, rather than many slots sharing an element"
+      }
+    },
+    "REL-332": {
+      "name": "Inner Declaration or Assignment Creating a New Variable Instead of Updating the Outer One",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-563"
+      ],
+      "function_checkable": true,
+      "question": "Does this function assign to what looks like an outer variable from an inner scope, but in fact create a separate inner variable, so the outer one keeps its old value?",
+      "present_when": {
+        "python": [
+          "a nested function assigns to a name of the enclosing function, or a function assigns to a module-level name, with no nonlocal or global statement, and the outer value is read afterwards as if updated"
+        ],
+        "javascript": [
+          "let x or const x declared again inside an if, loop, try or callback where assignment to the outer x was meant, with the outer x used after the block"
+        ],
+        "rust": [
+          "let x = ... inside an if, match arm or loop body where x = ... was meant, so the outer binding declared mut is never changed"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "nonlocal or global is declared, or the outer object is changed through a method or item assignment rather than rebound",
+          "the inner name is used only inside the inner function"
+        ],
+        "javascript": [
+          "the inner name is used only within its block and the outer value is not expected to change"
+        ],
+        "rust": [
+          "the new binding is used only in its block, or shadowing in the same scope is deliberate"
+        ]
+      },
+      "distinguish_from": {
+        "REL-274": "the name hidden is a built-in or standard library name",
+        "CWE-563": "a value is assigned and never read, with no outer variable of the same name left stale"
+      }
+    },
+    "REL-333": {
+      "name": "strip Called With a Multi-Character Set to Remove a Prefix or Suffix",
+      "abstraction": "Base",
+      "languages": [
+        "python"
+      ],
+      "parents": [
+        "CWE-628"
+      ],
+      "sources": [
+        {
+          "standard": "flake8-bugbear",
+          "rule": "B005"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass a multi-character string to strip, lstrip or rstrip expecting it to remove that exact prefix or suffix?",
+      "present_when": {
+        "python": [
+          "name.rstrip('.txt'), url.lstrip('https://'), path.strip('/tmp') or a similar call whose argument is a word, extension or prefix",
+          "the argument is a variable holding a prefix or suffix to remove"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "removeprefix, removesuffix, a slice after startswith or endswith, or a regular expression is used",
+          "the argument is a set of single characters to trim, such as ' \\t\\n', '/' or '0'"
+        ]
+      },
+      "distinguish_from": {
+        "REL-280": "the stripped result is thrown away rather than computed wrongly"
+      }
+    },
+    "REL-334": {
+      "name": "Missing Comma Joining Adjacent String Literals or Stray Comma Making a Tuple",
+      "abstraction": "Base",
+      "languages": [
+        "python",
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-710"
+      ],
+      "sources": [
+        {
+          "standard": "Pylint",
+          "rule": "implicit-str-concat"
+        },
+        {
+          "standard": "Pylint",
+          "rule": "trailing-comma-tuple"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function contain a comma mistake that silently changes a value: two string literals joined because a comma is missing, or a one-element tuple made by a stray comma?",
+      "present_when": {
+        "python": [
+          "a list, tuple, set or argument list of string literals where two neighbours on separate lines have no comma between them, so they merge into one item",
+          "x = value, or return value, with a trailing comma that makes a tuple where a scalar was meant",
+          "(value) written where a one-element tuple (value,) is needed, such as in args= or a % format"
+        ],
+        "c": [
+          "an array initialiser or argument list of string literals where a missing comma joins two entries, leaving the array one element short"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "adjacent literals split a long message on purpose, inside parentheses or a single call argument",
+          "the trailing comma is inside brackets or a call"
+        ],
+        "c": [
+          "adjacent literals are one long string split across lines on purpose, or come from a macro such as PRIu64"
+        ]
+      }
+    },
+    "REL-335": {
+      "name": "Exception Replaced Without Keeping the Original as Its Cause",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-755",
+        "CWE-703"
+      ],
+      "sources": [
+        {
+          "standard": "flake8-bugbear",
+          "rule": "B904"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does a handler in this function raise a new error in place of the one it caught, discarding the original error's message, type and trace?",
+      "present_when": {
+        "python": [
+          "except SomeError: raise OtherError('failed') with neither from err nor the original included",
+          "raise OtherError(...) from None where the original would be needed to diagnose the fault",
+          "except Exception as e: raise Exception(str(e)), losing the type and traceback"
+        ],
+        "javascript": [
+          "catch (e) { throw new Error('failed') } with no { cause: e } and without e or its message attached",
+          "reject(new Error('failed')) or callback(new Error(...)) inside a handler that received a more specific error"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "raise ... from err, a bare raise, or the original is logged with its traceback before the new error",
+          "from None is used to hide an internal detail on purpose, such as a KeyError behind an AttributeError"
+        ],
+        "javascript": [
+          "the original is passed as cause, attached to the new error, rethrown or logged in full first"
+        ]
+      },
+      "distinguish_from": {
+        "REL-292": "the new error comes from cleanup code and masks one already in flight",
+        "CWE-390": "the error is caught and nothing at all is raised or reported"
+      }
+    },
+    "REL-336": {
+      "name": "In-Place Method's Return Value Used as the Updated Collection",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-394"
+      ],
+      "sources": [
+        {
+          "standard": "Pylint",
+          "rule": "assignment-from-none"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the return value of a method that changes its receiver in place, as if it returned the changed collection?",
+      "present_when": {
+        "python": [
+          "x = items.sort(), items = items.append(v), d = d.update(...), lst = lst.reverse(), random.shuffle(x) assigned, or return items.extend(...), all of which give None",
+          "df = df.drop(..., inplace=True) or any inplace=True call whose result is assigned"
+        ],
+        "javascript": [
+          "arr = arr.push(x) or arr.unshift(x), which give the new length",
+          "const rest = arr.splice(i, 1) used as the remaining array when it holds the removed items",
+          "const s = set.delete(x) or map.delete(k) used as the collection"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "sorted(...), reversed(...), list + [v] or another call that returns a new value is used",
+          "the in-place call is a statement and the collection is used afterwards"
+        ],
+        "javascript": [
+          "the returned length, removed items or boolean is what the code wants",
+          "concat, toSorted, toSpliced, filter or spread builds a new array"
+        ]
+      },
+      "distinguish_from": {
+        "REL-280": "the opposite mistake: a method that returns a new value is called and its result dropped"
+      }
+    },
+    "REL-337": {
+      "name": "Assignment Through a Chained or Copied Array or DataFrame Selection",
+      "abstraction": "Base",
+      "languages": [
+        "python"
+      ],
+      "parents": [
+        "CWE-563"
+      ],
+      "sources": [
+        {
+          "standard": "pandas documentation",
+          "rule": "SettingWithCopyWarning"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function assign into the result of a pandas or NumPy selection that may be a temporary copy, so the original data is left unchanged?",
+      "present_when": {
+        "python": [
+          "df[df.a > 0]['b'] = value, df.loc[mask]['b'] = value or df['b'][mask] = value, where two indexing steps precede the assignment",
+          "sub = df[df.a > 0] followed by sub['b'] = value with the change expected in df",
+          "arr[[0, 2]][0] = value or arr[mask][i] = value on a NumPy array, where fancy or boolean indexing returned a copy"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "a single df.loc[mask, 'b'] = value or df.iloc[...] = value assignment is used",
+          "the subset is taken with .copy() and the original is not expected to change",
+          "NumPy basic slicing, such as arr[1:3][0] = value, which writes through a view"
+        ]
+      },
+      "distinguish_from": {
+        "REL-282": "a plain loop variable or parameter copy is changed, with no array library selection"
+      }
+    },
+    "REL-338": {
+      "name": "Default Argument Evaluated Once at Definition Time",
+      "abstraction": "Base",
+      "languages": [
+        "python"
+      ],
+      "parents": [
+        "CWE-665"
+      ],
+      "sources": [
+        {
+          "standard": "flake8-bugbear",
+          "rule": "B008"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function have a parameter default computed by a call or expression that should give a fresh value on each call, but is evaluated only once when the function is defined?",
+      "present_when": {
+        "python": [
+          "def f(when=datetime.now()), def f(ts=time.time()), def f(id=uuid.uuid4()) or def f(n=random.random())",
+          "a default that reads a setting, environment variable or global that can change later, such as def f(limit=config.LIMIT) or os.getenv(...)"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "the default is None and the value is computed in the body",
+          "the default is a constant or an immutable literal",
+          "a framework marker such as Depends(...), Query(...), field(default_factory=...) is used as designed"
+        ]
+      },
+      "distinguish_from": {
+        "REL-226": "the default is a mutable list, dict or set that the function changes"
+      }
+    },
+    "REL-339": {
+      "name": "Sequences Paired Without Checking They Have Equal Length",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-754"
+      ],
+      "sources": [
+        {
+          "standard": "flake8-bugbear",
+          "rule": "B905"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function walk two or more sequences together in a way that silently drops or misreads items when their lengths differ?",
+      "present_when": {
+        "python": [
+          "zip(a, b) over inputs that are not known to be the same length, with no strict=True, so trailing items are ignored",
+          "dict(zip(keys, values)) built from separately supplied lists"
+        ],
+        "rust": [
+          "a.iter().zip(b.iter()) over slices of independent origin with no length check, where missing pairs matter"
+        ],
+        "javascript": [
+          "a loop to a.length that reads b[i], or a.map((x, i) => b[i]), with b possibly shorter, giving undefined"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the lengths are checked or asserted first, or both come from one source that guarantees equal length",
+          "stopping at the shorter input is intended, such as pairing with an endless counter",
+          "zip(..., strict=True), itertools.zip_longest or an explicit length comparison is used"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-129": "the unequal length leads to an out-of-range index used on memory rather than silently lost or undefined items"
+      }
+    },
+    "REL-340": {
+      "name": "Unstable Hash Value Used for Persistent or Cross-Process Keys",
+      "abstraction": "Base",
+      "languages": [
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does this function store, send or compare a hash value that differs between processes, runs or versions, as if it were stable?",
+      "present_when": {
+        "python": [
+          "hash(obj) of a str, bytes or tuple of them written to a file, database, cache key or message, or used to pick a shard or bucket shared between processes",
+          "id(obj) used as a persistent or cross-process identifier"
+        ],
+        "rust": [
+          "DefaultHasher, RandomState or a HashMap's hasher output written to disk, sent over the network or used to route between processes",
+          "a hash from std::hash::Hash stored as a stable fingerprint, although its value may change between compiler or library versions"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "a specified hash is used, such as SHA-256, CRC32, xxHash or FNV with a fixed seed",
+          "the hash never leaves the process and is used only for in-memory tables"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-328": "the objection is that the hash is too weak for a security purpose, not that it changes between runs",
+        "REL-341": "the dependence is on iteration order rather than on the hash value itself"
+      }
+    },
+    "REL-341": {
+      "name": "Result Depends on Unspecified Iteration, Listing or Tie Order",
+      "abstraction": "Base",
+      "parents": [
+        "CWE-758"
+      ],
+      "function_checkable": true,
+      "question": "Does this function produce a result that depends on an order the language, library or system does not promise?",
+      "present_when": {
+        "any": [
+          "the first item, or the order of output, is taken from a hash set or hash map, a directory listing, a glob, or a query with no ORDER BY",
+          "items that compare equal are expected to keep a particular relative order after a sort that is not documented as stable",
+          "results of concurrent tasks are assumed to arrive in the order they were started"
+        ],
+        "python": [
+          "iterating a set, os.listdir or glob.glob and relying on the order, such as taking element 0 as the newest"
+        ],
+        "javascript": [
+          "relying on the key order of an object with integer-like keys, or on for...in order"
+        ],
+        "rust": [
+          "HashMap or HashSet iteration order used for output, comparison, hashing or tests"
+        ],
+        "cpp": [
+          "std::unordered_map or unordered_set iteration order relied on, or std::sort used where std::stable_sort is needed"
+        ],
+        "c": [
+          "readdir order relied on, or qsort assumed to keep equal elements in input order"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the collection is sorted, or an ordered type such as BTreeMap, std::map or a list is used, before order matters",
+          "the query has an ORDER BY that settles ties, or the sort is stable and documented so",
+          "order does not affect the result, such as summing or membership tests"
+        ]
+      },
+      "distinguish_from": {
+        "REL-289": "the comparator itself is inconsistent",
+        "CWE-362": "the differing order causes unsynchronised access to shared state rather than a wrong ordering of results"
+      }
+    },
+    "REL-342": {
+      "name": "Environment or Configuration String Used Directly as a Boolean or Number",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-704"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use a string read from the environment, a query string or a configuration source directly as a boolean or number without converting it?",
+      "present_when": {
+        "javascript": [
+          "if (process.env.DEBUG) or process.env.FLAG || default, where the strings 'false' and '0' are truthy",
+          "process.env.PORT + 1, a comparison of process.env.LIMIT with a number, or a query flag such as req.query.dryRun tested for truthiness"
+        ],
+        "python": [
+          "if os.environ.get('DEBUG'): or os.getenv('ENABLED', False) used as a flag, where 'false' and '0' are truthy",
+          "os.getenv('TIMEOUT', 30) used in arithmetic or passed as a number, giving a str when the variable is set",
+          "bool(os.environ['FLAG']) or bool(request.args.get('x'))"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the string is compared with explicit values such as 'true' or '1', or parsed by a settings library with typed fields",
+          "the value is converted with int, float, Number or parseInt and the result checked",
+          "only the presence of the variable is meant to matter and the code or name says so"
+        ]
+      },
+      "distinguish_from": {
+        "REL-230": "the value tested is not a string from the environment or configuration",
+        "REL-272": "the string is added with + to a number"
+      }
+    },
+    "REL-343": {
+      "name": "Method Passed as a Callback Without Its Receiver",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-628"
+      ],
+      "sources": [
+        {
+          "standard": "typescript-eslint",
+          "rule": "unbound-method"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function pass or store an object's method as a bare function reference, so that this is lost when it is later called?",
+      "present_when": {
+        "javascript": [
+          "obj.method or this.handler passed to setTimeout, addEventListener, then, map, an event prop or another function without bind or an arrow wrapper, where the method body uses this",
+          "const { method } = obj; or const f = obj.method; followed by a call f()",
+          "a class method given as onClick={this.handleClick} without binding in the constructor or a class field arrow"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the method is wrapped, such as () => obj.method(), or bound with bind",
+          "the method is an arrow function class field, or does not use this",
+          "the receiving API takes a thisArg and it is supplied"
+        ]
+      },
+      "distinguish_from": {
+        "REL-344": "the receiver is intact but the callee is handed extra arguments it misreads"
+      }
+    },
+    "REL-344": {
+      "name": "Function Passed Directly as a Callback Receives Unintended Extra Arguments",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx"
+      ],
+      "parents": [
+        "CWE-628"
+      ],
+      "sources": [
+        {
+          "standard": "eslint-plugin-unicorn",
+          "rule": "no-array-callback-reference"
+        }
+      ],
+      "function_checkable": true,
+      "question": "Does this function hand a function reference to map, forEach, filter, then or an event API whose extra callback arguments the function will misread as its own optional parameters?",
+      "present_when": {
+        "javascript": [
+          "arr.map(parseInt), where the index is taken as the radix",
+          "arr.map(fn), arr.forEach(fn) or arr.filter(fn) where fn has a second or third optional parameter with another meaning, such as a base, options object or depth",
+          "an event prop or listener given a function whose first optional parameter is not the event, such as onClick={save} where save(force = false)"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the call is wrapped, such as x => parseInt(x, 10)",
+          "the function takes exactly one parameter, or its further parameters match what the caller passes, as with Number, String or Boolean"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-1389": "a number is parsed with the wrong radix for a reason other than a callback's index argument"
+      }
+    },
+    "REL-345": {
+      "name": "Function Called Immediately Where a Callback Reference Was Expected",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-628"
+      ],
+      "function_checkable": true,
+      "question": "Does this function call a function and pass its result where the function itself should have been passed for later use?",
+      "present_when": {
+        "javascript": [
+          "setTimeout(doWork(), 1000), setInterval(tick(), ...), addEventListener('click', handler()) or promise.then(next())",
+          "onClick={handleClick()} or onChange={update(value)} in JSX, which runs during render"
+        ],
+        "python": [
+          "command=self.save(), callback=handle(), atexit.register(cleanup()), signal.signal(sig, handler()) or schedule(..., job())",
+          "executor.submit(work(x)) or loop.call_later(1, f()) where the call's result is not itself callable"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the function is passed by name, in a lambda or arrow function, or through partial or bind",
+          "the call is a factory that returns the callback to register"
+        ]
+      },
+      "distinguish_from": {
+        "REL-295": "the callee is a thread body started through target= or run()",
+        "REL-324": "the immediate call sets component state and so re-triggers rendering"
+      }
+    },
+    "REL-346": {
+      "name": "Shallow Copy or Alias Changed as if It Were Independent",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-664"
+      ],
+      "function_checkable": true,
+      "question": "Does this function make an alias or a one-level copy of a nested structure and then change it in the belief that the original is left untouched?",
+      "present_when": {
+        "python": [
+          "b = a for a list or dict, followed by changes to b while a is used later as the unchanged original",
+          "a.copy(), list(a), dict(a), a[:] or copy.copy(a) of a structure holding lists or dicts, followed by a change to a nested element"
+        ],
+        "javascript": [
+          "const b = a for an object or array, then changes to b with a expected to keep its value",
+          "{ ...obj }, Object.assign({}, obj), [...arr], arr.slice() or Array.from(arr) followed by a write to a nested object or array inside the copy"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "copy.deepcopy or a rebuild of the nested parts is used, or only top-level items of the copy are replaced",
+          "sharing the change with the original is intended"
+        ],
+        "javascript": [
+          "structuredClone, a deep clone or a copy of each nested level is made before the write",
+          "only top-level properties of the copy are replaced, or the shared change is intended"
+        ]
+      },
+      "distinguish_from": {
+        "REL-309": "the object changed in place is UI framework state",
+        "REL-331": "many slots of a new collection share one element"
+      }
+    },
+    "REL-347": {
+      "name": "In-Place Sort, Reverse or Removal Applied to a Caller's Collection",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python"
+      ],
+      "parents": [
+        "CWE-664"
+      ],
+      "function_checkable": true,
+      "question": "Does this function reorder or shrink a collection it was given or shares with others, as a side effect of computing something else?",
+      "present_when": {
+        "python": [
+          "a parameter is changed with .sort(), .reverse(), .pop(), .remove(), del or .clear() in a function whose purpose is to compute and return a value, such as a median or a filtered view",
+          "a module-level or instance list is sorted or emptied in place while other code holds it"
+        ],
+        "javascript": [
+          "a parameter or prop array is changed with sort, reverse, splice, pop, shift or by setting length in a function that returns a derived value",
+          "arr.sort() or arr.reverse() used inside an expression, as in const top = items.sort(cmp)[0], changing items for the caller"
+        ]
+      },
+      "not_present_when": {
+        "python": [
+          "sorted(...), reversed(...), a slice or a copy is used, or the function's documented job is to change the argument"
+        ],
+        "javascript": [
+          "toSorted, toReversed, [...arr].sort(), slice or filter is used, or changing the argument is the function's stated purpose",
+          "the array was created inside this function"
+        ]
+      },
+      "distinguish_from": {
+        "REL-309": "the array changed in place is UI framework state",
+        "REL-228": "the collection is changed while a loop is iterating over it"
+      }
+    },
+    "REL-348": {
+      "name": "HTTP Response Used Without Checking Its Status",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "python",
+        "rust"
+      ],
+      "parents": [
+        "CWE-754"
+      ],
+      "requires": [
+        "network"
+      ],
+      "function_checkable": true,
+      "question": "Does this function use the body of an HTTP response without first checking that the request succeeded?",
+      "present_when": {
+        "javascript": [
+          "await fetch(url) followed by res.json() or res.text() with no test of res.ok or res.status, since fetch resolves on 4xx and 5xx",
+          "an XMLHttpRequest onload handler that reads responseText without checking status"
+        ],
+        "python": [
+          "requests.get(...).json(), .text or .content used with no raise_for_status() and no test of status_code or ok",
+          "an httpx or aiohttp response read with no status check, or urllib3 with no status test"
+        ],
+        "rust": [
+          "reqwest send().await? followed by json() or text() with no error_for_status() and no test of status()"
+        ]
+      },
+      "not_present_when": {
+        "any": [
+          "the status is tested, raise_for_status or error_for_status is called, or the client is set to raise on error statuses",
+          "a client such as axios, or urllib.request.urlopen, that already fails on error statuses is used",
+          "the body is read in order to report the error"
+        ]
+      },
+      "distinguish_from": {
+        "CWE-394": "the status is checked, but only against some of the values it can take",
+        "CWE-252": "the unchecked result is not an HTTP response"
+      }
+    },
+    "REL-349": {
+      "name": "Zero-Based or Offset Date Component Used as if It Were Natural",
+      "abstraction": "Base",
+      "languages": [
+        "javascript",
+        "typescript",
+        "tsx",
+        "c",
+        "cpp"
+      ],
+      "parents": [
+        "CWE-193"
+      ],
+      "function_checkable": true,
+      "question": "Does this function read or set a date field that is zero-based or offset, such as a month from 0 or a year from 1900, without adjusting it?",
+      "present_when": {
+        "javascript": [
+          "new Date(year, month, day) or Date.UTC given a 1-based month, or getMonth() shown or compared without + 1",
+          "getDay() (weekday) used where getDate() (day of month) was meant, or getYear() used for the full year"
+        ],
+        "c": [
+          "struct tm fields used raw: tm_mon as a month number without + 1, tm_year as a year without + 1900, or a 1-based month stored into tm_mon",
+          "tm_wday or tm_yday treated as starting from 1"
+        ]
+      },
+      "not_present_when": {
+        "javascript": [
+          "the month is adjusted by one in the right direction, or a formatter such as toISOString, Intl.DateTimeFormat or a date library builds the text"
+        ],
+        "c": [
+          "the offsets are applied, or strftime, mktime and similar functions receive the fields unchanged as they expect"
+        ]
+      },
+      "distinguish_from": {
+        "REL-302": "the fault is arithmetic that assumes fixed-length days, months or years"
+      }
+    }
+  }
+}

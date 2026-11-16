@@ -209,9 +209,9 @@ its idempotency key.
 
 ## Weakness decisions
 
-The files under `data/weaknesses/cards/` are the only weakness definitions: 1,093 weakness
-cards, embedded at build time. 754 are MITRE CWEs (security), 311 are reliability (`REL-`) and
-28 are performance (`PERF-`) weaknesses. A card names its weakness, places it in the hierarchy,
+The files under `data/weaknesses/cards/` are the only weakness definitions: 1,149 weakness
+cards, embedded at build time. 755 are MITRE CWEs (security), 359 are reliability (`REL-`) and
+35 are performance (`PERF-`) weaknesses. A card names its weakness, places it in the hierarchy,
 says which functions it can apply to and how to decide it; see
 [weakness cards](#weakness-cards). Provenance and the cards' hash are in
 `data/weaknesses/PROVENANCE.md`.
@@ -286,7 +286,7 @@ performance) and the key's spelling is the one used in output. Each card has:
 
 Cards are validated when loaded: unknown IDs, languages, traits or fields, missing parts and
 self-references are errors. The hash of every card file's path and content is the catalog
-hash, so editing a card changes the run identity. Of the 1,093 cards, 80 are marked not
+hash, so editing a card changes the run identity. Of the 1,149 cards, 80 are marked not
 function-checkable. Status, review notes and the validation plan are in
 [docs/DETECTION_CARDS.md](docs/DETECTION_CARDS.md).
 
@@ -322,7 +322,7 @@ To keep this fast and cheap, BETSY layers six measures:
    - they are marked as not checkable within one function.
 
    Cards marked `gate` are asked only as hierarchy gates and are never reported. Fixtures go
-   from 1,093 questions per function to 709–938, depending on the language.
+   from 1,149 questions per function to 750–959, depending on the language.
 2. **Hierarchical early exit.** Cards form a forest: each hangs under the first of its
    `parents` that is planned for the language, and the rest are roots. For CWEs the parent is
    the primary `ChildOf` edge in MITRE view CWE-1000; REL and PERF cards list related CWEs.
